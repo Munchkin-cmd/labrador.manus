@@ -1,3 +1,4 @@
+// context/AuthContext.tsx
 'use client'
 
 import { createContext, useEffect } from 'react'
@@ -5,31 +6,24 @@ import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
 
-interface UserWithCountry {
-  country_id: number | null
-  countries: {
-    id: number
-    name: string
-    flag_emoji: string
-  } | null
-}
-
-const AuthContext = createContext<null>(null)
+export const AuthContext = createContext<null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const { setUser, setCountry } = useAuthStore()
+  const { setUser, fetchUserCountry } = useAuthStore()
 
   useEffect(() => {
+    let isMounted = true
+
     async function checkSession() {
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        
+        if (!isMounted) return
+
         if (session?.user) {
           setUser({ id: session.user.id, email: session.user.email! })
-          await fetchCountry(session.user.id)
-
+          await fetchUserCountry()
           if (pathname === '/game/home') {
             router.refresh()
           }
@@ -38,57 +32,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         console.error('Erro ao verificar sessão:', err)
-        useAuthStore.setState({ loading: false })
+        if (isMounted) useAuthStore.setState({ loading: false })
       }
     }
 
     checkSession()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      try {
-        if (session?.user) {
-          setUser({ id: session.user.id, email: session.user.email! })
-          await fetchCountry(session.user.id)
-          if (pathname === '/game/home') {
-            router.refresh()
-          }
-        } else {
-          useAuthStore.setState({ user: null, country: null, loading: false })
-        }
-      } catch (err) {
-        console.error('Erro no auth state change:', err)
-        useAuthStore.setState({ loading: false })
-      }
-    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔄 onAuthStateChange:', event, session?.user?.id)
 
-    return () => subscription.unsubscribe()
-  }, [pathname, router, setUser, setCountry])
-
-  async function fetchCountry(userId: string) {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('country_id, countries!country_id ( id, name, flag_emoji )')
-        .eq('user_id', userId)
-        .single<UserWithCountry>()
-
-      if (error) {
-        console.error('Erro ao buscar país:', error)
-        useAuthStore.setState({ loading: false })
+      // 🔥 IGNORA INITIAL_SESSION – não é um evento de logout
+      if (event === 'INITIAL_SESSION') {
+        console.log('⏸️ Ignorando INITIAL_SESSION')
         return
       }
 
-      if (data?.countries) {
-        const c = data.countries
-        setCountry({ id: c.id, name: c.name, flag_emoji: c.flag_emoji })
+      if (!isMounted) return
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session?.user) {
+          setUser({ id: session.user.id, email: session.user.email! })
+          await fetchUserCountry()
+          if (pathname === '/game/home') {
+            router.refresh()
+          }
+        }
+      } else if (event === 'SIGNED_OUT') {
+        useAuthStore.setState({ user: null, country: null, loading: false })
       }
-      
-      useAuthStore.setState({ loading: false })
-    } catch (err) {
-      console.error('Erro inesperado ao buscar país:', err)
-      useAuthStore.setState({ loading: false })
+    })
+
+    return () => {
+      isMounted = false
+      subscription.unsubscribe()
     }
-  }
+  }, [setUser, fetchUserCountry, pathname, router])
 
   return <AuthContext.Provider value={null}>{children}</AuthContext.Provider>
 }

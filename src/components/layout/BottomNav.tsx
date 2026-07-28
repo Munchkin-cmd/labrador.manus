@@ -7,7 +7,7 @@ import {
   Newspaper, // FEED
   Landmark, // STATE
   Swords, // WAR
-  Globe, // REDE
+  Globe, // ECO
 } from 'lucide-react'
 
 // Configuração: Ícone, Rota, Cor de fundo quando ativo
@@ -16,7 +16,7 @@ const TABS = [
   { label: 'FEED',  href: '/game/feed',  icon: Newspaper, bg: 'bg-blue-500/20' }, // Azul
   { label: 'STATE', href: '/game/state', icon: Landmark, bg: 'bg-yellow-500/20' },  // Amarelo/Ouro
   { label: 'WAR',   href: '/game/war',   icon: Swords,  bg: 'bg-red-500/20' },    // Vermelho
-  { label: 'REDE',  href: '/game/rede',  icon: Globe,   bg: 'bg-purple-500/20' },   // Roxo
+  { label: 'ECO',  href: '/game/eco',  icon: Globe,   bg: 'bg-purple-500/20' },   // Roxo
 ]
 
 export default function BottomNav() {

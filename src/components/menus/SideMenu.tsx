@@ -24,9 +24,7 @@ const MENU_ITEMS = [
   { label: 'PASSAPORTE',    href: '/game/passaporte',    icon: FileText },
   { label: 'BRIEFING',      href: '/game/briefing',      icon: Bell }, // ✅ Corrigido para Bell
   { label: 'MERCADO',       href: '/game/mercado',       icon: Store },
-  { label: 'TAX',           href: '/game/tax',           icon: Tax },
   { label: 'CONFIGURAÇÕES', href: '/game/configuracoes', icon: Settings },
-  { label: 'TREINAMENTO',   href: '/game/treinamento',   icon: Trophy },
 ]
 
 interface SideMenuProps {

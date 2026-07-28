@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useEconomy } from '@/hooks/useMenu'
-import { useRede } from '@/hooks/useRede'
+import { useRede } from '@/hooks/useEco'
 import { useAuthStore } from '@/store/authStore'
 import { formatMoney, formatNumber } from '@/utils/format'
 import { Coins, Sprout, Pickaxe, Factory, Droplet, Landmark, Zap, ArrowRightLeft } from 'lucide-react'

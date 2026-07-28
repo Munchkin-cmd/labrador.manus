@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 
 export interface WorldStats {
@@ -13,33 +13,45 @@ export interface WorldStats {
 export function useWorldStats() {
   const [stats, setStats] = useState<WorldStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const fetchingRef = useRef(false)
+
+  const fetchStats = useCallback(async () => {
+    // Evita chamadas concorrentes
+    if (fetchingRef.current) return
+    fetchingRef.current = true
+    setLoading(true)
+
+    try {
+      const [countries, regions, buildings, economy] = await Promise.all([
+        supabase.from('countries').select('id, is_active, total_regions'),
+        supabase.from('regions').select('id'),
+        supabase.from('buildings').select('quantity').eq('is_active', true).eq('is_built', true),
+        supabase.from('economy').select('money, population'),
+      ])
+
+      const totalMoney = (economy.data ?? []).reduce((s, e) => s + Number(e.money), 0)
+      const totalPop   = (economy.data ?? []).reduce((s, e) => s + Number(e.population), 0)
+      const totalBuildings = (buildings.data ?? []).reduce((s, b) => s + b.quantity, 0)
+
+      setStats({
+        total_countries:  (countries.data ?? []).length,
+        active_countries: (countries.data ?? []).filter(c => c.is_active).length,
+        total_regions:    (regions.data ?? []).length,
+        total_buildings:  totalBuildings,
+        total_money:      totalMoney,
+        total_population: totalPop,
+      })
+    } catch (err) {
+      console.error('Erro ao buscar estatísticas mundiais:', err)
+    } finally {
+      setLoading(false)
+      fetchingRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     fetchStats()
-  }, [])
-
-  async function fetchStats() {
-    const [countries, regions, buildings, economy] = await Promise.all([
-      supabase.from('countries').select('id, is_active, total_regions'),
-      supabase.from('regions').select('id'),
-      supabase.from('buildings').select('quantity').eq('is_active', true).eq('is_built', true),
-      supabase.from('economy').select('money, population'),
-    ])
-
-    const totalMoney = (economy.data ?? []).reduce((s, e) => s + Number(e.money), 0)
-    const totalPop   = (economy.data ?? []).reduce((s, e) => s + Number(e.population), 0)
-    const totalBuildings = (buildings.data ?? []).reduce((s, b) => s + b.quantity, 0)
-
-    setStats({
-      total_countries:  (countries.data ?? []).length,
-      active_countries: (countries.data ?? []).filter(c => c.is_active).length,
-      total_regions:    (regions.data ?? []).length,
-      total_buildings:  totalBuildings,
-      total_money:      totalMoney,
-      total_population: totalPop,
-    })
-    setLoading(false)
-  }
+  }, [fetchStats])
 
   return { stats, loading }
 }

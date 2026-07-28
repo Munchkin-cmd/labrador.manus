@@ -8,49 +8,67 @@ import { supabase } from '@/lib/supabase/client'
 import { formatMoney, formatNumber, formatPopulation } from '@/utils/format'
 import TrustBar from '@/components/home/TrustBar'
 
-// ─── ÍCONES DA LUCIDE REACT (UI, Economia, Política) ─────────
 import { 
   Map, Plus, Flag, Crown, 
   Landmark, Users, Coins, TrendingUp, TrendingDown,
   Shield, Gavel, Radiation
 } from 'lucide-react'
 
-// ─── ÍCONES DO IONICONS (Equipamentos Militares) ─────────────
 import { 
-  IoPeople,           // Soldados
-  IoDisc,             // Munição
-  IoShield,           // Tanques
-  IoAirplane,         // Aeronaves
-  IoCog,              // Helicópteros
-  IoBug,              // Drones
-  IoRocket,           // Mísseis
-  IoNuclear,          // Ogivas
-  IoFlame             // Artilharia
+  IoPeople, IoDisc, IoShield, IoAirplane, IoCog,
+  IoBug, IoRocket, IoNuclear, IoFlame
 } from 'react-icons/io5'
 
-const TERRAIN_LABELS: Record<string, string> = {
-  planicie:   '🌾 Planície',
-  orogenico:  '⛰️ Orogênico',
-  extremista: '🏜️ Extremista',
-  anfibio:    '🌊 Ânfibio',
-}
-
 export default function StatePage() {
-  const { country } = useAuthStore()
-  const { data, economy, profile, loading: loadingC, refetch: refetchCountry } = useCountry()
+  const { country: myCountry } = useAuthStore()
+  const { data, economy, profile, loading: loadingC } = useCountry()
   const {
-    parliament, laws, catalog, loading: loadingP,
-    proposeLaw, forceLaw, nextElectionIn, nextRandomIn,
+    parliament,
+    laws,
+    catalog,
+    loading: loadingP,
+    proposeLaw,
+    forceLaw,
+    nextElectionIn,
+    nextRandomIn,
+    getCountdown,
   } = useParliament()
 
-  // ─── BANNER - FOTOS DOS JOGADORES (CARROSSEL COM SENSOR) ──
+  // ─── XP DE COMBATE ──────────────────────────────────────
+  const [combatXP, setCombatXP] = useState<{ experience: number; wars_participated: number } | null>(null)
+  const [loadingXP, setLoadingXP] = useState(true)
+
+  useEffect(() => {
+    async function fetchCombatXP() {
+      if (!myCountry?.id) {
+        setCombatXP(null)
+        setLoadingXP(false)
+        return
+      }
+      try {
+        const { data, error } = await supabase
+          .from('combat_xp')
+          .select('experience, wars_participated')
+          .eq('country_id', myCountry.id)
+          .maybeSingle()
+        if (error) throw error
+        setCombatXP(data || null)
+      } catch (err) {
+        console.error('❌ Erro ao buscar XP de combate:', err)
+      } finally {
+        setLoadingXP(false)
+      }
+    }
+    fetchCombatXP()
+  }, [myCountry?.id])
+
+  // ─── BANNER ──────────────────────────────────────────────
   const [bannerIndex, setBannerIndex] = useState(0)
   const bannerImages = profile?.banner_urls || []
   const hasBanner = bannerImages.length > 0
   const bannerContainerRef = useRef<HTMLDivElement>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Para e reinicia o timer
   const stopTimer = () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
@@ -67,13 +85,11 @@ export default function StatePage() {
     }
   }
 
-  // Inicia o timer na montagem
   useEffect(() => {
     startTimer()
     return () => stopTimer()
   }, [bannerImages.length])
 
-  // Navegação manual
   const goToSlide = (index: number) => {
     setBannerIndex(index)
     stopTimer()
@@ -92,56 +108,45 @@ export default function StatePage() {
     startTimer()
   }
 
-  // Clique nas laterais (sensor)
   const handleBannerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!bannerContainerRef.current || bannerImages.length <= 1) return
     const rect = bannerContainerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const center = rect.width / 2
-    if (x < center) {
-      goPrev()
-    } else {
-      goNext()
-    }
+    if (x < center) goPrev()
+    else goNext()
   }
 
-  // ✅ Garante que os dados mais recentes (bandeira e banners) sejam carregados
-  useEffect(() => {
-    if (data?.id) {
-      refetchCountry()
-    }
-  }, [refetchCountry])
-
-  // ─── BUSCAR DADOS MILITARES ──────────────────────────────────
-  const [military, setMilitary]     = useState<any>(null)
+  // ─── DADOS MILITARES ──────────────────────────────────
+  const [military, setMilitary] = useState<any>(null)
   const [loadingMil, setLoadingMil] = useState(true)
 
   useEffect(() => {
-    if (!country?.id) return
-    supabase.from('military')
-      .select('soldiers, tanks, artillery, aircraft, helicopters, drones, ships, submarines, missiles, warheads, ammunition')
-      .eq('country_id', country.id)
-      .single()
-      .then(({ data }) => { setMilitary(data); setLoadingMil(false) })
-  }, [country?.id])
+    async function fetchMilitary() {
+      if (!myCountry?.id) {
+        setLoadingMil(false)
+        return
+      }
+      try {
+        const { data } = await supabase
+          .from('military')
+          .select('soldiers, tanks, artillery, aircraft, helicopters, drones, ships, submarines, missiles, warheads, ammunition')
+          .eq('country_id', myCountry.id)
+          .maybeSingle()
+        setMilitary(data || null)
+      } catch (err) {
+        console.error('❌ Erro ao buscar dados militares:', err)
+      } finally {
+        setLoadingMil(false)
+      }
+    }
+    fetchMilitary()
+  }, [myCountry?.id])
 
-  // ─── ESTADO DO PARLAMENTO ────────────────────────────────────
-  const [selectedLaw, setSelectedLaw] = useState<number | ''>('')
-  const [targetCountryId, setTargetCountryId] = useState<number | null>(null)
-  const [proposing, setProposing]     = useState(false)
-  const [lawMsg, setLawMsg]           = useState('')
-  const [forcing, setForcing]         = useState<string | null>(null)
-  const [forceMsg, setForceMsg]       = useState('')
-
-  // ─── ESTADO DAS REGIÕES ──────────────────────────────────────
+  // ─── REGIÕES ──────────────────────────────────────────
   const [regions, setRegions] = useState<any[]>([])
   const [buildingsCount, setBuildingsCount] = useState<Record<string, number>>({})
-  const [isCreatingRegion, setIsCreatingRegion] = useState(false)
-  const [newRegionName, setNewRegionName] = useState('')
-  const [regionFeedback, setRegionFeedback] = useState('')
-  const [regionLoading, setRegionLoading] = useState(false)
 
-  // ─── BUSCAR REGIÕES ──────────────────────────────────────────
   const fetchRegions = async () => {
     if (!data?.id) return
 
@@ -182,89 +187,124 @@ export default function StatePage() {
     fetchRegions()
   }, [data?.id])
 
-  // ─── CRIAR NOVA REGIÃO ──────────────────────────────────────
-  async function handleCreateRegion() {
-    if (!data?.id || !newRegionName.trim()) return
+  // ─── ESTADOS DO MODAL ────────────────────────────────────
+  const [selectedLawId, setSelectedLawId] = useState<number | ''>('')
+  const [targetCountryId, setTargetCountryId] = useState<number | null>(null)
+  const [targetRegionId, setTargetRegionId] = useState<string>('')
+  const [targetText, setTargetText] = useState('')
+  const [taxType, setTaxType] = useState('')
+  const [taxValue, setTaxValue] = useState(0)
+  const [proposing, setProposing] = useState(false)
+  const [lawMsg, setLawMsg] = useState('')
+  const [showLawModal, setShowLawModal] = useState(false)
+  const [forcing, setForcing] = useState<string | null>(null)
+  const [forceMsg, setForceMsg] = useState('')
 
-    setRegionLoading(true)
-    setRegionFeedback('')
+  // ─── PAÍSES E GUERRAS ATIVAS (para selects) ──────────
+  const [countries, setCountries] = useState<any[]>([])
+  const [activeWars, setActiveWars] = useState<any[]>([])
 
-    const { data: result, error } = await supabase
-      .rpc('create_region', {
-        p_country_id: data.id,
-        p_name: newRegionName.trim(),
-        p_area_km2: 300000
-      }) as { data: { success: boolean; error?: string } | null; error: any }
+  useEffect(() => {
+    if (!data?.id) return
 
-    if (error) {
-      setRegionFeedback(`❌ Erro: ${error.message}`)
-    } else if (result && !result.success) {
-      setRegionFeedback(`❌ ${result.error || 'Erro ao criar região'}`)
-    } else {
-      setRegionFeedback('✅ Região criada com sucesso!')
-      await fetchRegions()
-      setIsCreatingRegion(false)
-      setNewRegionName('')
+    async function fetchAuxData() {
+      try {
+        const { data: cData } = await supabase
+          .from('countries')
+          .select('id, name, flag_emoji')
+        setCountries(cData || [])
+
+        const { data: wData } = await supabase
+          .from('wars')
+          .select('id, attacker_id, defender_id, status')
+          .eq('status', 'active')
+        setActiveWars(wData || [])
+      } catch (err) {
+        console.error('Erro ao buscar dados auxiliares:', err)
+      }
     }
 
-    setRegionLoading(false)
-  }
+    fetchAuxData()
+  }, [data?.id])
 
-  // ─── CRONÔMETRO DA LEI (SUBSTITUTO DO formatCountdown) ──────
-  const [, setTick] = useState(0)
-  useEffect(() => {
-    const timer = setInterval(() => setTick(t => t + 1), 1000)
-    return () => clearInterval(timer)
-  }, [])
-
-  const getCountdown = (lawId: string) => {
-    const law = laws.find(l => l.id === lawId)
-    if (!law || !law.created_at) return '--:--'
-    
-    const deadline = new Date(new Date(law.created_at).getTime() + 5 * 60 * 1000)
-    const now = new Date()
-    const diff = Math.max(0, deadline.getTime() - now.getTime())
-    
-    if (diff === 0) return 'Votação encerrada'
-    const mins = Math.floor(diff / 60000)
-    const secs = Math.floor((diff % 60000) / 1000)
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-  }
-
+  // ─── ESTADOS DE CARREGAMENTO ─────────────────────────────
   if (loadingC || loadingP) return <PageLoading />
-  if (!data || !economy || !parliament) return null
 
-  const coalition_pct  = Math.round((parliament.coalition_seats / parliament.total_seats) * 100)
-  const has_majority   = parliament.coalition_seats > parliament.total_seats / 2
+  if (!data || !economy) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
+        <p className="text-white/60 text-sm">Dados do país ainda não disponíveis.</p>
+        <button onClick={() => window.location.reload()} className="mt-4 btn-primary text-sm py-2 px-4">
+          Recarregar
+        </button>
+      </div>
+    )
+  }
 
+  // ─── CÁLCULOS ────────────────────────────────────────
+  const coalition_pct = parliament
+    ? Math.round((parliament.coalition_seats / parliament.total_seats) * 100)
+    : 0
+  const has_majority = parliament
+    ? parliament.coalition_seats > parliament.total_seats / 2
+    : false
+  const is_balanced = parliament
+    ? parliament.coalition_seats === parliament.total_seats / 2
+    : false
+
+  let parlamentoStatus = '📊 Parlamento Equilibrado'
+  if (has_majority) parlamentoStatus = '🟢 Parlamento Majoritário (Coalizão)'
+  else if (!is_balanced && parliament) parlamentoStatus = '🔴 Parlamento Minoritário (Oposição)'
+
+  // ─── LEIS ──────────────────────────────────────────────
+  const selectedLaw = catalog.find(l => l.id === selectedLawId)
+  const pendingLaws = laws.filter(l => l.status === 'pending')
+  const activeLaws = laws.filter(l => l.status === 'active')
+  const rejectedLaws = laws.filter(l => l.status === 'revoked').slice(0, 5)
+
+  // ─── FUNÇÕES ──────────────────────────────────────────
   async function handlePropose() {
-    if (!selectedLaw) return
-    setProposing(true); setLawMsg('')
-    
-    // ✅ CORREÇÃO: Passa o ID como objeto { countryId }
-    const res = await proposeLaw(Number(selectedLaw), { countryId: targetCountryId || undefined })
-    
+    if (!selectedLawId) return
+    setProposing(true)
+    setLawMsg('')
+
+    const target = {
+      countryId: targetCountryId || undefined,
+      regionId: targetRegionId || undefined,
+      text: targetText || undefined,
+      taxType: taxType || undefined,
+      taxValue: taxValue || undefined,
+    }
+
+    const res = await proposeLaw(Number(selectedLawId), target)
     setLawMsg(res.message ?? res.error ?? 'Erro')
-    setSelectedLaw('')
-    setTargetCountryId(null)
+
+    if (res.success) {
+      setShowLawModal(false)
+      setSelectedLawId('')
+      setTargetCountryId(null)
+      setTargetRegionId('')
+      setTargetText('')
+      setTaxType('')
+      setTaxValue(0)
+    }
+
     setProposing(false)
   }
 
   async function handleForce(lawId: string) {
-    setForcing(lawId); setForceMsg('')
+    setForcing(lawId)
+    setForceMsg('')
     const res = await forceLaw(lawId)
     setForceMsg(res.message ?? res.error ?? 'Erro')
     setForcing(null)
   }
 
-  const pendingLaws  = laws.filter(l => l.status === 'pending')
-  const activeLaws   = laws.filter(l => l.status === 'active')
-  const rejectedLaws = laws.filter(l => l.status === 'revoked').slice(0, 5)
-
+  // ─── RENDER ──────────────────────────────────────────
   return (
     <div className="flex flex-col gap-5 pb-8 w-full max-w-4xl mx-auto overflow-x-hidden">
       
-      {/* ─── BANNER COM FOTOS DOS JOGADORES (TAMANHO ORIGINAL h-48) ── */}
+      {/* ─── BANNER ─────────────────────────────────────── */}
       <div 
         ref={bannerContainerRef}
         onClick={handleBannerClick}
@@ -277,8 +317,6 @@ export default function StatePage() {
               alt="Banner do país"
               className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
             />
-            
-            {/* Indicadores (bolinhas) */}
             {bannerImages.length > 1 && (
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
                 {bannerImages.map((_: any, idx: number) => (
@@ -300,7 +338,7 @@ export default function StatePage() {
         )}
       </div>
  
-      {/* ─── CABEÇALHO: BANDEIRA + NOME + CAPITAL + LEMA ── */}
+      {/* ─── CABEÇALHO ──────────────────────────────────── */}
       <div className="px-4 -mt-6 relative z-10">
         <div className="flex items-end gap-4">
           <div className="w-20 h-16 rounded-lg border-2 border-primary shadow-lg shadow-primary/20 overflow-hidden flex-shrink-0 bg-black/80">
@@ -322,7 +360,7 @@ export default function StatePage() {
         </div>
       </div>
 
-      {/* ─── INFORMAÇÕES DO PAÍS ── */}
+      {/* ─── INFORMAÇÕES DO PAÍS ────────────────────────── */}
       <Section title={<span className="flex items-center gap-2"><Landmark size={16} /> INFORMAÇÕES</span>}>
         <InfoRow label="Título" value={`${data.leader_title}${data.leader_name ? ': ' + data.leader_name : ''}`} />
         <InfoRow label="Estrutura" value={data.state_structure || 'Democracia'} />
@@ -331,68 +369,15 @@ export default function StatePage() {
         <InfoRow label="Terreno"   value={data.terrain ? data.terrain.charAt(0).toUpperCase() + data.terrain.slice(1) : 'Planície'} />
       </Section>
 
-      {/* ─── TABELA DE REGIÕES + BOTÃO CRIAR REGIÃO ────────── */}
+      {/* ─── REGIÕES ────────────────────────────────────── */}
       <div className="px-4">
         <div className="bg-surface-card rounded-xl p-4 border border-white/5">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-white/40 text-xs font-bold tracking-widest uppercase">
               <Map size={16} /> REGIÕES ({regions.length})
             </div>
-            <button
-              onClick={() => setIsCreatingRegion(true)}
-              className="text-xs bg-primary hover:bg-primary-light text-white px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1"
-            >
-              <Plus size={14} /> CRIAR
-            </button>
           </div>
 
-          {/* Modal de Criação de Região */}
-          {isCreatingRegion && (
-            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-surface-card rounded-xl p-6 max-w-sm w-full border border-white/10 shadow-2xl">
-                <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2">
-                  <Map size={20} /> Criar Nova Região
-                </h3>
-                <p className="text-white/50 text-sm mb-4">
-                  Digite o nome da nova região. O custo é de R$ 150.000.000 (padrão).
-                </p>
-                <input
-                  type="text"
-                  placeholder="Ex: Província do Norte"
-                  value={newRegionName}
-                  onChange={(e) => setNewRegionName(e.target.value)}
-                  className="input-field mb-3"
-                  disabled={regionLoading}
-                />
-                {regionFeedback && (
-                  <p className={`text-sm mb-3 text-center ${regionFeedback.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>
-                    {regionFeedback}
-                  </p>
-                )}
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleCreateRegion}
-                    disabled={regionLoading || !newRegionName.trim()}
-                    className="flex-1 bg-primary hover:bg-primary-light disabled:opacity-30 text-white font-bold py-2 rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <Plus size={16} /> {regionLoading ? 'Criando...' : 'Criar'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsCreatingRegion(false)
-                      setNewRegionName('')
-                      setRegionFeedback('')
-                    }}
-                    className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-2 rounded-lg transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Lista de Regiões */}
           {regions.length === 0 ? (
             <p className="text-white/30 text-sm text-center py-4">Nenhuma região cadastrada</p>
           ) : (
@@ -420,218 +405,186 @@ export default function StatePage() {
         </div>
       </div>
 
-      {/* ─── STATUS POLÍTICO ── */}
+      {/* ─── STATUS POLÍTICO ────────────────────────────── */}
       <Section title={<span className="flex items-center gap-2"><Shield size={16} /> STATUS POLÍTICO</span>}>
         <div className="flex flex-col gap-2">
           <TrustBar trust={data.trust || 50} label="Confiança" color="bg-green-500" />
           <TrustBar trust={data.intl_approval || 50} label="Aprovação" color="bg-blue-400" />
           <TrustBar trust={data.political_power || 50} label="Poder Pol." color="bg-purple-400" />
+          {!loadingXP && combatXP && (
+            <TrustBar 
+              trust={Math.min(100, (combatXP.experience / 10))} 
+              label="XP de Combate" 
+              color="bg-orange-500" 
+            />
+          )}
+          {!loadingXP && !combatXP && (
+            <div className="text-white/30 text-xs text-center">Sem XP de combate</div>
+          )}
         </div>
       </Section>
 
-      {/* ─── PARLAMENTO ── */}
+      {/* ─── PARLAMENTO VISUAL ──────────────────────────── */}
       <Section title={<span className="flex items-center gap-2"><Users size={16} /> PARLAMENTO</span>}>
-        <div className="flex items-center gap-4 mb-4">
-          <div className="relative flex-shrink-0" style={{ width: 80, height: 80 }}>
-            <svg viewBox="0 0 36 36" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1f1f1f" strokeWidth="3.8" />
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#EF4444" strokeWidth="3.8" />
-              <circle cx="18" cy="18" r="15.9" fill="none"
-                stroke="#22C55E" strokeWidth="3.8"
-                strokeDasharray={`${coalition_pct} ${100 - coalition_pct}`} />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span style={{ color: 'white', fontWeight: 900, fontSize: 13 }}>{parliament.total_seats}</span>
-              <span style={{ color: '#444', fontSize: 9 }}>assentos</span>
-            </div>
-          </div>
-
-          <div className="flex-1 flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#22C55E' }} />
-                <span style={{ color: '#aaa', fontSize: 13 }}>Coalizão</span>
+        {parliament ? (
+          <>
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="relative flex-shrink-0" style={{ width: 140, height: 140 }}>
+                <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
+                  <circle cx="60" cy="60" r="54" fill="none" stroke="#222" strokeWidth="12" />
+                  <circle
+                    cx="60" cy="60" r="54"
+                    fill="none"
+                    stroke="#22C55E"
+                    strokeWidth="12"
+                    strokeDasharray={`${coalition_pct} ${100 - coalition_pct}`}
+                    strokeLinecap="round"
+                  />
+                  {coalition_pct < 100 && (
+                    <circle
+                      cx="60" cy="60" r="54"
+                      fill="none"
+                      stroke="#EF4444"
+                      strokeWidth="12"
+                      strokeDasharray={`${100 - coalition_pct} ${coalition_pct}`}
+                      strokeDashoffset={`-${coalition_pct}`}
+                      strokeLinecap="round"
+                    />
+                  )}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+                  <span className="text-2xl font-bold">{parliament.total_seats}</span>
+                  <span className="text-[10px] text-white/50">assentos</span>
+                </div>
               </div>
-              <span style={{ color: '#22C55E', fontWeight: 800, fontSize: 13 }}>
-                {parliament.coalition_seats} ({coalition_pct}%)
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#EF4444' }} />
-                <span style={{ color: '#aaa', fontSize: 13 }}>Oposição</span>
+
+              <div className="flex-1 w-full">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                    <span className="text-white/60 text-xs">Coalizão</span>
+                  </div>
+                  <span className="text-green-400 font-bold text-sm">
+                    {parliament.coalition_seats} ({coalition_pct}%)
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mt-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500" />
+                    <span className="text-white/60 text-xs">Oposição</span>
+                  </div>
+                  <span className="text-red-400 font-bold text-sm">
+                    {parliament.opposition_seats} ({100 - coalition_pct}%)
+                  </span>
+                </div>
+
+                <div className="mt-3 text-center">
+                  <span className={`text-sm font-bold px-3 py-1 rounded-full ${
+                    has_majority ? 'bg-green-500/20 text-green-400' :
+                    is_balanced ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-red-500/20 text-red-400'
+                  }`}>
+                    {parlamentoStatus}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  <div className="card-sm text-center">
+                    <p className="text-white/40 text-[10px]">Próxima Eleição (Confiança)</p>
+                    <p className="text-white font-bold text-sm">{nextElectionIn()}</p>
+                  </div>
+                  <div className="card-sm text-center">
+                    <p className="text-white/40 text-[10px]">Eleição Aleatória</p>
+                    <p className="text-white font-bold text-sm">{nextRandomIn()}</p>
+                  </div>
+                </div>
               </div>
-              <span style={{ color: '#EF4444', fontWeight: 800, fontSize: 13 }}>
-                {parliament.opposition_seats} ({100 - coalition_pct}%)
-              </span>
             </div>
-            <div style={{ marginTop: 4 }}>
-              {parliament.coalition_seats > parliament.opposition_seats ? (
-                <span className="badge badge-green">✅ Maioria Coalizão</span>
-              ) : parliament.opposition_seats > parliament.coalition_seats ? (
-                <span className="badge badge-red">⚠️ Maioria Oposição</span>
-              ) : (
-                <span className="badge badge-yellow">⚖️ Parlamento Dividido (Empate)</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="progress-track mb-3">
-          <div className="progress-fill" style={{ width: `${coalition_pct}%`, background: '#22C55E' }} />
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <div className="card-sm">
-            <p style={{ color: '#444', fontSize: 10 }}>Próxima Eleição</p>
-            <p style={{ color: '#ccc', fontWeight: 700, fontSize: 13 }}>{nextElectionIn()}</p>
-            <p style={{ color: '#333', fontSize: 10 }}>
-              {parliament.election_type === 'random' ? '🎲 Último: sorteio' : '📊 Último: confiança'}
-            </p>
-          </div>
-          <div className="card-sm">
-            <p style={{ color: '#444', fontSize: 10 }}>Eleição Aleatória</p>
-            <p style={{ color: '#ccc', fontWeight: 700, fontSize: 13 }}>{nextRandomIn()}</p>
-            <p style={{ color: '#333', fontSize: 10 }}>A cada 2 dias</p>
-          </div>
-        </div>
+          </>
+        ) : (
+          <p className="text-white/40 text-sm text-center py-4">Dados do parlamento não disponíveis</p>
+        )}
       </Section>
 
-      {/* ─── PROPOR LEI ── */}
+      {/* ─── PROPOR LEI ───────────────────────────────────── */}
       <Section title={<span className="flex items-center gap-2"><Gavel size={16} /> PROPOR LEI</span>}>
-        <p style={{ color: '#444', fontSize: 12, marginBottom: 10 }}>
-          O robô parlamentar vota automaticamente em 5 minutos.
-          Confiança atual: <span style={{ color: '#22C55E', fontWeight: 700 }}>{data.trust}%</span>
-        </p>
-
-        <select
-          value={selectedLaw}
-          onChange={e => setSelectedLaw(e.target.value as any)}
-          className="input-field"
-          style={{ marginBottom: 10 }}
+        <button
+          onClick={() => setShowLawModal(true)}
+          className="w-full bg-primary hover:bg-primary-light text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
         >
-          <option value="">Selecionar lei...</option>
-          {catalog.map(l => (
-            <option key={l.id} value={l.id}>
-              {l.name} — {l.political_power_cost} poder político
-            </option>
-          ))}
-        </select>
-
-        {/* ✅ SELETOR DE PAÍS ALVO (para leis que precisam de alvo: guerra, sanções, etc.) */}
-        {selectedLaw && [8, 9, 10].includes(Number(selectedLaw)) && (
-          <div className="mb-3">
-            <p className="text-white/60 text-xs mb-1">Selecionar país alvo:</p>
-            <select
-              value={targetCountryId || ''}
-              onChange={e => setTargetCountryId(Number(e.target.value) || null)}
-              className="input-field"
-            >
-              <option value="">Escolha um país...</option>
-              <option value={1}>Africa Austral</option>
-              <option value={14}>Brasil</option>
-            </select>
-          </div>
-        )}
-
-        {lawMsg && (
-          <p style={{
-            fontSize: 13, marginBottom: 10, textAlign: 'center',
-            color: lawMsg.includes('✅') || lawMsg.includes('proposta') ? '#22C55E' : '#EF4444',
-          }}>
-            {lawMsg}
-          </p>
-        )}
-
-        <button 
-          onClick={handlePropose} 
-          disabled={!selectedLaw || proposing || !data?.is_active}
-          className="btn-primary"
-          style={{ 
-            opacity: (!selectedLaw || proposing || !data?.is_active) ? 0.4 : 1 
-          }}
-        >
-          {!data?.is_active ? 'NPCs não propõem leis' : (proposing ? 'Propondo...' : '⚖️ PROPOR LEI')}
+          <Gavel size={18} /> Propor Nova Lei
         </button>
+        <p className="text-white/30 text-xs text-center mt-2">
+          Confiança: <span className="text-green-400">{data.trust}%</span> · 
+          Poder Político: <span className="text-purple-400">{data.political_power}</span>
+        </p>
       </Section>
 
-      {/* ── LEIS PENDENTES ── */}
+      {/* ─── LEIS PENDENTES ────────────────────────────── */}
       {pendingLaws.length > 0 && (
         <Section title={<span className="flex items-center gap-2"><Users size={16} /> EM VOTAÇÃO</span>}>
           {pendingLaws.map(law => (
-            <div key={law.id} className="card-sm" style={{ marginBottom: 8 }}>
+            <div key={law.id} className="card-sm mb-2">
               <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <p style={{ color: '#e0e0e0', fontWeight: 700, fontSize: 13 }}>
-                    {law.law_catalog?.name}
-                  </p>
+                <div>
+                  <p className="text-white font-bold text-sm">{law.law_catalog?.name}</p>
                   <div className="flex items-center gap-3 mt-1">
-                    <span style={{ color: '#22C55E', fontSize: 11 }}>👍 {law.votes_for}</span>
-                    <span style={{ color: '#EF4444', fontSize: 11 }}>👎 {law.votes_against}</span>
+                    <span className="text-green-400 text-xs">👍 {law.votes_for}</span>
+                    <span className="text-red-400 text-xs">👎 {law.votes_against}</span>
                   </div>
                 </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <span className="badge badge-yellow">⏱️ {getCountdown(law.id)}</span>
-                </div>
+                <span className={`badge ${getCountdown(law.id) === 'Votação encerrada' ? 'badge-red' : 'badge-yellow'}`}>
+                  ⏱️ {getCountdown(law.id)}
+                </span>
               </div>
-              <div className="progress-track" style={{ marginTop: 8 }}>
-                <div className="progress-fill"
-                  style={{ width: `${coalition_pct}%`, background: has_majority ? '#22C55E' : '#EF4444' }} />
+              <div className="progress-track mt-2">
+                <div className="progress-fill" style={{ width: `${coalition_pct}%`, background: has_majority ? '#22C55E' : '#EF4444' }} />
               </div>
             </div>
           ))}
         </Section>
       )}
 
-      {/* ── LEIS REJEITADAS (pode forçar) ── */}
+      {/* ─── LEIS REJEITADAS ────────────────────────────── */}
       {rejectedLaws.length > 0 && (
         <Section title={<span className="flex items-center gap-2"><Gavel size={16} /> LEIS REJEITADAS</span>}>
-          <p style={{ color: '#444', fontSize: 12, marginBottom: 10 }}>
-            Você pode forçar a aprovação gastando <span style={{ color: '#8B5CF6' }}>50 poder político</span>.
-            <span style={{ color: '#EF4444' }}> Não é possível forçar Ogiva Nuclear.</span>
+          <p className="text-white/40 text-xs mb-2">
+            Você pode forçar a aprovação gastando o poder político equivalente ao custo da lei.
           </p>
           {forceMsg && (
-            <p style={{ fontSize: 13, marginBottom: 10, textAlign: 'center', color: forceMsg.includes('✅') ? '#22C55E' : '#EF4444' }}>
+            <p className={`text-xs text-center mb-2 ${forceMsg.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>
               {forceMsg}
             </p>
           )}
-          {rejectedLaws.map(law => (
-            <div key={law.id} className="card-sm" style={{ marginBottom: 8 }}>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex-1">
-                  <p style={{ color: '#e0e0e0', fontWeight: 700, fontSize: 13 }}>
-                    {law.law_catalog?.name}
-                  </p>
-                  <p style={{ color: '#444', fontSize: 11 }}>
-                    {law.votes_for} a favor · {law.votes_against} contra
-                  </p>
+          {rejectedLaws.map(law => {
+            const cost = catalog.find(c => c.id === law.law_catalog_id)?.political_power_cost || 50
+            return (
+              <div key={law.id} className="card-sm mb-2 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-white font-bold text-sm">{law.law_catalog?.name}</p>
+                  <p className="text-white/40 text-xs">{law.votes_for} a favor · {law.votes_against} contra</p>
                 </div>
                 <button
                   onClick={() => handleForce(law.id)}
-                  disabled={forcing === law.id || data.political_power < 50 || law.law_catalog_id === 9}
-                  style={{
-                    background: '#4C1D95', color: 'white', border: 'none',
-                    borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700,
-                    cursor: 'pointer', flexShrink: 0,
-                    opacity: forcing === law.id || data.political_power < 50 || law.law_catalog_id === 9 ? 0.35 : 1,
-                  }}
+                  disabled={forcing === law.id || data.political_power < cost}
+                  className="bg-purple-900 hover:bg-purple-800 disabled:opacity-30 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
                 >
-                  {forcing === law.id ? '...' : '⚡ Forçar (50)'}
+                  {forcing === law.id ? '...' : `⚡ Forçar (${cost})`}
                 </button>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </Section>
       )}
 
-      {/* ── LEIS ATIVAS ── */}
+      {/* ─── LEIS ATIVAS ────────────────────────────────── */}
       {activeLaws.length > 0 && (
         <Section title={<span className="flex items-center gap-2"><Landmark size={16} /> LEIS ATIVAS</span>}>
           {activeLaws.map(law => (
-            <div key={law.id} className="card-sm" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div key={law.id} className="card-sm mb-2 flex items-center justify-between gap-3">
               <div>
-                <p style={{ color: '#e0e0e0', fontWeight: 700, fontSize: 13 }}>{law.law_catalog?.name}</p>
-                <p style={{ color: '#444', fontSize: 11 }}>
+                <p className="text-white font-bold text-sm">{law.law_catalog?.name}</p>
+                <p className="text-white/40 text-xs">
                   {law.forced_approval ? '⚡ Aprovada por força política' : '✅ Aprovada pelo parlamento'}
                 </p>
               </div>
@@ -641,7 +594,7 @@ export default function StatePage() {
         </Section>
       )}
 
-      {/* ─── ECONÔMICO ── */}
+      {/* ─── ECONOMIA ────────────────────────────────────── */}
       <Section title={<span className="flex items-center gap-2"><Coins size={16} /> ESTATÍSTICAS ECONÔMICAS</span>}>
         <div className="grid grid-cols-2 gap-2">
           <StatCard label="Dinheiro"   value={formatMoney(Number(economy.money || 0))} icon={<Coins size={20} />} />
@@ -655,10 +608,10 @@ export default function StatePage() {
         </div>
       </Section>
 
-      {/* ─── MILITAR ── */}
+      {/* ─── MILITAR ────────────────────────────────────── */}
       <Section title={<span className="flex items-center gap-2"><Shield size={16} /> EQUIPAMENTOS MILITARES</span>}>
         {loadingMil ? (
-          <div className="flex justify-center py-4"><div className="spinner" style={{ width: 20, height: 20 }} /></div>
+          <div className="flex justify-center py-4"><div className="spinner w-5 h-5" /></div>
         ) : (
           <div className="grid grid-cols-3 gap-2">
             {[
@@ -682,11 +635,261 @@ export default function StatePage() {
         )}
       </Section>
 
+      {/* ─── MODAL DE PROPOR LEI ─────────────────────────── */}
+      {showLawModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-bold text-lg flex items-center gap-2">
+                <Gavel size={18} /> Propor Lei
+              </h3>
+              <button
+                onClick={() => {
+                  setShowLawModal(false)
+                  setSelectedLawId('')
+                  setLawMsg('')
+                }}
+                className="text-white/40 hover:text-white text-xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Select da lei */}
+            <select
+              value={selectedLawId}
+              onChange={e => {
+                const val = Number(e.target.value)
+                console.log('📌 Lei selecionada ID:', val)
+                setSelectedLawId(val as any)
+                setTargetCountryId(null)
+                setTargetRegionId('')
+                setTargetText('')
+                setTaxType('')
+                setTaxValue(0)
+              }}
+              className="input-field mb-3"
+            >
+              <option value="">Selecionar lei...</option>
+              {catalog.map(l => (
+                <option key={l.id} value={l.id}>
+                  {l.name} — {l.political_power_cost} PP
+                  {l.requires_parliament ? ' (🗳️)' : ' (⚡ Direta)'}
+                </option>
+              ))}
+            </select>
+
+            {/* ─── CAMPOS DINÂMICOS ───────────────────────── */}
+            {selectedLaw && (
+              <div className="bg-white/5 rounded-lg p-3 mb-3 space-y-2">
+                <p className="text-white/40 text-xs">{selectedLaw.description}</p>
+
+                {/* 12: Transferência de Região */}
+                {selectedLaw.id === 12 && (
+                  <>
+                    <select
+                      value={targetRegionId}
+                      onChange={e => setTargetRegionId(e.target.value)}
+                      className="input-field text-sm"
+                    >
+                      <option value="">Escolha a região...</option>
+                      {regions.map(r => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={targetCountryId || ''}
+                      onChange={e => setTargetCountryId(Number(e.target.value) || null)}
+                      className="input-field text-sm"
+                    >
+                      <option value="">Escolha o país destino...</option>
+                      {countries.filter(c => c.id !== data.id).map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
+
+                {/* 4: Transferir Capital */}
+                {selectedLaw.id === 4 && (
+                  <select
+                    value={targetRegionId}
+                    onChange={e => setTargetRegionId(e.target.value)}
+                    className="input-field text-sm"
+                  >
+                    <option value="">Escolha a nova capital...</option>
+                    {regions.map(r => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* 8: Declarar Guerra */}
+                {selectedLaw.id === 8 && (
+                  <select
+                    value={targetCountryId || ''}
+                    onChange={e => setTargetCountryId(Number(e.target.value) || null)}
+                    className="input-field text-sm"
+                  >
+                    <option value="">Escolha o país alvo...</option>
+                    {countries.filter(c => c.id !== data.id).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* 13: Alterar Regime */}
+                {selectedLaw.id === 13 && (
+                  <input
+                    type="text"
+                    value={targetText}
+                    onChange={e => setTargetText(e.target.value)}
+                    placeholder="Novo regime (ex: Monarquia Parlamentar)"
+                    className="input-field text-sm"
+                  />
+                )}
+
+                {/* 1: Propor Paz */}
+                {selectedLaw.id === 1 && (
+                  <select
+                    value={targetCountryId || ''}
+                    onChange={e => setTargetCountryId(Number(e.target.value) || null)}
+                    className="input-field text-sm"
+                  >
+                    <option value="">Escolha o país para propor paz...</option>
+                    {countries.filter(c => c.id !== data.id).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* 11: Participar de Guerra */}
+                {selectedLaw.id === 11 && (
+                  <div className="space-y-2">
+                    <select
+                      value={targetCountryId || ''}
+                      onChange={e => setTargetCountryId(Number(e.target.value) || null)}
+                      className="input-field text-sm"
+                    >
+                      <option value="">Escolha a guerra...</option>
+                      {activeWars.map(w => {
+                        const attacker = countries.find(c => c.id === w.attacker_id)
+                        const defender = countries.find(c => c.id === w.defender_id)
+                        return (
+                          <option key={w.id} value={w.id}>
+                            {attacker?.name || '?'} vs {defender?.name || '?'}
+                          </option>
+                        )
+                      })}
+                    </select>
+                    <select
+                      value={targetText}
+                      onChange={e => setTargetText(e.target.value)}
+                      className="input-field text-sm"
+                    >
+                      <option value="">Lado</option>
+                      <option value="attacker">Atacante</option>
+                      <option value="defender">Defensor</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* 10: Aplicar Sanções */}
+                {selectedLaw.id === 10 && (
+                  <select
+                    value={targetCountryId || ''}
+                    onChange={e => setTargetCountryId(Number(e.target.value) || null)}
+                    className="input-field text-sm"
+                  >
+                    <option value="">Escolha o país alvo...</option>
+                    {countries.filter(c => c.id !== data.id).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* 2: Alterar Nome de Estado */}
+                {selectedLaw.id === 2 && (
+                  <input
+                    type="text"
+                    value={targetText}
+                    onChange={e => setTargetText(e.target.value)}
+                    placeholder="Novo nome do país"
+                    className="input-field text-sm"
+                  />
+                )}
+
+                {/* 3: Criar Região */}
+                {selectedLaw.id === 3 && (
+                  <input
+                    type="text"
+                    value={targetText}
+                    onChange={e => setTargetText(e.target.value)}
+                    placeholder="Nome da nova região"
+                    className="input-field text-sm"
+                  />
+                )}
+
+                {/* 17: Mudar Impostos */}
+                {selectedLaw.id === 17 && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={taxType}
+                      onChange={e => setTaxType(e.target.value)}
+                      className="input-field text-sm"
+                    >
+                      <option value="">Tipo de taxa</option>
+                      <option value="income_tax">Renda</option>
+                      <option value="property_tax">Propriedade</option>
+                      <option value="manufacturing_tax">Manufatura</option>
+                    </select>
+                    <input
+                      type="number"
+                      value={taxValue}
+                      onChange={e => setTaxValue(Number(e.target.value))}
+                      placeholder="% (máx 60)"
+                      min="0"
+                      max="60"
+                      className="input-field text-sm"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {lawMsg && (
+              <p className={`text-xs text-center mb-2 ${lawMsg.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>
+                {lawMsg}
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handlePropose}
+                disabled={!selectedLawId || proposing}
+                className="flex-1 bg-primary hover:bg-primary-light disabled:opacity-30 text-white font-bold py-2.5 rounded-lg transition-colors"
+              >
+                {proposing ? 'Propondo...' : 'Propor Lei'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowLawModal(false)
+                  setSelectedLawId('')
+                  setLawMsg('')
+                }}
+                className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-2.5 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-// ─── COMPONENTES REFORMULADOS ────────────────────────────────
+// ─── COMPONENTES AUXILIARES ──────────────────────────────
 
 function Section({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (

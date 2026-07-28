@@ -27,14 +27,11 @@ export default function LoginPage() {
       return
     }
 
-    // ✅ 1. Espera o cookie ser gravado no navegador (500ms é seguro)
+    // ✅ Aguarda o cookie ser gravado (500ms é seguro)
     await new Promise(resolve => setTimeout(resolve, 500))
 
-    // ✅ 2. Força o servidor a reconhecer a sessão
-    router.refresh()
-
-    // ✅ 3. Redireciona com o parâmetro _auth_success para o middleware liberar o acesso
-    window.location.href = '/game/home?_auth_success=1'
+    // ✅ Redireciona com router.push (NÃO use window.location.href)
+    router.push('/game/home')
   }
 
   async function handleGoogle() {
@@ -47,7 +44,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-col gap-6 max-w-md mx-auto w-full px-4 py-8">
-      {/* Banner do dólar */}
+      {/* Banner */}
       <div className="w-full bg-gradient-to-r from-green-800 via-green-600 to-green-800 
                       border-4 border-green-500/50 rounded-xl p-6 text-center shadow-[0_0_40px_rgba(34,197,94,0.3)]">
         <h2 className="text-5xl font-black text-white tracking-widest drop-shadow-[0_0_15px_rgba(0,255,0,0.5)]">

@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useWar } from '@/hooks/useWar'
-import { formatNumber } from '@/utils/format'
-import { Swords } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
+import { formatNumber } from '@/utils/format'
+import { Swords, Shield, Users } from 'lucide-react'
 
 const UNITS = [
   { key: 'soldiers',   label: 'Soldados',    emoji: '⚔️' },
@@ -15,205 +15,191 @@ const UNITS = [
   { key: 'helicopters',label: 'Helicópteros', emoji: '🚁' },
   { key: 'drones',     label: 'Drones',       emoji: '🤖' },
   { key: 'missiles',   label: 'Mísseis',      emoji: '🎯' },
+  { key: 'warheads',   label: 'Ogivas',       emoji: '☢️' },
 ]
 
 export default function WarPage() {
-  const { myWars, worldWars, military, loading, attack, proposePeace } = useWar()
+  const { myWars, worldWars, military, combatXP, loading, attack, proposePeace } = useWar()
   const { country: myCountry } = useAuthStore()
-  const [attackWarId, setAttackWarId]     = useState('')
-  const [attackUnit, setAttackUnit]       = useState('')
-  const [attackQty, setAttackQty]         = useState(1)
-  const [feedback, setFeedback]           = useState('')
-  const [submitting, setSubmitting]       = useState(false)
 
-  if (loading) return <PageLoading />
+  const [attackWarId, setAttackWarId] = useState('')
+  const [attackUnit, setAttackUnit] = useState('')
+  const [attackQty, setAttackQty] = useState(1)
+  const [feedback, setFeedback] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
 
   async function handleAttack() {
     if (!attackWarId || !attackUnit) return
     setSubmitting(true)
+    setFeedback('')
     const res = await attack(attackWarId, attackUnit, attackQty)
-    setFeedback(res?.success
-      ? `Ataque realizado! Dano: ${res.damage_dealt} | Baixas: ${res.losses_suffered}`
-      : res?.error ?? 'Erro')
+    if (res.success) {
+      setFeedback(`✅ Ataque realizado! Dano: ${res.damage_dealt}`)
+    } else {
+      setFeedback(`❌ ${res.error || 'Erro ao atacar'}`)
+    }
     setSubmitting(false)
   }
 
   return (
-    <div className="flex flex-col pb-24 min-h-screen bg-[#1a1a1a] pt-4">
-      
-      {/* ─── GUERRAS DO JOGADOR ──────────────────────────────── */}
-      <div className="px-4 py-4 flex flex-col gap-4">
-        {myWars.length === 0 ? (
-          <div className="bg-[#2a2a2a] rounded-xl p-4 flex items-center gap-3 border border-white/5">
-            <span className="text-2xl">🕊️</span>
-            <p className="text-white/50 text-sm font-medium">Sem guerras ativas no seu estado!</p>
+    <div className="flex flex-col gap-4 pb-24 min-h-screen pt-4 max-w-4xl mx-auto w-full px-4">
+
+      {/* ─── CABEÇALHO ──────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold tracking-widest text-white/40 uppercase flex items-center gap-2">
+          <Swords size={16} /> GUERRAS
+        </p>
+        {combatXP && (
+          <div className="flex items-center gap-2 text-white/40 text-xs">
+            <span>⚔️ XP: <span className="text-primary font-bold">{combatXP.experience || 0}</span></span>
+            <span>|</span>
+            <span>🏆 Guerras: <span className="text-white font-bold">{combatXP.wars_participated || 0}</span></span>
           </div>
-        ) : (
-          myWars.map(war => (
-            <div key={war.id} className="bg-[#2a2a2a] rounded-xl p-4 border border-white/5">
-              
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex flex-col items-center w-1/3">
-                  <div className="w-16 h-16 rounded-full bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center mb-1">
-                    {war.attacker?.flag_emoji ? (
-                      <span className="text-4xl">{war.attacker.flag_emoji}</span>
-                    ) : (
-                      <span className="text-4xl">⚔️</span>
-                    )}
-                  </div>
-                  <p className="text-white font-bold text-sm text-center leading-tight">
-                    <Link 
-                      href={`/game/pais/${war.attacker?.name?.toLowerCase().replace(/\s/g, '-') || ''}`}
-                      className="hover:text-primary-light transition-colors"
-                    >
-                      {war.attacker?.name || 'Atacante'}
-                    </Link>
-                  </p>
-                  <p className="text-white/30 text-[10px]">Danos: 0</p>
-                </div>
-
-                <div className="flex flex-col items-center flex-1 px-2">
-                  <p className="text-white/40 text-[10px] uppercase mb-1">Danos:</p>
-                  <p className="text-white font-bold text-lg tracking-tight">
-                    {formatNumber(830200000)}
-                  </p>
-                  
-                  <div className="w-full h-1.5 bg-white/10 rounded-full mt-1 mb-2">
-                    <div className="h-full bg-blue-500 rounded-full" style={{ width: '35%' }} />
-                  </div>
-
-                  <button
-                    onClick={() => setAttackWarId(war.id)}
-                    className="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-sm py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <Swords size={16} />
-                    Lutar
-                  </button>
-                  
-                  <p className="text-white/30 text-[10px] mt-1">
-                    A guerra termina em: <span className="text-white/60">00:20:25</span>
-                  </p>
-                </div>
-
-                <div className="flex flex-col items-center w-1/3">
-                  <div className="w-16 h-16 rounded-full bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center mb-1">
-                    {war.defender?.flag_emoji ? (
-                      <span className="text-4xl">{war.defender.flag_emoji}</span>
-                    ) : (
-                      <span className="text-4xl">🛡️</span>
-                    )}
-                  </div>
-                  <p className="text-white font-bold text-sm text-center leading-tight">
-                    <Link 
-                      href={`/game/pais/${war.defender?.name?.toLowerCase().replace(/\s/g, '-') || ''}`}
-                      className="hover:text-primary-light transition-colors"
-                    >
-                      {war.defender?.name || 'Defensor'}
-                    </Link>
-                  </p>
-                  <p className="text-white/30 text-[10px]">Danos: {formatNumber(830200000)}</p>
-                </div>
-              </div>
-
-            </div>
-          ))
         )}
       </div>
 
-      <div className="px-4 mb-4">
-        <Link
-          href="/game/treinamento"
-          className="block w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-colors text-center"
-        >
-          TREINAMENTO MILITAR
-        </Link>
+      {/* ─── MINHAS GUERRAS ────────────────────────────────────── */}
+      <div>
+        <h2 className="text-white/60 text-sm font-semibold mb-2">Suas Guerras</h2>
+        {myWars.length === 0 ? (
+          <div className="bg-surface-card rounded-xl p-6 text-center border border-white/5">
+            <p className="text-4xl mb-2">🕊️</p>
+            <p className="text-white/40 text-sm">Você não está em nenhuma guerra ativa.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {myWars.map((war) => {
+              const isAttacker = war.attacker_id === Number(myCountry?.id)
+              const myDamage = isAttacker ? war.damage_to_attacker : war.damage_to_defender
+              const enemyDamage = isAttacker ? war.damage_to_defender : war.damage_to_attacker
+              const enemy = isAttacker ? war.defender : war.attacker
+
+              return (
+                <div key={war.id} className="bg-surface-card rounded-xl p-4 border border-white/5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{war.attacker?.flag_emoji}</span>
+                      <div>
+                        <p className="text-white font-bold text-sm">{war.attacker?.name}</p>
+                        <p className="text-white/30 text-xs">Atacante</p>
+                      </div>
+                    </div>
+                    <span className="text-white/30 text-xs font-bold">VS</span>
+                    <div className="flex items-center gap-2 text-right">
+                      <div>
+                        <p className="text-white font-bold text-sm">{war.defender?.name}</p>
+                        <p className="text-white/30 text-xs">Defensor</p>
+                      </div>
+                      <span className="text-2xl">{war.defender?.flag_emoji}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                    <div className="bg-black/20 rounded-lg p-2 text-center">
+                      <span className="text-white/40 text-xs">Seu dano</span>
+                      <p className="text-white font-bold text-base">{formatNumber(myDamage || 0)}</p>
+                    </div>
+                    <div className="bg-black/20 rounded-lg p-2 text-center">
+                      <span className="text-white/40 text-xs">Dano inimigo</span>
+                      <p className="text-white font-bold text-base">{formatNumber(enemyDamage || 0)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setAttackWarId(war.id)}
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                    >
+                      <Swords size={16} /> Atacar
+                    </button>
+                    <button
+                      onClick={() => proposePeace(war.id)}
+                      className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-2 rounded-lg transition-colors text-sm"
+                    >
+                      🕊️ Propor Paz
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      <div className="px-4 pb-24">
-        <p className="text-white/30 text-sm mb-3">
-          Todas as guerras do mundo ({worldWars.length})
-        </p>
-
-        <div className="flex flex-col gap-3">
-          {worldWars.slice(0, 5).map(war => (
-            <div key={war.id} className="bg-[#2a2a2a] rounded-xl p-3 border border-white/5 flex items-center">
-              
-              <div className="flex flex-col items-center w-16 flex-shrink-0">
-                <div className="w-10 h-10 rounded-full bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center mb-1">
-                  {war.attacker?.flag_emoji ? (
-                    <span className="text-xl">{war.attacker.flag_emoji}</span>
-                  ) : (
-                    <span className="text-xl">⚔️</span>
-                  )}
+      {/* ─── GUERRAS DO MUNDO ──────────────────────────────────── */}
+      <div>
+        <h2 className="text-white/60 text-sm font-semibold mb-2">Guerras no Mundo ({worldWars.length})</h2>
+        {worldWars.length === 0 ? (
+          <div className="bg-surface-card rounded-xl p-4 text-center border border-white/5">
+            <p className="text-white/40 text-sm">Nenhuma guerra ativa no momento.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {worldWars.slice(0, 5).map((war) => (
+              <div key={war.id} className="bg-surface-card rounded-xl p-3 border border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{war.attacker?.flag_emoji}</span>
+                  <span className="text-white font-semibold text-sm">{war.attacker?.name}</span>
                 </div>
-                <p className="text-white/60 text-[10px] text-center leading-tight">
-                  <Link 
-                    href={`/game/pais/${war.attacker?.name?.toLowerCase().replace(/\s/g, '-') || ''}`}
-                    className="hover:text-primary-light transition-colors"
-                  >
-                    {war.attacker?.name || 'Atacante'}
-                  </Link>
-                </p>
-                <p className="text-white/30 text-[8px]">Danos: 0</p>
-              </div>
-
-              <div className="flex-1 px-3 flex flex-col items-center">
-                <p className="text-white/40 text-[8px] uppercase">Danos:</p>
-                <p className="text-white font-bold text-sm">1.006.608.817</p>
-                <div className="w-full h-1 bg-white/10 rounded-full mt-1">
-                  <div className="h-full bg-blue-500 rounded-full" style={{ width: '40%' }} />
+                <span className="text-white/30 text-xs">⚔️</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-white font-semibold text-sm">{war.defender?.name}</span>
+                  <span className="text-xl">{war.defender?.flag_emoji}</span>
                 </div>
-                <button
-                  onClick={() => setAttackWarId(war.id)}
-                  className="mt-1 bg-red-600/80 hover:bg-red-600 text-white text-[10px] font-bold py-1 px-4 rounded transition-colors"
-                >
-                  <Swords size={12} className="inline mr-1" />
-                  Lutar
-                </button>
-                <p className="text-white/30 text-[8px] mt-0.5">
-                  A guerra termina em: <span className="text-white/60">00:14:13</span>
-                </p>
               </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-              <div className="flex flex-col items-center w-16 flex-shrink-0">
-                <div className="w-10 h-10 rounded-full bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center mb-1">
-                  {war.defender?.flag_emoji ? (
-                    <span className="text-xl">{war.defender.flag_emoji}</span>
-                  ) : (
-                    <span className="text-xl">🛡️</span>
-                  )}
-                </div>
-                <p className="text-white/60 text-[10px] text-center leading-tight">
-                  <Link 
-                    href={`/game/pais/${war.defender?.name?.toLowerCase().replace(/\s/g, '-') || ''}`}
-                    className="hover:text-primary-light transition-colors"
-                  >
-                    {war.defender?.name || 'Defensor'}
-                  </Link>
-                </p>
-                <p className="text-white/30 text-[8px]">Danos: {formatNumber(1006608817)}</p>
+      {/* ─── STATUS MILITAR ────────────────────────────────────── */}
+      {military && (
+        <div>
+          <h2 className="text-white/60 text-sm font-semibold mb-2 flex items-center gap-2">
+            <Shield size={16} /> Suas Forças
+          </h2>
+          <div className="grid grid-cols-3 gap-2">
+            {UNITS.map((unit) => (
+              <div key={unit.key} className="bg-surface-card rounded-xl p-2 text-center border border-white/5">
+                <span className="text-lg">{unit.emoji}</span>
+                <p className="text-white font-bold text-sm">{formatNumber(military[unit.key] || 0)}</p>
+                <p className="text-white/30 text-xs">{unit.label}</p>
               </div>
-
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
+      {/* ─── MODAL DE ATAQUE ──────────────────────────────────── */}
       {attackWarId && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end">
-          <div className="w-full bg-[#1a1a1a] rounded-t-2xl p-6 border-t border-white/5 max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center">
+          <div className="w-full max-w-lg bg-[#1a1a1a] rounded-t-2xl p-6 border-t border-white/5 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-bold text-lg">⚔️ Enviar Ataque</h3>
-              <button onClick={() => setAttackWarId('')} className="text-white/40 hover:text-white">
+              <h3 className="text-white font-bold text-lg flex items-center gap-2">
+                <Swords size={20} className="text-red-500" /> Enviar Ataque
+              </h3>
+              <button onClick={() => setAttackWarId('')} className="text-white/40 hover:text-white text-xl">
                 ✕
               </button>
             </div>
 
-            <select value={attackUnit} onChange={e => setAttackUnit(e.target.value)} className="input-field mb-3">
+            <select
+              value={attackUnit}
+              onChange={(e) => setAttackUnit(e.target.value)}
+              className="input-field mb-3"
+            >
               <option value="">Selecionar unidade...</option>
-              {UNITS.map(u => (
+              {UNITS.map((u) => (
                 <option key={u.key} value={u.key}>
-                  {u.emoji} {u.label} (disp.: {military?.[u.key] ?? 0})
+                  {u.emoji} {u.label} (disp.: {formatNumber(military?.[u.key] ?? 0)})
                 </option>
               ))}
             </select>
@@ -223,7 +209,7 @@ export default function WarPage() {
                 type="number"
                 min={1}
                 value={attackQty}
-                onChange={e => setAttackQty(Number(e.target.value))}
+                onChange={(e) => setAttackQty(Number(e.target.value))}
                 className="input-field flex-1"
                 placeholder="Quantidade"
               />
@@ -236,18 +222,14 @@ export default function WarPage() {
               </button>
             </div>
 
-            {feedback && <p className="text-sm text-yellow-400">{feedback}</p>}
+            {feedback && (
+              <p className={`text-sm text-center p-2 rounded-lg ${feedback.startsWith('✅') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                {feedback}
+              </p>
+            )}
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function PageLoading() {
-  return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   )
 }
