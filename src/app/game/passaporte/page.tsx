@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/authStore'
 import TrustBar from '@/components/home/TrustBar'
 import { formatMoney, formatNumber } from '@/utils/format'
 import { supabase } from '@/lib/supabase/client'
-import { Database } from '@/types/database'
+import { Database } from '@/lib/database'
 
 const TERRAIN_INFO: Record<string, { label: string; emoji: string; resources: string }> = {
   planicie:   { label: 'Planície',  emoji: '🌾', resources: 'Madeira, Petróleo, Carvão' },

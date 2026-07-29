@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
 import { useParliament } from '@/hooks/useParliament'
-import { Database } from '@/types/database'
+import { Database } from '@/lib/database' // ← caminho corrigido
 import { 
   ArrowLeft, Coins, Shield, Handshake, Swords, Ban,
   Landmark, MapPin, Globe, Flag, Crown, Send, X, Building2,
@@ -172,6 +172,19 @@ export default function PaisPage() {
     }
   }, [slug, user, myCountry])
 
+  // ─── UTILITÁRIO PARA UPSERT COM ON CONFLICT ──────────────
+  async function upsertDiplomacy(data: any) {
+    // Força a atualização usando onConflict na chave composta
+    const { data: result, error } = await supabase
+      .from('diplomacy')
+      .upsert(data, { onConflict: 'country_a_id, country_b_id' })
+      .select()
+      .single()
+
+    if (error) throw error
+    return result
+  }
+
   // ─── AÇÕES DIPLOMÁTICAS ────────────────────────────────────
 
   async function handleDiplomaticAction(action: 'ally' | 'neutral') {
@@ -181,29 +194,23 @@ export default function PaisPage() {
     setError('')
     setSuccess('')
 
-    const upsertData: DiplomacyInsert = {
-      country_a_id: myCountry.id,
-      country_b_id: country.id,
-      status: action,
-      updated_at: new Date().toISOString(),
+    try {
+      const result = await upsertDiplomacy({
+        country_a_id: myCountry.id,
+        country_b_id: country.id,
+        status: action,
+        relation_score: action === 'ally' ? 80 : 50,
+        updated_at: new Date().toISOString(),
+      })
+      setRelation(result)
+      const labels = { ally: 'Aliado', neutral: 'Neutro' }
+      setSuccess(`✅ Relação alterada para ${labels[action]}`)
+    } catch (err: any) {
+      setError(err.message || 'Erro ao executar ação diplomática')
     }
-
-    const { error: upsertError } = await supabase
-      .from('diplomacy')
-      .upsert(upsertData)
-
-    if (upsertError) {
-      setError('Erro ao executar ação diplomática')
-      return
-    }
-
-    const labels = { ally: 'Aliado', neutral: 'Neutro' }
-    setSuccess(`✅ Relação alterada para ${labels[action]}`)
-    setRelation((prev) => prev ? { ...prev, status: action } : null)
     setTimeout(() => setSuccess(''), 4000)
   }
 
-  // ✅ Declarar Guerra (Corrigido: objeto)
   async function handleDeclareWar() {
     if (!user || !myCountry || !country) return
     if (isMyCountry) return
@@ -225,7 +232,6 @@ export default function PaisPage() {
     setTimeout(() => setSuccess(''), 4000)
   }
 
-  // ✅ Aplicar/Remover Sanções (Corrigido: objeto)
   async function handleSanctions() {
     if (!user || !myCountry || !country) return
     if (isMyCountry) return
@@ -236,22 +242,19 @@ export default function PaisPage() {
     setSuccess('')
 
     if (isCurrentlySanctioned) {
-      const { error } = await supabase
-        .from('diplomacy')
-        .upsert({
+      try {
+        const result = await upsertDiplomacy({
           country_a_id: myCountry.id,
           country_b_id: country.id,
           is_sanctioned: false,
           status: 'neutral',
           updated_at: new Date().toISOString(),
         })
-
-      if (error) {
-        setError('Erro ao remover sanções')
-        return
+        setRelation(result)
+        setSuccess('✅ Sanções removidas')
+      } catch (err: any) {
+        setError(err.message || 'Erro ao remover sanções')
       }
-      setSuccess('✅ Sanções removidas')
-      setRelation(prev => prev ? { ...prev, is_sanctioned: false, status: 'neutral' } : null)
     } else {
       const res = await proposeLaw(10, { countryId: country.id })
       if (res.success) {
@@ -288,28 +291,21 @@ export default function PaisPage() {
         .eq('country_id', myCountry.id)
     }
 
-    const upsertData: DiplomacyInsert = {
-      country_a_id: myCountry.id,
-      country_b_id: country.id,
-      has_embassy: !hasEmbassy,
-      updated_at: new Date().toISOString(),
+    try {
+      const result = await upsertDiplomacy({
+        country_a_id: myCountry.id,
+        country_b_id: country.id,
+        has_embassy: !hasEmbassy,
+        updated_at: new Date().toISOString(),
+      })
+      setRelation(result)
+      setSuccess(hasEmbassy ? '✅ Embaixada destruída' : '✅ Embaixada construída')
+    } catch (err: any) {
+      setError(err.message || 'Erro ao construir/destruir embaixada')
     }
-
-    const { error: upsertError } = await supabase
-      .from('diplomacy')
-      .upsert(upsertData)
-
-    if (upsertError) {
-      setError('Erro ao construir/destruir embaixada')
-      return
-    }
-
-    setSuccess(hasEmbassy ? '✅ Embaixada destruída' : '✅ Embaixada construída')
-    setRelation((prev) => prev ? { ...prev, has_embassy: !hasEmbassy } : null)
     setTimeout(() => setSuccess(''), 4000)
   }
 
-  // ✅ CORRIGIDO: Usa a RPC transfer_money (ignora RLS com SECURITY DEFINER)
   async function handleSendMoney(amount: number) {
     if (!user || !myCountry || !country) return
     if (isMyCountry) return
@@ -317,19 +313,23 @@ export default function PaisPage() {
     setError('')
     setSuccess('')
 
-    const { data, error } = await supabase
-      .rpc('transfer_money', {
-        p_from: myCountry.id,
-        p_to: country.id,
-        p_amount: amount,
-      }) as { data: { success: boolean; message?: string; error?: string } | null; error: any }
+    try {
+      const { data, error } = await supabase
+        .rpc('transfer_money', {
+          p_from: myCountry.id,
+          p_to: country.id,
+          p_amount: amount,
+        }) as { data: RpcResponse | null; error: any }
 
-    if (error || !data?.success) {
-      setError(data?.error || error?.message || 'Erro ao transferir dinheiro')
-      return
+      if (error || !data?.success) {
+        setError(data?.error || error?.message || 'Erro ao transferir dinheiro')
+        return
+      }
+
+      setSuccess(data?.message || '✅ Dinheiro enviado com sucesso!')
+    } catch (err: any) {
+      setError(err.message || 'Erro ao transferir dinheiro')
     }
-
-    setSuccess(data?.message || '✅ Dinheiro enviado com sucesso!')
     setTimeout(() => setSuccess(''), 4000)
   }
 
@@ -345,21 +345,22 @@ export default function PaisPage() {
 
     const msg = DIPLOMATIC_MESSAGES.find(m => m.id === selectedMessage)
 
-    const { error: rpcError } = await supabase
-      .rpc('send_diplomatic_message', {
-        p_from_country: myCountry.id,
-        p_to_country: country.id,
-        p_message_id: msg?.id || ''
-      })
+    try {
+      const { error: rpcError } = await supabase
+        .rpc('send_diplomatic_message', {
+          p_from_country: myCountry.id,
+          p_to_country: country.id,
+          p_message_id: msg?.id || ''
+        })
 
-    if (rpcError) {
-      setError('Erro ao enviar mensagem')
-      return
+      if (rpcError) throw rpcError
+
+      setSuccess(`✅ ${msg?.title} enviada com sucesso!`)
+      setShowMessageModal(false)
+      setSelectedMessage('')
+    } catch (err: any) {
+      setError(err.message || 'Erro ao enviar mensagem')
     }
-
-    setSuccess(`✅ ${msg?.title} enviada com sucesso!`)
-    setShowMessageModal(false)
-    setSelectedMessage('')
     setTimeout(() => setSuccess(''), 4000)
   }
 
@@ -375,27 +376,22 @@ export default function PaisPage() {
 
     const treaty = TREATIES.find(t => t.id === selectedTreaty)
 
-    const upsertData: DiplomacyInsert = {
-      country_a_id: myCountry.id,
-      country_b_id: country.id,
-      treaty_status: selectedTreaty,
-      treaty_message: treatyMessage || `Proposta de ${treaty?.name}`,
-      updated_at: new Date().toISOString(),
+    try {
+      const result = await upsertDiplomacy({
+        country_a_id: myCountry.id,
+        country_b_id: country.id,
+        treaty_status: selectedTreaty,
+        treaty_message: treatyMessage || `Proposta de ${treaty?.name}`,
+        updated_at: new Date().toISOString(),
+      })
+      setRelation(result)
+      setSuccess(`✅ ${treaty?.name} enviado com sucesso!`)
+      setShowTreatyModal(false)
+      setSelectedTreaty('')
+      setTreatyMessage('')
+    } catch (err: any) {
+      setError(err.message || 'Erro ao enviar tratado')
     }
-
-    const { error: upsertError } = await supabase
-      .from('diplomacy')
-      .upsert(upsertData)
-
-    if (upsertError) {
-      setError('Erro ao enviar tratado')
-      return
-    }
-
-    setSuccess(`✅ ${treaty?.name} enviado com sucesso!`)
-    setShowTreatyModal(false)
-    setSelectedTreaty('')
-    setTreatyMessage('')
     setTimeout(() => setSuccess(''), 4000)
   }
 

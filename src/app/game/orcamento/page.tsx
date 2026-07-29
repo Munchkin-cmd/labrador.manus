@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useEconomy } from '@/hooks/useMenu'
-import { useRede } from '@/hooks/useEco'
+import { useEco } from '@/hooks/useEco'  // ✅ apenas useEco
 import { useAuthStore } from '@/store/authStore'
 import { formatMoney, formatNumber } from '@/utils/format'
 import { Coins, Sprout, Pickaxe, Factory, Droplet, Landmark, Zap, ArrowRightLeft } from 'lucide-react'
@@ -10,8 +9,7 @@ import { supabase } from '@/lib/supabase/client'
 
 export default function OrcamentoPage() {
   const { country } = useAuthStore()
-  const { economy, loading: loadingEco } = useEconomy()
-  const { buildings, loading: loadingRede } = useRede()
+  const { economy, buildings, loading } = useEco() // ✅ usa useEco para tudo
   
   // ─── BUSCAR IMPOSTOS ────────────────────────────────────────
   const [taxes, setTaxes] = useState<any>(null)
@@ -31,7 +29,7 @@ export default function OrcamentoPage() {
     fetchTaxes()
   }, [country?.id])
 
-  if (loadingEco || loadingRede || loadingTax) return <Loading />
+  if (loading || loadingTax) return <Loading />
   if (!economy || !taxes || !buildings) return null
 
   // ─── 1. RECEITAS BRUTAS ──────────────────────────────────────
