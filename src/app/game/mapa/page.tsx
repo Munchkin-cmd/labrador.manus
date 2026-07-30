@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 interface CountryInfo {
   id: number // ✅ CORRIGIDO: string → number
   name: string
-  slug: string
+   slug: string | null  // ← pode ser null
   flag_emoji: string
   capital: string
   terrain: string
