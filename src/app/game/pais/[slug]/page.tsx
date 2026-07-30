@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
 import { useParliament } from '@/hooks/useParliament'
-import { Database } from '@/lib/database' // ← caminho corrigido
+import { Database } from '@/types/database'
 import { 
   ArrowLeft, Coins, Shield, Handshake, Swords, Ban,
   Landmark, MapPin, Globe, Flag, Crown, Send, X, Building2,
@@ -22,7 +22,7 @@ type DiplomacyInsert = Database['public']['Tables']['diplomacy']['Insert']
 type UserRow = Database['public']['Tables']['users']['Row']
 type EconomyRow = Database['public']['Tables']['economy']['Row']
 
-// ─── MENSAGENS DIPLOMÁTICAS PRÉ-DEFINIDAS ──────────────────
+// ─── MENSAGENS DIPLOMÁTICAS ──────────────────────────────────
 const DIPLOMATIC_MESSAGES = [
   { id: 'formal_positive', title: '🌟 Mensagem de Amizade', content: 'O governo do seu país envia suas mais sinceras saudações e deseja estabelecer laços de cooperação e prosperidade mútua.', effect_relation: 15, effect_approval: 5, effect_trust: 5 },
   { id: 'formal_negative', title: '📜 Nota de Repúdio', content: 'O governo do seu país expressa sua profunda preocupação com as recentes ações do seu governo, que consideramos uma ameaça à estabilidade regional.', effect_relation: -20, effect_approval: -5, effect_trust: -10 },
@@ -39,7 +39,6 @@ const TREATIES = [
   { id: 'peace', name: 'Tratado de Paz', description: 'Fim das hostilidades' },
 ]
 
-// ─── TIPO PARA O RETORNO DAS RPCS ───────────────────────────
 type RpcResponse = {
   success: boolean
   message?: string
@@ -71,7 +70,12 @@ export default function PaisPage() {
 
   const isMyCountry = myCountry?.id === country?.id
 
-  // ─── BUSCAR DADOS DO PAÍS E REGIÕES ──────────────────────
+  // ─── VERIFIQUE NO SEU BANCO: o nome da coluna de status na tabela diplomacy
+  // Pode ser 'status', 'relation_status', 'diplomatic_status', etc.
+  // Altere a constante abaixo para o nome real:
+  const STATUS_COLUMN = 'status' // ← ALTERE AQUI se necessário
+
+  // ─── BUSCAR DADOS ──────────────────────────────────────────
   useEffect(() => {
     async function fetchCountry() {
       setLoading(true)
@@ -150,10 +154,10 @@ export default function PaisPage() {
             .insert({
               country_a_id: myCountry.id,
               country_b_id: countryData.id,
-              status: 'neutral',
+              [STATUS_COLUMN]: 'neutral',
               relation_score: 50,
               has_embassy: false,
-              is_sanctioned: false
+              sanctions_active: false,
             })
             .select()
             .single<DiplomacyRow>()
@@ -170,11 +174,10 @@ export default function PaisPage() {
     if (slug) {
       fetchCountry()
     }
-  }, [slug, user, myCountry])
+  }, [slug, user, myCountry, STATUS_COLUMN])
 
-  // ─── UTILITÁRIO PARA UPSERT COM ON CONFLICT ──────────────
+  // ─── UTILITÁRIO PARA UPSERT ──────────────────────────────
   async function upsertDiplomacy(data: any) {
-    // Força a atualização usando onConflict na chave composta
     const { data: result, error } = await supabase
       .from('diplomacy')
       .upsert(data, { onConflict: 'country_a_id, country_b_id' })
@@ -198,7 +201,7 @@ export default function PaisPage() {
       const result = await upsertDiplomacy({
         country_a_id: myCountry.id,
         country_b_id: country.id,
-        status: action,
+        [STATUS_COLUMN]: action,
         relation_score: action === 'ally' ? 80 : 50,
         updated_at: new Date().toISOString(),
       })
@@ -236,7 +239,7 @@ export default function PaisPage() {
     if (!user || !myCountry || !country) return
     if (isMyCountry) return
 
-    const isCurrentlySanctioned = relation?.is_sanctioned === true
+    const isCurrentlySanctioned = relation?.sanctions_active === true
 
     setError('')
     setSuccess('')
@@ -246,8 +249,8 @@ export default function PaisPage() {
         const result = await upsertDiplomacy({
           country_a_id: myCountry.id,
           country_b_id: country.id,
-          is_sanctioned: false,
-          status: 'neutral',
+          sanctions_active: false,
+          [STATUS_COLUMN]: 'neutral',
           updated_at: new Date().toISOString(),
         })
         setRelation(result)
@@ -314,6 +317,7 @@ export default function PaisPage() {
     setSuccess('')
 
     try {
+      // 🔥 CORREÇÃO: nome correto da RPC (sem espaço)
       const { data, error } = await supabase
         .rpc('transfer_money', {
           p_from: myCountry.id,
@@ -347,10 +351,10 @@ export default function PaisPage() {
 
     try {
       const { error: rpcError } = await supabase
-        .rpc('send_diplomatic_message', {
-          p_from_country: myCountry.id,
-          p_to_country: country.id,
-          p_message_id: msg?.id || ''
+        .rpc('send_country_message', {
+          p_from: myCountry.id,
+          p_to: country.id,
+          p_content: msg?.id || ''
         })
 
       if (rpcError) throw rpcError
@@ -418,6 +422,20 @@ export default function PaisPage() {
       </div>
     )
   }
+
+  // 🔥 Função auxiliar para obter o status de forma segura
+  const getRelationStatus = () => {
+    if (!relation) return 'neutral'
+    // Tenta acessar a coluna de status dinamicamente
+    const status = (relation as any)[STATUS_COLUMN]
+    return status || 'neutral'
+  }
+
+  const relationStatus = getRelationStatus()
+  const isAlly = relationStatus === 'ally'
+  const isWar = relationStatus === 'war'
+  const isSanctioned = relation?.sanctions_active === true
+  const hasEmbassy = relation?.has_embassy === true
 
   return (
     <div className="max-w-4xl mx-auto pb-24 px-4">
@@ -495,7 +513,7 @@ export default function PaisPage() {
           <button
             onClick={() => handleDiplomaticAction('ally')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1
-              ${relation?.status === 'ally' 
+              ${isAlly 
                 ? 'bg-green-500/20 text-green-400 border border-green-500/20' 
                 : 'bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-transparent'}`}
           >
@@ -512,22 +530,22 @@ export default function PaisPage() {
           <button
             onClick={handleSanctions}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1
-              ${relation?.is_sanctioned 
+              ${isSanctioned 
                 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/20' 
                 : 'bg-white/10 text-white/70 hover:bg-white/20 border border-white/10'}`}
           >
             <Ban size={14} />
-            {relation?.is_sanctioned ? 'Remover Sanções' : 'Aplicar Sanções'}
+            {isSanctioned ? 'Remover Sanções' : 'Aplicar Sanções'}
           </button>
           <button
             onClick={handleEmbassy}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1
-              ${relation?.has_embassy 
+              ${hasEmbassy 
                 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/20' 
                 : 'bg-white/10 text-white/70 hover:bg-white/20 border border-white/10'}`}
           >
             <Landmark size={14} />
-            {relation?.has_embassy ? 'Destruir Embaixada' : 'Construir Embaixada'}
+            {hasEmbassy ? 'Destruir Embaixada' : 'Construir Embaixada'}
           </button>
           <button
             onClick={() => handleSendMoney(1000000)}
@@ -546,12 +564,12 @@ export default function PaisPage() {
           <button
             onClick={handleDeclareWar}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1
-              ${relation?.status === 'war' 
+              ${isWar 
                 ? 'bg-red-500/20 text-red-400 border border-red-500/20' 
                 : 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-transparent'}`}
           >
             <Swords size={14} />
-            {relation?.status === 'war' ? 'Em Guerra' : 'Declarar Guerra'}
+            {isWar ? 'Em Guerra' : 'Declarar Guerra'}
           </button>
         </div>
       )}
@@ -560,23 +578,23 @@ export default function PaisPage() {
         <div className="mt-4 px-4 flex justify-center">
           <div className="flex flex-wrap gap-2 justify-center">
             <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
-              ${relation.status === 'ally' ? 'bg-green-500/20 text-green-400 border border-green-500/20' :
-                relation.status === 'war' ? 'bg-red-500/20 text-red-400 border border-red-500/20' :
-                relation.status === 'sanctioned' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/20' :
+              ${isAlly ? 'bg-green-500/20 text-green-400 border border-green-500/20' :
+                isWar ? 'bg-red-500/20 text-red-400 border border-red-500/20' :
+                isSanctioned ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/20' :
                 'bg-white/5 text-white/50 border border-white/10'}`}
             >
               <Shield size={16} />
-              Relação: {relation.status === 'ally' ? '🤝 Aliado' : 
-                relation.status === 'war' ? '⚔️ Guerra' : 
-                relation.status === 'sanctioned' ? '🚫 Sanções' : 
+              Relação: {isAlly ? '🤝 Aliado' : 
+                isWar ? '⚔️ Guerra' : 
+                isSanctioned ? '🚫 Sanções' : 
                 '🤝 Neutro'}
             </div>
-            {relation.is_sanctioned && (
+            {isSanctioned && (
               <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/20">
                 <Ban size={14} /> Sanções Ativas
               </span>
             )}
-            {relation.has_embassy && (
+            {hasEmbassy && (
               <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-500/20 text-blue-400 border border-blue-500/20">
                 <Landmark size={14} /> Embaixada
               </span>
