@@ -67,8 +67,9 @@ export default function EcoPage() {
     let nextFinish = Infinity
 
     buildings.forEach(b => {
-      if (!b.is_built && b.construction_ends_at) {
-        const t = new Date(b.construction_ends_at).getTime()
+      // ✅ CORRIGIDO: usa 'finished_at' em vez de 'construction_ends_at'
+      if (!b.is_built && b.finished_at) {
+        const t = new Date(b.finished_at).getTime()
         if (t < nextFinish) nextFinish = t
       }
     })
@@ -136,6 +137,7 @@ export default function EcoPage() {
   return (
     <div className="flex flex-col gap-4 pb-24 px-4 pt-4 max-w-4xl mx-auto w-full">
 
+      {/* ─── TIMER DE PRODUÇÃO ────────────────────────────── */}
       <div className="bg-surface-card rounded-xl p-4 border border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Factory size={20} className="text-primary-light" />
@@ -152,6 +154,7 @@ export default function EcoPage() {
         </div>
       </div>
 
+      {/* ─── FINANÇAS ────────────────────────────────────── */}
       <div>
         <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-2">💰 FINANÇAS</p>
         <div className="bg-surface-card rounded-xl p-4 border border-white/5 grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -174,6 +177,7 @@ export default function EcoPage() {
         </div>
       </div>
 
+      {/* ─── RECURSOS ────────────────────────────────────── */}
       <div>
         <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-2">📦 RECURSOS</p>
         <div className="bg-surface-card rounded-xl p-4 border border-white/5 grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -189,6 +193,7 @@ export default function EcoPage() {
         </div>
       </div>
 
+      {/* ─── CONSTRUIR EDIFÍCIO ──────────────────────────── */}
       <div className="bg-surface-card rounded-xl p-4 border border-white/5 flex flex-col gap-3">
         <div className="flex items-center gap-2 mb-1">
           <Hammer size={18} className="text-white/40" />
@@ -255,14 +260,18 @@ export default function EcoPage() {
           )}
         </div>
 
+        {/* ─── EDIFÍCIOS EM CONSTRUÇÃO ──────────────────────── */}
         {buildings.filter(b => !b.is_built).length > 0 && (
           <div className="mt-2">
             <p className="text-xs font-semibold text-white/40 mb-1">🔨 Em construção</p>
             {buildings.filter(b => !b.is_built).slice(0, 5).map(b => {
-              const progress = b.construction_progress || 0
-              const total = (b.building_catalog?.build_time_min || 30) * 60 * 1000
-              const elapsed = (progress / 100) * total
-              const remaining = Math.max(0, total - elapsed)
+              // ✅ CORRIGIDO: calcula progresso com base em 'started_at' e 'build_time_min'
+              const buildTimeMin = b.building_catalog?.build_time_min || 30
+              const totalMs = buildTimeMin * 60 * 1000
+              const elapsed = Date.now() - new Date(b.started_at).getTime()
+              const progress = Math.min(100, (elapsed / totalMs) * 100)
+              const remaining = Math.max(0, totalMs - elapsed)
+
               return (
                 <div key={b.id} className="bg-white/5 rounded-lg p-2.5 mb-2">
                   <div className="flex justify-between items-center mb-1">
@@ -281,6 +290,7 @@ export default function EcoPage() {
         )}
       </div>
 
+      {/* ─── PRODUZIR EQUIPAMENTO ──────────────────────────── */}
       <div className="bg-surface-card rounded-xl p-4 border border-white/5 flex flex-col gap-3">
         <div className="flex items-center gap-2 mb-1">
           <Package size={18} className="text-white/40" />

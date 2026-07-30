@@ -29,7 +29,6 @@ export function useChat() {
   const fetchMessages = useCallback(async () => {
     try {
       setError(null)
-      // 🔥 Busca sem a relação reply_to_message (se não existir)
       const { data, error: fetchError } = await supabase
         .from('chat_messages')
         .select(`
@@ -57,7 +56,7 @@ export function useChat() {
       }
 
       if (data) {
-        // 🔥 Buscar reply_to_message separadamente se houver reply_to_id
+        // Busca replies separadamente
         const replyIds = data
           .map(m => m.reply_to_id)
           .filter(id => id !== null && id !== undefined) as string[]
@@ -92,7 +91,7 @@ export function useChat() {
         })))
       }
     } catch (err) {
-      console.error('❌ Erro inesperado ao buscar mensagens:', err)
+      console.error('❌ Erro inesperado:', err)
       setError(err instanceof Error ? err.message : 'Erro ao carregar mensagens')
     } finally {
       setLoading(false)
@@ -115,7 +114,6 @@ export function useChat() {
         },
         async (payload) => {
           try {
-            // Buscar mensagem completa
             const { data: fullMsg, error: msgError } = await supabase
               .from('chat_messages')
               .select(`
@@ -134,20 +132,28 @@ export function useChat() {
             if (fullMsg) {
               let reply_to_message = null
               if (fullMsg.reply_to_id) {
-                const { data: reply } = await supabase
+                const { data: reply, error: replyError } = await supabase
                   .from('chat_messages')
                   .select('content, countries ( name, flag_emoji )')
                   .eq('id', fullMsg.reply_to_id)
                   .single()
-                reply_to_message = reply || null
+
+                if (!replyError && reply) {
+                  // ✅ CORREÇÃO: mapeia 'countries' para 'country'
+                  reply_to_message = {
+                    content: reply.content,
+                    country: reply.countries || { name: 'Desconhecido', flag_emoji: '🌐' }
+                  }
+                }
               }
 
-              setMessages(prev => [...prev, {
+              const newMsg: ChatMessage = {
                 ...fullMsg,
                 media_url: fullMsg.image_url || fullMsg.video_url || fullMsg.gif_url || fullMsg.sticker_url || fullMsg.file_url || fullMsg.music_url || null,
                 country: fullMsg.countries,
                 reply_to_message: reply_to_message
-              }])
+              }
+              setMessages(prev => [...prev, newMsg])
             }
           } catch (err) {
             console.error('❌ Erro ao processar nova mensagem:', err)
@@ -166,12 +172,8 @@ export function useChat() {
     file?: File,
     reply_to_id?: string | null
   ): Promise<{ success: boolean; error?: string }> {
-    if (!country?.id) {
-      return { success: false, error: 'País não encontrado' }
-    }
-    if (!content.trim() && !file) {
-      return { success: false, error: 'Mensagem vazia' }
-    }
+    if (!country?.id) return { success: false, error: 'País não encontrado' }
+    if (!content.trim() && !file) return { success: false, error: 'Mensagem vazia' }
 
     let insertData: any = {
       country_id: country.id,

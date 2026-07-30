@@ -52,7 +52,16 @@ export default function StatePage() {
           .eq('country_id', myCountry.id)
           .maybeSingle()
         if (error) throw error
-        setCombatXP(data || null)
+        
+        // ✅ CORREÇÃO: Garantir que os valores sejam números (não null)
+        if (data) {
+          setCombatXP({
+            experience: data.experience ?? 0,
+            wars_participated: data.wars_participated ?? 0,
+          })
+        } else {
+          setCombatXP(null)
+        }
       } catch (err) {
         console.error('❌ Erro ao buscar XP de combate:', err)
       } finally {
@@ -660,7 +669,6 @@ export default function StatePage() {
               value={selectedLawId}
               onChange={e => {
                 const val = Number(e.target.value)
-                console.log('📌 Lei selecionada ID:', val)
                 setSelectedLawId(val as any)
                 setTargetCountryId(null)
                 setTargetRegionId('')

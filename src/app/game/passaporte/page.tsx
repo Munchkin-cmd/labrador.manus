@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/authStore'
 import TrustBar from '@/components/home/TrustBar'
 import { formatMoney, formatNumber } from '@/utils/format'
 import { supabase } from '@/lib/supabase/client'
-import { Database } from '@/lib/database'
+import { Database } from '@/types/database'
 
 const TERRAIN_INFO: Record<string, { label: string; emoji: string; resources: string }> = {
   planicie:   { label: 'Planície',  emoji: '🌾', resources: 'Madeira, Petróleo, Carvão' },
@@ -16,19 +16,27 @@ const TERRAIN_INFO: Record<string, { label: string; emoji: string; resources: st
   anfibio:    { label: 'Ânfibio',   emoji: '🌊', resources: 'Madeira, Ouro, Petróleo' },
 }
 
-// ✅ Usa o tipo exato do Supabase
-type MilitaryData = Partial<Database['public']['Tables']['military']['Row']>
+// ─── TIPOS ──────────────────────────────────────────────
+type MilitaryRow = Database['public']['Tables']['military']['Row']
+type MilitaryLossesRow = Database['public']['Tables']['military_losses']['Row']
+// ✅ Tipo específico para aliados (apenas os campos que selecionamos)
+type AllyInfo = {
+  id: number
+  name: string
+  flag_emoji: string
+  slug: string | null
+}
 
 export default function PassaportePage() {
   const { country } = useAuthStore()
   const { data, economy, profile, loading } = useCountry()
   
   // ─── ESTADOS EXTRAS ─────────────────────────────────────────
-  const [military, setMilitary] = useState<MilitaryData | null>(null)
-  const [losses, setLosses] = useState<MilitaryData | null>(null)
+  const [military, setMilitary] = useState<Partial<MilitaryRow> | null>(null)
+  const [losses, setLosses] = useState<Partial<MilitaryLossesRow> | null>(null)
   const [destroyedBuildings, setDestroyedBuildings] = useState(0)
   const [warStats, setWarStats] = useState({ wins: 0, losses: 0 })
-  const [allies, setAllies] = useState<any[]>([])
+  const [allies, setAllies] = useState<AllyInfo[]>([]) // ✅ tipo corrigido
 
   useEffect(() => {
     if (!country?.id) return
@@ -38,37 +46,44 @@ export default function PassaportePage() {
   async function fetchExtras() {
     if (!country?.id) return
 
+    // 1. Dados militares
     const { data: mil } = await supabase
       .from('military')
       .select('*')
       .eq('country_id', country.id)
-      .single()
-    setMilitary(mil as MilitaryData)
+      .maybeSingle()
+    setMilitary(mil || null)
 
+    // 2. Perdas (baixas)
     const { data: lossesData } = await supabase
       .from('military_losses')
-      .select('soldiers, tanks, aircraft, helicopters, drones, missiles, warheads, artillery')
+      .select('soldiers_lost, tanks_lost, aircraft_lost, helicopters_lost, drones_lost, missiles_lost, warheads_lost, artillery_lost')
       .eq('country_id', country.id)
-    if (lossesData) {
+
+    if (lossesData && lossesData.length > 0) {
       const totals = lossesData.reduce((acc, curr) => ({
-        soldiers: (acc.soldiers || 0) + (curr.soldiers || 0),
-        tanks: (acc.tanks || 0) + (curr.tanks || 0),
-        aircraft: (acc.aircraft || 0) + (curr.aircraft || 0),
-        helicopters: (acc.helicopters || 0) + (curr.helicopters || 0),
-        drones: (acc.drones || 0) + (curr.drones || 0),
-        missiles: (acc.missiles || 0) + (curr.missiles || 0),
-        warheads: (acc.warheads || 0) + (curr.warheads || 0),
-        artillery: (acc.artillery || 0) + (curr.artillery || 0),
-      }), {} as MilitaryData)
+        soldiers_lost: (acc.soldiers_lost || 0) + (curr.soldiers_lost || 0),
+        tanks_lost: (acc.tanks_lost || 0) + (curr.tanks_lost || 0),
+        aircraft_lost: (acc.aircraft_lost || 0) + (curr.aircraft_lost || 0),
+        helicopters_lost: (acc.helicopters_lost || 0) + (curr.helicopters_lost || 0),
+        drones_lost: (acc.drones_lost || 0) + (curr.drones_lost || 0),
+        missiles_lost: (acc.missiles_lost || 0) + (curr.missiles_lost || 0),
+        warheads_lost: (acc.warheads_lost || 0) + (curr.warheads_lost || 0),
+        artillery_lost: (acc.artillery_lost || 0) + (curr.artillery_lost || 0),
+      }), {} as Partial<MilitaryLossesRow>)
       setLosses(totals)
+    } else {
+      setLosses(null)
     }
 
+    // 3. Edifícios destruídos
     const { count: destroyed } = await supabase
       .from('destroyed_buildings')
       .select('*', { count: 'exact', head: true })
       .eq('country_id', country.id)
     setDestroyedBuildings(destroyed || 0)
 
+    // 4. Estatísticas de guerras
     const { data: wars } = await supabase
       .from('wars')
       .select('attacker_id, defender_id, status')
@@ -83,17 +98,32 @@ export default function PassaportePage() {
     })
     setWarStats({ wins, losses: lossesCount })
 
-    const { data: alliesData } = await supabase
+    // 5. Aliados – busca as relações e depois os países
+    const { data: alliesRel } = await supabase
       .from('diplomacy')
-      .select('country_a_id, country_b_id, countries!diplomacy_country_a_id_fkey(name, flag_emoji, slug), countries!diplomacy_country_b_id_fkey(name, flag_emoji, slug)')
+      .select('country_a_id, country_b_id')
       .or(`country_a_id.eq.${country.id},country_b_id.eq.${country.id}`)
       .eq('status', 'ally')
-    if (alliesData) {
-      const formatted = alliesData.map(d => {
-        if (d.country_a_id === country.id) return d.countries
-        return d.countries
-      }).filter(Boolean)
-      setAllies(formatted)
+
+    if (alliesRel && alliesRel.length > 0) {
+      const allyIds = alliesRel.map(rel => {
+        if (rel.country_a_id === country.id) return rel.country_b_id
+        return rel.country_a_id
+      }).filter(id => id !== undefined)
+
+      if (allyIds.length > 0) {
+        // ✅ Busca apenas os campos necessários
+        const { data: allyCountries } = await supabase
+          .from('countries')
+          .select('id, name, flag_emoji, slug')
+          .in('id', allyIds)
+        // ✅ Agora o tipo é compatível com AllyInfo
+        setAllies(allyCountries || [])
+      } else {
+        setAllies([])
+      }
+    } else {
+      setAllies([])
     }
   }
 
@@ -103,14 +133,14 @@ export default function PassaportePage() {
   const terrain = TERRAIN_INFO[data.terrain] ?? { label: data.terrain, emoji: '🗺️', resources: '—' }
 
   const equipmentList = [
-    { key: 'soldiers', label: 'Soldados', emoji: '⚔️' },
-    { key: 'tanks', label: 'Tanques', emoji: '🛡️' },
-    { key: 'artillery', label: 'Artilharia', emoji: '💣' },
-    { key: 'aircraft', label: 'Aeronaves', emoji: '✈️' },
-    { key: 'helicopters', label: 'Helicópteros', emoji: '🚁' },
-    { key: 'drones', label: 'Drones', emoji: '🤖' },
-    { key: 'missiles', label: 'Mísseis', emoji: '🎯' },
-    { key: 'warheads', label: 'Ogivas', emoji: '☢️' },
+    { key: 'soldiers', label: 'Soldados', emoji: '⚔️', lossKey: 'soldiers_lost' },
+    { key: 'tanks', label: 'Tanques', emoji: '🛡️', lossKey: 'tanks_lost' },
+    { key: 'artillery', label: 'Artilharia', emoji: '💣', lossKey: 'artillery_lost' },
+    { key: 'aircraft', label: 'Aeronaves', emoji: '✈️', lossKey: 'aircraft_lost' },
+    { key: 'helicopters', label: 'Helicópteros', emoji: '🚁', lossKey: 'helicopters_lost' },
+    { key: 'drones', label: 'Drones', emoji: '🤖', lossKey: 'drones_lost' },
+    { key: 'missiles', label: 'Mísseis', emoji: '🎯', lossKey: 'missiles_lost' },
+    { key: 'warheads', label: 'Ogivas', emoji: '☢️', lossKey: 'warheads_lost' },
   ]
 
   return (
@@ -160,7 +190,7 @@ export default function PassaportePage() {
           </div>
         </Section>
 
-        {/* ─── ESTATÍSTICAS NACIONAIS (Infraestrutura + Guerras) ── */}
+        {/* ─── ESTATÍSTICAS NACIONAIS ── */}
         <Section title="ESTATÍSTICAS NACIONAIS">
           <div className="bg-white/5 rounded-lg p-3">
             <Row label="Infraestrutura destruída" value={`${destroyedBuildings} edifícios`} />
@@ -169,23 +199,23 @@ export default function PassaportePage() {
           </div>
         </Section>
 
-        {/* ─── MILITARES (Equipamentos + Baixas) ──────────────── */}
+        {/* ─── MILITARES ── */}
         <Section title="MILITARES">
           <div className="flex flex-col gap-3">
             {equipmentList.map(item => {
-              const stock = military?.[item.key as keyof MilitaryData] || 0
-              const lost = losses?.[item.key as keyof MilitaryData] || 0
+              const stock = (military?.[item.key as keyof MilitaryRow] as number) || 0
+              const lost = (losses?.[item.lossKey as keyof MilitaryLossesRow] as number) || 0
               return (
                 <div key={item.key} className="bg-white/5 rounded-lg p-3 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{item.emoji}</span>
                     <div>
                       <p className="text-white font-semibold">{item.label}</p>
-                      <p className="text-white/30 text-xs">Em estoque: {formatNumber(Number(stock))}</p>
+                      <p className="text-white/30 text-xs">Em estoque: {formatNumber(stock)}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-red-400 text-xs font-semibold">Baixas: {formatNumber(Number(lost))}</p>
+                    <p className="text-red-400 text-xs font-semibold">Baixas: {formatNumber(lost)}</p>
                     <p className="text-white/30 text-[10px]">Destruídos em guerra</p>
                   </div>
                 </div>
@@ -194,16 +224,16 @@ export default function PassaportePage() {
           </div>
         </Section>
 
-        {/* ─── ALIADOS ──────────────────────────────────────────── */}
+        {/* ─── ALIADOS ── */}
         <Section title="🤝 ALIADOS">
           {allies.length === 0 ? (
             <p className="text-white/30 text-sm text-center py-2">Nenhum aliado ativo</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {allies.map((ally, idx) => (
+              {allies.map((ally) => (
                 <Link
-                  key={idx}
-                  href={`/game/pais/${ally.slug}`}
+                  key={ally.id}
+                  href={`/game/pais/${ally.slug || ally.id}`} // fallback para id
                   className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2 hover:bg-green-500/20 transition-colors"
                 >
                   <span className="text-xl">{ally.flag_emoji || '🌐'}</span>
