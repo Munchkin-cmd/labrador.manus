@@ -1,12 +1,18 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ChatMessage, useChat } from '@/hooks/useChat'
+import { useChat, ChatMessage } from '@/hooks/useChat'
 import { formatTime } from '@/utils/format'
 import {
-  Smile, Image, Video, Music, Link2, Send,
-  Mic, Gift, Sticker, Reply, X, FileText
+  Image, Video, Music, Link2, Send,
+  Mic, Gift, Reply, X, FileText
 } from 'lucide-react'
+
+// ─── GIPHY SDK ──────────────────────────────────────────────
+import { GiphyFetch } from '@giphy/js-fetch-api'
+import { Grid } from '@giphy/react-components'
+
+const gf = new GiphyFetch(process.env.NEXT_PUBLIC_GIPHY_API_KEY || '')
 
 export default function GlobalChat() {
   const { messages, loading, error, sendMessage } = useChat()
@@ -15,6 +21,11 @@ export default function GlobalChat() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [mediaPreview, setMediaPreview] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+
+  // ─── GIF MODAL ──────────────────────────────────────────────
+  const [showGifModal, setShowGifModal] = useState(false)
+  const [gifSearch, setGifSearch] = useState('')
+  const [gifTab, setGifTab] = useState<'gifs' | 'stickers'>('gifs')
 
   const inputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -28,6 +39,16 @@ export default function GlobalChat() {
     return () => { if (mediaPreview) URL.revokeObjectURL(mediaPreview) }
   }, [mediaPreview])
 
+  // ─── SELECIONAR GIF ──────────────────────────────────────────
+  const selectGif = (url: string) => {
+    const gifMarkdown = `![GIF](${url})`
+    setText(prev => prev ? prev + ' ' + gifMarkdown : gifMarkdown)
+    setShowGifModal(false)
+    setGifSearch('')
+    inputRef.current?.focus()
+  }
+
+  // ─── HANDLERS ──────────────────────────────────────────────
   async function handleSend() {
     if (!text.trim() && !selectedFile) return
     if (sending) return
@@ -39,7 +60,6 @@ export default function GlobalChat() {
         selectedFile || undefined,
         replyTo?.id || null
       )
-
       if (result.success) {
         setText('')
         setSelectedFile(null)
@@ -60,7 +80,6 @@ export default function GlobalChat() {
     setReplyTo(msg)
     inputRef.current?.focus()
   }
-
   function cancelReply() { setReplyTo(null) }
 
   function openFileSelector(type: string) {
@@ -81,6 +100,17 @@ export default function GlobalChat() {
     }
   }
 
+  // ─── RENDER ──────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div className="px-4">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-400 text-sm">
+          Erro no chat: {error}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="px-4 flex flex-col gap-3">
       <p className="text-xs font-bold tracking-widest text-white/40 uppercase">CHAT GLOBAL</p>
@@ -93,7 +123,7 @@ export default function GlobalChat() {
           <div ref={bottomRef} />
         </div>
 
-        {/* ── ÁREA DE RESPOSTA ── */}
+        {/* ─── ÁREA DE RESPOSTA ───────────────────────────────── */}
         {replyTo && (
           <div className="border-t border-primary/20 bg-primary/5 px-3 py-2 flex items-center justify-between">
             <div className="flex flex-col min-w-0">
@@ -124,13 +154,17 @@ export default function GlobalChat() {
           <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect} />
 
           <div className="flex items-center gap-1 px-1">
+            {/* ─── BOTÃO GIF ──────────────────────────────────── */}
+            <button
+              onClick={() => setShowGifModal(true)}
+              className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"
+            >
+              <Gift size={18} />
+            </button>
             <button onClick={() => openFileSelector('image/*')} className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Image size={18} /></button>
             <button onClick={() => openFileSelector('video/*')} className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Video size={18} /></button>
             <button onClick={() => openFileSelector('audio/*')} className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Music size={18} /></button>
-            <button className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Sticker size={18} /></button>
-            <button className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Smile size={18} /></button>
-            <button className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Gift size={18} /></button>
-            <button onClick={() => openFileSelector('application/pdf')} className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><FileText size={18} /></button>
+            <button onClick={() => openFileSelector('*/*')} className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><FileText size={18} /></button>
             <button className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Link2 size={18} /></button>
             <button className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Mic size={18} /></button>
             <div className="flex-1" />
@@ -152,6 +186,70 @@ export default function GlobalChat() {
           />
         </div>
       </div>
+
+      {/* ─── MODAL DE GIF (GIPHY SDK) ────────────────────────── */}
+      {showGifModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-bold">🎨 Escolher GIF ou Sticker</h3>
+              <button onClick={() => setShowGifModal(false)} className="text-white/40 hover:text-white/70 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => setGifTab('gifs')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${gifTab === 'gifs' ? 'bg-primary text-white' : 'bg-white/5 text-white/40 hover:text-white/60'}`}
+              >
+                GIFs
+              </button>
+              <button
+                onClick={() => setGifTab('stickers')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${gifTab === 'stickers' ? 'bg-primary text-white' : 'bg-white/5 text-white/40 hover:text-white/60'}`}
+              >
+                Stickers
+              </button>
+            </div>
+
+            {/* 🔥 GRID DO GIPHY SDK (CORRIGIDO) */}
+            <div className="h-80 overflow-y-auto -mx-2 px-2">
+              <Grid
+                key={gifTab + gifSearch}
+                fetchGifs={(offset) => {
+                  const searchTerm = gifSearch || 'funny'
+                  if (gifTab === 'stickers') {
+                    // ✅ CORREÇÃO: usar 'type: stickers'
+                    return gf.search(searchTerm, { offset, limit: 20, type: 'stickers' })
+                  }
+                  return gf.search(searchTerm, { offset, limit: 20 })
+                }}
+                columns={3}
+                gutter={6}
+                width={320}
+                onGifClick={(gif, e) => {
+                  e.preventDefault()
+                  selectGif(gif.images.original.url)
+                }}
+              />
+            </div>
+
+            {/* Barra de busca */}
+            <div className="flex gap-2 mt-3">
+              <input
+                type="text"
+                value={gifSearch}
+                onChange={(e) => setGifSearch(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && setGifTab(gifTab)}
+                placeholder="Buscar GIF..."
+                className="flex-1 bg-[#0a0a0a] border border-white/10 text-white px-4 py-2 rounded-xl focus:outline-none focus:border-primary transition-colors text-sm"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

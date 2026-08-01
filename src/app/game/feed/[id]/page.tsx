@@ -11,6 +11,12 @@ import remarkGfm from 'remark-gfm'
 import { formatTime } from '@/utils/format'
 import { ArrowLeft, Trash2, Pencil, Image, X } from 'lucide-react'
 
+// ─── GIPHY SDK ──────────────────────────────────────────────
+import { GiphyFetch } from '@giphy/js-fetch-api'
+import { Grid } from '@giphy/react-components'
+
+const gf = new GiphyFetch(process.env.NEXT_PUBLIC_GIPHY_API_KEY || '')
+
 export default function ArtigoPage() {
   const params = useParams()
   const router = useRouter()
@@ -25,9 +31,9 @@ export default function ArtigoPage() {
   const [sending, setSending] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  // ─── GIF MODAL ──────────────────────────────────────────
   const [showGifModal, setShowGifModal] = useState(false)
-  const [gifUrl, setGifUrl] = useState('')
+  const [gifSearch, setGifSearch] = useState('')
+  const [gifTab, setGifTab] = useState<'gifs' | 'stickers'>('gifs')
 
   const isAuthor = article?.country_id === country?.id
 
@@ -83,17 +89,12 @@ export default function ArtigoPage() {
     setSending(false)
   }
 
-  // ─── INSERIR GIF NO COMENTÁRIO ──────────────────────────
-  async function insertGif() {
-    if (!gifUrl.trim()) return
-    setSending(true)
-    // A função postComment aceita parâmetros extras: content, parentId, mediaData
-    await postComment(id, `![GIF](${gifUrl})`, undefined, { gif_url: gifUrl })
-    setGifUrl('')
+  // ─── SELECIONAR GIF ──────────────────────────────────────────
+  const selectGif = (url: string) => {
+    const gifMarkdown = `![GIF](${url})`
+    setReply(prev => prev ? prev + ' ' + gifMarkdown : gifMarkdown)
     setShowGifModal(false)
-    const c = await fetchComments(id)
-    setComments(c)
-    setSending(false)
+    setGifSearch('')
   }
 
   if (loading) return <div className="p-8 text-center text-white/40">Carregando artigo...</div>
@@ -101,7 +102,7 @@ export default function ArtigoPage() {
 
   return (
     <div className="max-w-4xl mx-auto pb-24 px-4">
-      {/* ─── CABEÇALHO ──────────────────────────────────── */}
+      {/* Cabeçalho */}
       <div className="flex items-center justify-between mb-6 pt-4">
         <div className="flex items-center gap-3">
           <Link href="/game/feed" className="text-white/50 hover:text-white transition-colors p-2 -ml-2">
@@ -109,27 +110,19 @@ export default function ArtigoPage() {
           </Link>
           <h1 className="text-xl font-bold text-white">Artigo</h1>
         </div>
-
         {isAuthor && (
           <div className="flex gap-2">
-            <Link
-              href={`/game/feed/editar/${id}`}
-              className="p-2 text-white/50 hover:text-white transition-colors"
-            >
+            <Link href={`/game/feed/editar/${id}`} className="p-2 text-white/50 hover:text-white transition-colors">
               <Pencil size={20} />
             </Link>
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="p-2 text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
-            >
+            <button onClick={handleDelete} disabled={deleting} className="p-2 text-red-400 hover:text-red-300 transition-colors disabled:opacity-50">
               <Trash2 size={20} />
             </button>
           </div>
         )}
       </div>
 
-      {/* ─── CONTEÚDO DO ARTIGO ────────────────────────── */}
+      {/* Conteúdo do artigo */}
       <div className="bg-surface-card rounded-xl p-6 border border-white/5">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-xl">{article.countries?.flag_emoji ?? '🌐'}</span>
@@ -137,42 +130,27 @@ export default function ArtigoPage() {
           <span className="text-white/30 text-xs">{formatTime(article.created_at)}</span>
           <span className="ml-auto text-xs bg-white/10 text-white/50 rounded-full px-2 py-0.5">{article.category}</span>
         </div>
-
         <h2 className="text-white font-black text-2xl leading-snug mb-4">{article.title}</h2>
-
         <div className="prose prose-invert prose-sm max-w-none">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {article.content}
           </ReactMarkdown>
         </div>
-
-        {/* Botões de voto */}
         <div className="flex gap-4 mt-6 pt-4 border-t border-white/5">
-          <button
-            onClick={() => handleVote(1)}
-            className={`flex items-center gap-1.5 text-sm font-semibold transition-colors
-              ${article.user_vote === 1 ? 'text-green-400' : 'text-white/40 hover:text-green-400'}`}
-          >
+          <button onClick={() => handleVote(1)} className={`flex items-center gap-1.5 text-sm font-semibold transition-colors ${article.user_vote === 1 ? 'text-green-400' : 'text-white/40 hover:text-green-400'}`}>
             👍 <span>{article.likes}</span>
           </button>
-          <button
-            onClick={() => handleVote(-1)}
-            className={`flex items-center gap-1.5 text-sm font-semibold transition-colors
-              ${article.user_vote === -1 ? 'text-red-400' : 'text-white/40 hover:text-red-400'}`}
-          >
+          <button onClick={() => handleVote(-1)} className={`flex items-center gap-1.5 text-sm font-semibold transition-colors ${article.user_vote === -1 ? 'text-red-400' : 'text-white/40 hover:text-red-400'}`}>
             👎 <span>{article.dislikes}</span>
           </button>
         </div>
       </div>
 
-      {/* ─── COMENTÁRIOS ────────────────────────────────── */}
+      {/* Comentários */}
       <div className="mt-6 bg-surface-card rounded-xl p-6 border border-white/5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xs font-bold tracking-widest text-white/40 uppercase">COMENTÁRIOS</h3>
-          <button
-            onClick={() => setShowGifModal(true)}
-            className="text-xs text-white/40 hover:text-white/70 transition-colors flex items-center gap-1"
-          >
+          <button onClick={() => setShowGifModal(true)} className="text-xs text-white/40 hover:text-white/70 transition-colors flex items-center gap-1">
             <Image size={14} /> GIF
           </button>
         </div>
@@ -209,30 +187,65 @@ export default function ArtigoPage() {
         </div>
       </div>
 
-      {/* ─── MODAL DE GIF ───────────────────────────────── */}
+      {/* ─── MODAL DE GIF (GIPHY SDK CORRIGIDO) ────────────────── */}
       {showGifModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 max-w-md w-full">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-bold">Inserir GIF</h3>
+              <h3 className="text-white font-bold">🎨 Escolher GIF ou Sticker</h3>
               <button onClick={() => setShowGifModal(false)} className="text-white/40 hover:text-white/70 transition-colors">
                 <X size={20} />
               </button>
             </div>
-            <input
-              type="text"
-              value={gifUrl}
-              onChange={(e) => setGifUrl(e.target.value)}
-              placeholder="URL do GIF (ex: https://media.giphy.com/...)"
-              className="w-full bg-[#0a0a0a] border border-white/10 text-white px-4 py-2 rounded-xl focus:outline-none focus:border-primary transition-colors mb-4"
-            />
-            <button
-              onClick={insertGif}
-              disabled={!gifUrl.trim() || sending}
-              className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 rounded-xl transition-colors disabled:opacity-50"
-            >
-              Inserir GIF
-            </button>
+
+            {/* Tabs */}
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => setGifTab('gifs')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${gifTab === 'gifs' ? 'bg-primary text-white' : 'bg-white/5 text-white/40 hover:text-white/60'}`}
+              >
+                GIFs
+              </button>
+              <button
+                onClick={() => setGifTab('stickers')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${gifTab === 'stickers' ? 'bg-primary text-white' : 'bg-white/5 text-white/40 hover:text-white/60'}`}
+              >
+                Stickers
+              </button>
+            </div>
+
+            {/* Grid do Giphy SDK – CORRIGIDO */}
+            <div className="h-80 overflow-y-auto -mx-2 px-2">
+              <Grid
+                key={gifTab + gifSearch}
+                fetchGifs={(offset) => {
+                  const searchTerm = gifSearch || 'funny'
+                  if (gifTab === 'stickers') {
+                    return gf.search(searchTerm, { offset, limit: 20, type: 'stickers' })
+                  }
+                  return gf.search(searchTerm, { offset, limit: 20 })
+                }}
+                columns={3}
+                gutter={6}
+                width={320}
+                onGifClick={(gif, e) => {
+                  e.preventDefault()
+                  selectGif(gif.images.original.url)
+                }}
+              />
+            </div>
+
+            {/* Barra de busca */}
+            <div className="flex gap-2 mt-3">
+              <input
+                type="text"
+                value={gifSearch}
+                onChange={(e) => setGifSearch(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && setGifTab(gifTab)}
+                placeholder="Buscar GIF..."
+                className="flex-1 bg-[#0a0a0a] border border-white/10 text-white px-4 py-2 rounded-xl focus:outline-none focus:border-primary transition-colors text-sm"
+              />
+            </div>
           </div>
         </div>
       )}

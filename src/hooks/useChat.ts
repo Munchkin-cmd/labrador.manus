@@ -56,6 +56,7 @@ export function useChat() {
       }
 
       if (data) {
+        // Busca replies separadamente
         const replyIds = data
           .map(m => m.reply_to_id)
           .filter(id => id !== null && id !== undefined) as string[]
@@ -179,12 +180,12 @@ export function useChat() {
       reply_to_id: reply_to_id || null
     }
 
-    // ─── UPLOAD DE ARQUIVO ──────────────────────────────────
     if (file) {
       try {
         let mediaType: string
         let columnName: string
 
+        // Detectar tipo de mídia
         if (file.type.startsWith('image/')) {
           mediaType = 'image'
           columnName = 'image_url'
@@ -206,8 +207,7 @@ export function useChat() {
         const fileName = `chat_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`
         const filePath = `chat/${fileName}`
 
-        console.log('📤 Enviando arquivo para storage:', filePath)
-
+        // Upload para o bucket 'media'
         const { error: uploadError } = await supabase.storage
           .from('media')
           .upload(filePath, file, { cacheControl: '3600', upsert: false })
@@ -217,22 +217,20 @@ export function useChat() {
           return { success: false, error: `Erro no upload: ${uploadError.message}` }
         }
 
+        // Obter URL pública
         const { data: urlData } = supabase.storage
           .from('media')
           .getPublicUrl(filePath)
 
         insertData[columnName] = urlData.publicUrl
         insertData.media_type = mediaType
-        console.log('✅ Arquivo enviado, URL:', urlData.publicUrl)
       } catch (err) {
-        console.error('❌ Erro inesperado no upload:', err)
+        console.error('❌ Erro no processamento do arquivo:', err)
         return { success: false, error: err instanceof Error ? err.message : 'Erro no upload' }
       }
     }
 
-    // ─── INSERIR MENSAGEM ──────────────────────────────────
     try {
-      console.log('📤 Inserindo mensagem:', insertData)
       const { error: insertError } = await supabase
         .from('chat_messages')
         .insert(insertData)
@@ -241,11 +239,9 @@ export function useChat() {
         console.error('❌ Erro ao inserir mensagem:', insertError)
         return { success: false, error: insertError.message }
       }
-
-      console.log('✅ Mensagem enviada com sucesso!')
       return { success: true }
     } catch (err) {
-      console.error('❌ Erro inesperado ao inserir:', err)
+      console.error('❌ Erro ao enviar mensagem:', err)
       return { success: false, error: err instanceof Error ? err.message : 'Erro ao enviar mensagem' }
     }
   }
