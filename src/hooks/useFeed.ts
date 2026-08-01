@@ -24,6 +24,8 @@ export interface Comment {
   country_id: number
   parent_id: string | null
   content: string
+  gif_url: string | null      // ✅ ADICIONADO
+  sticker_url: string | null  // ✅ ADICIONADO
   likes: number
   dislikes: number
   created_at: string
@@ -76,8 +78,8 @@ export function useFeed() {
   }, [page, user?.id])
 
   useEffect(() => { 
-  fetchArticles(true) 
-}, [fetchArticles])  // ✅ Monitora mudanças em fetchArticles
+    fetchArticles(true) 
+  }, [fetchArticles])
 
   async function voteArticle(articleId: string, vote: 1 | -1) {
     if (!user?.id) return
@@ -131,7 +133,6 @@ export function useFeed() {
     return { success: !error, error: error?.message }
   }
 
-  // ✅ NOVO: Editar artigo (só o dono pode)
   async function updateArticle(
     articleId: string,
     title: string,
@@ -146,7 +147,6 @@ export function useFeed() {
   ) {
     if (!country?.id) return { success: false, error: 'Você precisa estar logado em um país' }
 
-    // Verifica se o país é o dono do artigo
     const { data: check, error: checkError } = await supabase
       .from('articles')
       .select('country_id')
@@ -174,11 +174,9 @@ export function useFeed() {
     return { success: !error, error: error?.message }
   }
 
-  // ✅ NOVO: Deletar artigo (só o dono pode)
   async function deleteArticle(articleId: string) {
     if (!country?.id) return { success: false, error: 'Você precisa estar logado em um país' }
 
-    // Verifica se o país é o dono do artigo
     const { data: check, error: checkError } = await supabase
       .from('articles')
       .select('country_id')
@@ -198,6 +196,8 @@ export function useFeed() {
     return { success: !error, error: error?.message }
   }
 
+  // ─── COMENTÁRIOS COM GIF E STICKER ──────────────────────
+
   async function fetchComments(articleId: string): Promise<Comment[]> {
     const { data } = await supabase
       .from('comments')
@@ -207,23 +207,39 @@ export function useFeed() {
     return (data as any) ?? []
   }
 
-  async function postComment(articleId: string, content: string, parentId?: string) {
+  async function postComment(
+    articleId: string,
+    content: string,
+    parentId?: string,
+    mediaData?: {
+      gif_url?: string | null
+      sticker_url?: string | null
+    }
+  ) {
     if (!country?.id) return
-    await supabase.from('comments').insert({
+
+    const insertData: any = {
       article_id: articleId,
       country_id: country.id,
       content,
       parent_id: parentId ?? null,
-    })
+    }
+
+    if (mediaData?.gif_url) insertData.gif_url = mediaData.gif_url
+    if (mediaData?.sticker_url) insertData.sticker_url = mediaData.sticker_url
+
+    await supabase.from('comments').insert(insertData)
   }
 
   return {
-    articles, loading, hasMore,
+    articles,
+    loading,
+    hasMore,
     loadMore: () => fetchArticles(false),
     voteArticle,
     publishArticle,
-    updateArticle,   // ✅ Expondo a função de editar
-    deleteArticle,   // ✅ Expondo a função de deletar
+    updateArticle,
+    deleteArticle,
     fetchComments,
     postComment,
   }

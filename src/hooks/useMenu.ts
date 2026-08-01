@@ -28,8 +28,8 @@ export function useEconomy() {
 
     try {
       const [e, m] = await Promise.all([
-        supabase.from('economy').select('*').eq('country_id', country.id).single(),
-        supabase.from('military').select('*').eq('country_id', country.id).single(),
+        supabase.from('economy').select('*').eq('country_id', country.id).maybeSingle(),
+        supabase.from('military').select('*').eq('country_id', country.id).maybeSingle(),
       ])
       setEconomy(e.data)
       setMilitary(m.data)
@@ -56,21 +56,21 @@ export function useEconomy() {
 }
 
 export function useBriefing() {
-  const { user } = useAuthStore()
+  const { country } = useAuthStore()
   const [notifications, setNotifications] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchingRef = useRef(false)
-  const lastLoadedUserIdRef = useRef<string | null>(null)
+  const lastLoadedIdRef = useRef<number | null>(null)
 
   const fetchInitial = useCallback(async () => {
-    if (!user?.id) {
+    if (!country?.id) {
       setNotifications([])
       setLoading(false)
       return
     }
 
-    if (fetchingRef.current || lastLoadedUserIdRef.current === user.id) {
+    if (fetchingRef.current || lastLoadedIdRef.current === country.id) {
       return
     }
 
@@ -81,38 +81,37 @@ export function useBriefing() {
       const { data } = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('country_id', country.id)
         .order('created_at', { ascending: false })
         .limit(50)
       setNotifications(data ?? [])
-      lastLoadedUserIdRef.current = user.id
+      lastLoadedIdRef.current = country.id
     } catch (err) {
       console.error('Erro ao buscar notificações:', err)
     } finally {
       setLoading(false)
       fetchingRef.current = false
     }
-  }, [user?.id])
+  }, [country?.id])
 
   useEffect(() => {
-    if (!user?.id) {
+    if (!country?.id) {
       setNotifications([])
       setLoading(false)
       return
     }
 
-    if (lastLoadedUserIdRef.current !== user.id) {
+    if (lastLoadedIdRef.current !== country.id) {
       fetchInitial()
     }
 
-    // Canal em tempo real – atualiza localmente em vez de recarregar
     const channel = supabase
-      .channel('notifications_realtime')
+      .channel(`notifications_${country.id}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'notifications' },
         (payload) => {
-          if (payload.new.user_id === user.id) {
+          if (payload.new.country_id === country.id) {
             setNotifications(prev => [payload.new, ...prev])
           }
         }
@@ -120,9 +119,8 @@ export function useBriefing() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [user?.id, fetchInitial])
+  }, [country?.id, fetchInitial])
 
-  // markRead e markAllRead permanecem iguais (já atualizam localmente)
   const markRead = useCallback(async (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
     const { error } = await supabase
@@ -131,22 +129,22 @@ export function useBriefing() {
       .eq('id', id)
     if (error) {
       console.error('Erro ao marcar como lida:', error)
-      fetchInitial() // fallback
+      fetchInitial()
     }
   }, [fetchInitial])
 
   const markAllRead = useCallback(async () => {
-    if (!user?.id) return
+    if (!country?.id) return
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
     const { error } = await supabase
       .from('notifications')
       .update({ is_read: true })
-      .eq('user_id', user.id)
+      .eq('country_id', country.id)
     if (error) {
       console.error('Erro ao marcar todas como lidas:', error)
       fetchInitial()
     }
-  }, [user?.id, fetchInitial])
+  }, [country?.id, fetchInitial])
 
   return { notifications, loading, markRead, markAllRead, refetch: fetchInitial }
 }
@@ -211,7 +209,6 @@ export function useMarket() {
       fetchAll()
     }
 
-    // Canal com atualização local
     const channel = supabase
       .channel('market_realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'market' }, (payload) => {
@@ -223,7 +220,6 @@ export function useMarket() {
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'market' }, (payload) => {
-        // Atualiza oferta existente ou remove se não estiver mais aberta
         setOffers(prev => {
           const exists = prev.some(o => o.id === payload.new.id)
           if (!exists && (payload.new.status === 'open' || payload.new.status === 'partial')) {
@@ -232,7 +228,6 @@ export function useMarket() {
           return prev.map(o => o.id === payload.new.id ? payload.new : o)
             .filter(o => o.status === 'open' || o.status === 'partial')
         })
-        // Mesmo para myOffers
         setMyOffers(prev => {
           if (payload.new.country_id !== country.id) return prev
           const exists = prev.some(o => o.id === payload.new.id)
@@ -276,7 +271,37 @@ export function useMarket() {
     return data
   }
 
-  return { offers, myOffers, loading, placeOrder, buyOffer }
+  // ✅ NOVA FUNÇÃO: Cancelar oferta
+  async function cancelOrder(orderId: string) {
+  console.log('🔍 cancelOrder chamado para orderId:', orderId)
+  if (!country?.id) {
+    console.warn('❌ País não encontrado')
+    return { success: false, error: 'País não encontrado' }
+  }
+
+  try {
+    console.log('🔄 Atualizando status para closed...')
+    const { error } = await supabase
+      .from('market')
+      .update({ status: 'closed' })
+      .eq('id', orderId)
+      .eq('country_id', country.id)
+
+    if (error) {
+      console.error('❌ Erro ao atualizar:', error)
+      throw error
+    }
+
+    console.log('✅ Status atualizado com sucesso')
+    await fetchAll()
+    return { success: true, message: 'Oferta cancelada' }
+  } catch (err: any) {
+    console.error('❌ Erro no cancelOrder:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+  return { offers, myOffers, loading, placeOrder, buyOffer, cancelOrder, refetch: fetchAll }
 }
 
 export function useConfiguracoes() {
@@ -306,8 +331,8 @@ export function useConfiguracoes() {
 
     try {
       const [c, u] = await Promise.all([
-        supabase.from('countries').select('*').eq('id', country.id).single(),
-        supabase.from('users').select('flag_url, leader_url, banner_urls').eq('country_id', country.id).single(),
+        supabase.from('countries').select('*').eq('id', country.id).maybeSingle(),
+        supabase.from('users').select('flag_url, leader_url, banner_urls').eq('country_id', country.id).maybeSingle(),
       ])
       setData(c.data)
       setProfile(u.data)
@@ -377,7 +402,7 @@ export function useTaxes() {
         .from('taxes')
         .select('*')
         .eq('country_id', country.id)
-        .single()
+        .maybeSingle()
       setTaxes(data)
       lastLoadedIdRef.current = country.id
     } catch (err) {
@@ -397,9 +422,61 @@ export function useTaxes() {
     }
   }, [country?.id, fetchTaxes])
 
-  // saveTaxes permanece igual (já atualiza localmente)
   async function saveTaxes(updated: any) {
-    // ... (mesmo código, sem alterações)
+    setSaving(true)
+
+    if (!country) {
+      setSaving(false)
+      return { success: false, error: 'País não encontrado' }
+    }
+
+    // ✅ Remove updated_at – a tabela atualiza automaticamente via trigger
+    const updateData = {
+      income_tax: Number(updated.income_tax) || 0,
+      corporate_tax: Number(updated.corporate_tax) || 0,
+      property_tax: Number(updated.property_tax) || 0,
+      manufacturing_tax: Number(updated.manufacturing_tax) || 0,
+      vat: Number(updated.vat) || 0,
+      customs: Number(updated.customs) || 0,
+    }
+
+    const { error: taxError } = await supabase
+      .from('taxes')
+      .update(updateData)
+      .eq('country_id', country.id)
+
+    if (taxError) {
+      console.error('❌ Erro ao atualizar impostos:', taxError)
+      setSaving(false)
+      return { success: false, error: taxError.message }
+    }
+
+    // Penalidades por impostos altos (opcional)
+    const taxFields = ['income_tax', 'corporate_tax', 'property_tax', 'manufacturing_tax', 'vat', 'customs']
+    const totalTax = taxFields.reduce((sum, key) => sum + (Number(updated[key] ?? 0)), 0)
+    const avgTax = totalTax / taxFields.length
+
+    const trustPenalty = avgTax > 40 ? (avgTax - 40) * 0.5 : 0
+    const approvalPenalty = avgTax > 50 ? (avgTax - 50) * 0.5 : 0
+
+    const { data: currentCountry, error: fetchError } = await supabase
+      .from('countries')
+      .select('trust, intl_approval')
+      .eq('id', country.id)
+      .maybeSingle()
+
+    if (!fetchError && currentCountry) {
+      const newTrust = Math.max(0, (currentCountry.trust || 50) - trustPenalty)
+      const newApproval = Math.max(0, (currentCountry.intl_approval || 50) - approvalPenalty)
+      await supabase
+        .from('countries')
+        .update({ trust: newTrust, intl_approval: newApproval })
+        .eq('id', country.id)
+    }
+
+    setTaxes((prev: any) => ({ ...prev, ...updateData }))
+    setSaving(false)
+    return { success: true }
   }
 
   return { taxes, loading, saving, saveTaxes }

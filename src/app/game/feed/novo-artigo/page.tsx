@@ -10,9 +10,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { 
   ArrowLeft, Eye, Send, Bold, Italic, Underline, 
-  AlignLeft, AlignCenter, AlignRight, 
   List, ListOrdered, Link as LinkIcon, 
-  Image, Video, Music, FileText, X, Plus, Loader2
+  Image, Video, Music, FileText, X, Loader2
 } from 'lucide-react'
 
 export default function NovoArtigoPage() {
@@ -40,8 +39,8 @@ export default function NovoArtigoPage() {
 
   // ─── FUNÇÕES DO EDITOR ──────────────────────────────────
   function insertText(prefix: string = '', suffix: string = '') {
-    if (!textareaRef.current) return
     const textarea = textareaRef.current
+    if (!textarea) return
     const start = textarea.selectionStart
     const end = textarea.selectionEnd
     const text = textarea.value
@@ -70,30 +69,125 @@ export default function NovoArtigoPage() {
   function insertBold() { insertText('**', '**') }
   function insertItalic() { insertText('*', '*') }
   function insertUnderline() { insertText('__', '__') }
-  function insertHeading() { insertText('# ', '') }
-  function insertQuote() { insertText('> ', '') }
+
+  // ✅ Título: adiciona '#' no início da linha selecionada ou da linha atual
+  function insertHeading() {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const text = textarea.value
+    
+    // Encontrar o início da linha atual
+    let lineStart = text.lastIndexOf('\n', start - 1) + 1
+    const lineEnd = text.indexOf('\n', start) === -1 ? text.length : text.indexOf('\n', start)
+    const currentLine = text.substring(lineStart, lineEnd)
+    
+    // Se a linha já começa com '#', remove; senão adiciona
+    const newLine = currentLine.startsWith('# ') 
+      ? currentLine.substring(2) 
+      : '# ' + currentLine
+    
+    const newText = text.substring(0, lineStart) + newLine + text.substring(lineEnd)
+    setForm({ ...form, content: newText })
+    
+    setTimeout(() => {
+      textarea.focus()
+      const newCursor = lineStart + newLine.length
+      textarea.selectionStart = newCursor
+      textarea.selectionEnd = newCursor
+    }, 10)
+  }
+
+  // ✅ Citação: seleciona o texto e adiciona '> ' no início de cada linha
+  function insertQuote() {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const text = textarea.value
+    const selected = text.substring(start, end)
+    
+    if (!selected) {
+      // Inserir '> ' e posicionar cursor
+      insertText('> ', '')
+      return
+    }
+    
+    // Adicionar '> ' no início de cada linha da seleção
+    const lines = selected.split('\n')
+    const quotedLines = lines.map(line => `> ${line}`).join('\n')
+    const newText = text.substring(0, start) + quotedLines + text.substring(end)
+    const cursorPos = start + quotedLines.length
+    
+    setForm({ ...form, content: newText })
+    
+    setTimeout(() => {
+      textarea.focus()
+      textarea.selectionStart = cursorPos
+      textarea.selectionEnd = cursorPos
+    }, 10)
+  }
+
+  // ✅ Lista com marcadores: aplica '- ' à linha atual ou seleção
+  function insertList() {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const text = textarea.value
+    
+    // Se houver seleção, aplicar a cada linha
+    if (start !== end) {
+      const selected = text.substring(start, end)
+      const lines = selected.split('\n')
+      const newLines = lines.map(line => line.trim().startsWith('- ') ? line : `- ${line}`)
+      const newText = text.substring(0, start) + newLines.join('\n') + text.substring(end)
+      setForm({ ...form, content: newText })
+      return
+    }
+    
+    // Aplicar à linha atual
+    let lineStart = text.lastIndexOf('\n', start - 1) + 1
+    const lineEnd = text.indexOf('\n', start) === -1 ? text.length : text.indexOf('\n', start)
+    const currentLine = text.substring(lineStart, lineEnd)
+    const newLine = currentLine.trim().startsWith('- ') ? currentLine : `- ${currentLine}`
+    const newText = text.substring(0, lineStart) + newLine + text.substring(lineEnd)
+    setForm({ ...form, content: newText })
+  }
+
+  // ✅ Lista numerada: aplica '1. ' à linha atual ou seleção
+  function insertNumberedList() {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const text = textarea.value
+    
+    if (start !== end) {
+      const selected = text.substring(start, end)
+      const lines = selected.split('\n')
+      let counter = 1
+      const newLines = lines.map(line => {
+        if (line.trim().match(/^\d+\. /)) return line
+        return `${counter++}. ${line}`
+      })
+      const newText = text.substring(0, start) + newLines.join('\n') + text.substring(end)
+      setForm({ ...form, content: newText })
+      return
+    }
+    
+    let lineStart = text.lastIndexOf('\n', start - 1) + 1
+    const lineEnd = text.indexOf('\n', start) === -1 ? text.length : text.indexOf('\n', start)
+    const currentLine = text.substring(lineStart, lineEnd)
+    const newLine = currentLine.trim().match(/^\d+\. /) ? currentLine : `1. ${currentLine}`
+    const newText = text.substring(0, lineStart) + newLine + text.substring(lineEnd)
+    setForm({ ...form, content: newText })
+  }
+
   function insertLink() { insertText('[Texto do link](', ')') }
 
-  function insertList() {
-    const lines = form.content.split('\n')
-    const newLines = lines.map((line, i) => {
-      if (line.trim().startsWith('- ')) return line
-      return `- ${line}`
-    })
-    setForm({ ...form, content: newLines.join('\n') })
-  }
-
-  function insertNumberedList() {
-    const lines = form.content.split('\n')
-    let counter = 1
-    const newLines = lines.map((line) => {
-      if (line.trim().match(/^\d+\. /)) return line
-      return `${counter++}. ${line}`
-    })
-    setForm({ ...form, content: newLines.join('\n') })
-  }
-
-  // ─── FUNÇÕES DE MÍDIA COM UPLOAD REAL ──────────────────
+  // ─── FUNÇÕES DE MÍDIA ──────────────────────────────────
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file || !country?.id) return

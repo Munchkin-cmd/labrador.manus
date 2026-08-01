@@ -9,7 +9,7 @@ import { useFeed } from '@/hooks/useFeed'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { formatTime } from '@/utils/format'
-import { ArrowLeft, Trash2, Pencil } from 'lucide-react'
+import { ArrowLeft, Trash2, Pencil, Image, X } from 'lucide-react'
 
 export default function ArtigoPage() {
   const params = useParams()
@@ -24,6 +24,10 @@ export default function ArtigoPage() {
   const [reply, setReply] = useState('')
   const [sending, setSending] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  // ─── GIF MODAL ──────────────────────────────────────────
+  const [showGifModal, setShowGifModal] = useState(false)
+  const [gifUrl, setGifUrl] = useState('')
 
   const isAuthor = article?.country_id === country?.id
 
@@ -52,7 +56,6 @@ export default function ArtigoPage() {
   async function handleVote(vote: 1 | -1) {
     if (!article) return
     await voteArticle(article.id, vote)
-    // Atualiza localmente
     const newLikes = article.likes + (vote === 1 ? 1 : -1)
     const newDislikes = article.dislikes + (vote === -1 ? 1 : -1)
     setArticle({ ...article, likes: newLikes, dislikes: newDislikes })
@@ -80,12 +83,25 @@ export default function ArtigoPage() {
     setSending(false)
   }
 
+  // ─── INSERIR GIF NO COMENTÁRIO ──────────────────────────
+  async function insertGif() {
+    if (!gifUrl.trim()) return
+    setSending(true)
+    // A função postComment aceita parâmetros extras: content, parentId, mediaData
+    await postComment(id, `![GIF](${gifUrl})`, undefined, { gif_url: gifUrl })
+    setGifUrl('')
+    setShowGifModal(false)
+    const c = await fetchComments(id)
+    setComments(c)
+    setSending(false)
+  }
+
   if (loading) return <div className="p-8 text-center text-white/40">Carregando artigo...</div>
   if (!article) return <div className="p-8 text-center text-white/40">Artigo não encontrado.</div>
 
   return (
     <div className="max-w-4xl mx-auto pb-24 px-4">
-      {/* Cabeçalho com volta e ações */}
+      {/* ─── CABEÇALHO ──────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6 pt-4">
         <div className="flex items-center gap-3">
           <Link href="/game/feed" className="text-white/50 hover:text-white transition-colors p-2 -ml-2">
@@ -94,7 +110,6 @@ export default function ArtigoPage() {
           <h1 className="text-xl font-bold text-white">Artigo</h1>
         </div>
 
-        {/* Botões de ação (apenas para o autor) */}
         {isAuthor && (
           <div className="flex gap-2">
             <Link
@@ -114,7 +129,7 @@ export default function ArtigoPage() {
         )}
       </div>
 
-      {/* Conteúdo do artigo */}
+      {/* ─── CONTEÚDO DO ARTIGO ────────────────────────── */}
       <div className="bg-surface-card rounded-xl p-6 border border-white/5">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-xl">{article.countries?.flag_emoji ?? '🌐'}</span>
@@ -150,15 +165,26 @@ export default function ArtigoPage() {
         </div>
       </div>
 
-      {/* Comentários */}
+      {/* ─── COMENTÁRIOS ────────────────────────────────── */}
       <div className="mt-6 bg-surface-card rounded-xl p-6 border border-white/5">
-        <h3 className="text-xs font-bold tracking-widest text-white/40 uppercase mb-4">COMENTÁRIOS</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xs font-bold tracking-widest text-white/40 uppercase">COMENTÁRIOS</h3>
+          <button
+            onClick={() => setShowGifModal(true)}
+            className="text-xs text-white/40 hover:text-white/70 transition-colors flex items-center gap-1"
+          >
+            <Image size={14} /> GIF
+          </button>
+        </div>
+
         {comments.length === 0 && <p className="text-white/20 text-sm text-center">Sem comentários ainda.</p>}
         {comments.map((c) => (
           <div key={c.id} className="flex gap-2 py-2 border-b border-white/5 last:border-0">
-            <span className="text-base">{c.countries?.flag_emoji ?? '🌐'}</span>
-            <div>
+            <span className="text-base flex-shrink-0">{c.countries?.flag_emoji ?? '🌐'}</span>
+            <div className="flex-1">
               <p className="text-white/60 text-xs font-semibold">{c.countries?.name}</p>
+              {c.gif_url && <img src={c.gif_url} alt="GIF" className="max-w-[200px] rounded-lg mt-1" />}
+              {c.sticker_url && <img src={c.sticker_url} alt="Sticker" className="max-w-[100px] rounded-lg mt-1" />}
               <p className="text-white/80 text-sm mt-0.5">{c.content}</p>
             </div>
           </div>
@@ -182,6 +208,34 @@ export default function ArtigoPage() {
           </button>
         </div>
       </div>
+
+      {/* ─── MODAL DE GIF ───────────────────────────────── */}
+      {showGifModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-bold">Inserir GIF</h3>
+              <button onClick={() => setShowGifModal(false)} className="text-white/40 hover:text-white/70 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <input
+              type="text"
+              value={gifUrl}
+              onChange={(e) => setGifUrl(e.target.value)}
+              placeholder="URL do GIF (ex: https://media.giphy.com/...)"
+              className="w-full bg-[#0a0a0a] border border-white/10 text-white px-4 py-2 rounded-xl focus:outline-none focus:border-primary transition-colors mb-4"
+            />
+            <button
+              onClick={insertGif}
+              disabled={!gifUrl.trim() || sending}
+              className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 rounded-xl transition-colors disabled:opacity-50"
+            >
+              Inserir GIF
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
