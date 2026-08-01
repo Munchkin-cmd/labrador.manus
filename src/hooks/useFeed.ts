@@ -24,8 +24,8 @@ export interface Comment {
   country_id: number
   parent_id: string | null
   content: string
-  gif_url: string | null      // ✅ ADICIONADO
-  sticker_url: string | null  // ✅ ADICIONADO
+  gif_url: string | null
+  sticker_url: string | null
   likes: number
   dislikes: number
   created_at: string
@@ -196,7 +196,7 @@ export function useFeed() {
     return { success: !error, error: error?.message }
   }
 
-  // ─── COMENTÁRIOS COM GIF E STICKER ──────────────────────
+  // ─── COMENTÁRIOS ──────────────────────────────────────────────
 
   async function fetchComments(articleId: string): Promise<Comment[]> {
     const { data } = await supabase

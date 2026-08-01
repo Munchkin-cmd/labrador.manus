@@ -89,8 +89,8 @@ export default function ArtigoPage() {
     setSending(false)
   }
 
-  // ─── SELECIONAR GIF ──────────────────────────────────────────
-  const selectGif = (url: string) => {
+  const selectGif = (url: string, type: 'gif' | 'sticker' = 'gif') => {
+    // Insere o GIF como texto markdown no campo de comentário
     const gifMarkdown = `![GIF](${url})`
     setReply(prev => prev ? prev + ' ' + gifMarkdown : gifMarkdown)
     setShowGifModal(false)
@@ -187,7 +187,7 @@ export default function ArtigoPage() {
         </div>
       </div>
 
-      {/* ─── MODAL DE GIF (GIPHY SDK CORRIGIDO) ────────────────── */}
+      {/* ─── MODAL DE GIF ────────────────────────────────────── */}
       {showGifModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -198,7 +198,6 @@ export default function ArtigoPage() {
               </button>
             </div>
 
-            {/* Tabs */}
             <div className="flex gap-2 mb-3">
               <button
                 onClick={() => setGifTab('gifs')}
@@ -214,14 +213,13 @@ export default function ArtigoPage() {
               </button>
             </div>
 
-            {/* Grid do Giphy SDK – CORRIGIDO */}
             <div className="h-80 overflow-y-auto -mx-2 px-2">
               <Grid
                 key={gifTab + gifSearch}
                 fetchGifs={(offset) => {
                   const searchTerm = gifSearch || 'funny'
                   if (gifTab === 'stickers') {
-                    return gf.search(searchTerm, { offset, limit: 20, type: 'stickers' })
+                   return gf.search(searchTerm, { offset, limit: 20, type: 'stickers' })
                   }
                   return gf.search(searchTerm, { offset, limit: 20 })
                 }}
@@ -230,12 +228,11 @@ export default function ArtigoPage() {
                 width={320}
                 onGifClick={(gif, e) => {
                   e.preventDefault()
-                  selectGif(gif.images.original.url)
+                  selectGif(gif.images.original.url, gifTab === 'stickers' ? 'sticker' : 'gif')
                 }}
               />
             </div>
 
-            {/* Barra de busca */}
             <div className="flex gap-2 mt-3">
               <input
                 type="text"

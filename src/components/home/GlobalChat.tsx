@@ -8,7 +8,6 @@ import {
   Mic, Gift, Reply, X, FileText
 } from 'lucide-react'
 
-// ─── GIPHY SDK ──────────────────────────────────────────────
 import { GiphyFetch } from '@giphy/js-fetch-api'
 import { Grid } from '@giphy/react-components'
 
@@ -19,10 +18,10 @@ export default function GlobalChat() {
   const [text, setText] = useState('')
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedGif, setSelectedGif] = useState<{ url: string; type: 'gif' | 'sticker' } | null>(null)
   const [mediaPreview, setMediaPreview] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
 
-  // ─── GIF MODAL ──────────────────────────────────────────────
   const [showGifModal, setShowGifModal] = useState(false)
   const [gifSearch, setGifSearch] = useState('')
   const [gifTab, setGifTab] = useState<'gifs' | 'stickers'>('gifs')
@@ -39,18 +38,15 @@ export default function GlobalChat() {
     return () => { if (mediaPreview) URL.revokeObjectURL(mediaPreview) }
   }, [mediaPreview])
 
-  // ─── SELECIONAR GIF ──────────────────────────────────────────
-  const selectGif = (url: string) => {
-    const gifMarkdown = `![GIF](${url})`
-    setText(prev => prev ? prev + ' ' + gifMarkdown : gifMarkdown)
+  const selectGif = (url: string, type: 'gif' | 'sticker' = 'gif') => {
+    setSelectedGif({ url, type })
     setShowGifModal(false)
     setGifSearch('')
     inputRef.current?.focus()
   }
 
-  // ─── HANDLERS ──────────────────────────────────────────────
   async function handleSend() {
-    if (!text.trim() && !selectedFile) return
+    if (!text.trim() && !selectedFile && !selectedGif) return
     if (sending) return
 
     setSending(true)
@@ -58,12 +54,16 @@ export default function GlobalChat() {
       const result = await sendMessage(
         text.trim(),
         selectedFile || undefined,
-        replyTo?.id || null
+        replyTo?.id || null,
+        selectedGif?.url,
+        selectedGif?.type || 'gif'
       )
+
       if (result.success) {
         setText('')
         setSelectedFile(null)
         setMediaPreview(null)
+        setSelectedGif(null)
         setReplyTo(null)
         inputRef.current?.focus()
       } else {
@@ -100,17 +100,6 @@ export default function GlobalChat() {
     }
   }
 
-  // ─── RENDER ──────────────────────────────────────────────────
-  if (error) {
-    return (
-      <div className="px-4">
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-400 text-sm">
-          Erro no chat: {error}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="px-4 flex flex-col gap-3">
       <p className="text-xs font-bold tracking-widest text-white/40 uppercase">CHAT GLOBAL</p>
@@ -123,7 +112,6 @@ export default function GlobalChat() {
           <div ref={bottomRef} />
         </div>
 
-        {/* ─── ÁREA DE RESPOSTA ───────────────────────────────── */}
         {replyTo && (
           <div className="border-t border-primary/20 bg-primary/5 px-3 py-2 flex items-center justify-between">
             <div className="flex flex-col min-w-0">
@@ -142,6 +130,19 @@ export default function GlobalChat() {
         )}
 
         <div className="border-t border-white/5 p-2 flex flex-col gap-2">
+          {/* Exibe preview do GIF selecionado */}
+          {selectedGif && (
+            <div className="relative bg-black/40 rounded-lg overflow-hidden max-h-32 max-w-full">
+              <img src={selectedGif.url} alt="GIF" className="w-full h-full object-contain max-h-32" />
+              <button
+                onClick={() => setSelectedGif(null)}
+                className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
           {mediaPreview && (
             <div className="relative bg-black/40 rounded-lg overflow-hidden max-h-32 max-w-full">
               <img src={mediaPreview} alt="Preview" className="w-full h-full object-contain max-h-32" />
@@ -154,7 +155,6 @@ export default function GlobalChat() {
           <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect} />
 
           <div className="flex items-center gap-1 px-1">
-            {/* ─── BOTÃO GIF ──────────────────────────────────── */}
             <button
               onClick={() => setShowGifModal(true)}
               className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"
@@ -168,7 +168,7 @@ export default function GlobalChat() {
             <button className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Link2 size={18} /></button>
             <button className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Mic size={18} /></button>
             <div className="flex-1" />
-            <button onClick={handleSend} disabled={(!text.trim() && !selectedFile) || sending} className="bg-primary hover:bg-primary-light disabled:opacity-30 transition-colors text-white rounded-lg p-1.5">
+            <button onClick={handleSend} disabled={(!text.trim() && !selectedFile && !selectedGif) || sending} className="bg-primary hover:bg-primary-light disabled:opacity-30 transition-colors text-white rounded-lg p-1.5">
               <Send size={18} />
             </button>
           </div>
@@ -187,7 +187,7 @@ export default function GlobalChat() {
         </div>
       </div>
 
-      {/* ─── MODAL DE GIF (GIPHY SDK) ────────────────────────── */}
+      {/* Modal GIF */}
       {showGifModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -198,7 +198,6 @@ export default function GlobalChat() {
               </button>
             </div>
 
-            {/* Tabs */}
             <div className="flex gap-2 mb-3">
               <button
                 onClick={() => setGifTab('gifs')}
@@ -214,15 +213,13 @@ export default function GlobalChat() {
               </button>
             </div>
 
-            {/* 🔥 GRID DO GIPHY SDK (CORRIGIDO) */}
             <div className="h-80 overflow-y-auto -mx-2 px-2">
               <Grid
                 key={gifTab + gifSearch}
                 fetchGifs={(offset) => {
                   const searchTerm = gifSearch || 'funny'
                   if (gifTab === 'stickers') {
-                    // ✅ CORREÇÃO: usar 'type: stickers'
-                    return gf.search(searchTerm, { offset, limit: 20, type: 'stickers' })
+                   return gf.search(searchTerm, { offset, limit: 20, type: 'stickers' })
                   }
                   return gf.search(searchTerm, { offset, limit: 20 })
                 }}
@@ -231,12 +228,11 @@ export default function GlobalChat() {
                 width={320}
                 onGifClick={(gif, e) => {
                   e.preventDefault()
-                  selectGif(gif.images.original.url)
+                  selectGif(gif.images.original.url, gifTab === 'stickers' ? 'sticker' : 'gif')
                 }}
               />
             </div>
 
-            {/* Barra de busca */}
             <div className="flex gap-2 mt-3">
               <input
                 type="text"
@@ -254,7 +250,7 @@ export default function GlobalChat() {
   )
 }
 
-// ── COMPONENTE MESSAGE BUBBLE ──
+// ── MessageBubble ──
 function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: ChatMessage) => void }) {
   return (
     <div className="flex items-start gap-2 group hover:bg-white/5 rounded-lg px-2 py-1 transition-colors">
@@ -267,9 +263,10 @@ function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: Chat
 
         {msg.media_url && (
           <div className="mt-2 max-w-[200px] rounded-lg overflow-hidden">
-            {msg.media_type === 'image' && <img src={msg.media_url} alt="Mídia" className="w-full h-auto object-cover" onError={(e) => e.currentTarget.style.display = 'none'} />}
+            {(msg.media_type === 'image' || msg.media_type === 'gif' || msg.media_type === 'sticker') && (
+              <img src={msg.media_url} alt={msg.media_type || 'Mídia'} className="w-full h-auto object-cover" />
+            )}
             {msg.media_type === 'video' && <video src={msg.media_url} controls className="w-full h-auto object-cover" />}
-            {msg.media_type === 'gif' && <img src={msg.media_url} alt="GIF" className="w-full h-auto object-cover" />}
             {msg.media_type === 'audio' && <audio src={msg.media_url} controls className="w-full mt-2" />}
             {msg.media_type === 'file' && <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary-light text-xs bg-white/5 rounded-lg p-2 hover:bg-white/10 transition-colors"><FileText size={14} /> Baixar arquivo</a>}
           </div>

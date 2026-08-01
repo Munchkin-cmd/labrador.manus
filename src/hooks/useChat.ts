@@ -166,13 +166,19 @@ export function useChat() {
     }
   }, [country?.id, fetchMessages])
 
+  // ─── ENVIAR MENSAGEM (COM SUPORTE A GIF/STICKER VIA URL) ──
+
   async function sendMessage(
     content: string,
     file?: File,
-    reply_to_id?: string | null
+    reply_to_id?: string | null,
+    media_url?: string,
+    media_type?: string
   ): Promise<{ success: boolean; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
-    if (!content.trim() && !file) return { success: false, error: 'Mensagem vazia' }
+    if (!content.trim() && !file && !media_url) {
+      return { success: false, error: 'Mensagem vazia' }
+    }
 
     let insertData: any = {
       country_id: country.id,
@@ -180,12 +186,19 @@ export function useChat() {
       reply_to_id: reply_to_id || null
     }
 
+    // ─── SE FOR UMA URL DE MÍDIA (GIF/STICKER) ──────────────
+    if (media_url) {
+      insertData.media_url = media_url
+      insertData.media_type = media_type || 'gif'
+      console.log('📤 Enviando GIF/Sticker por URL:', media_url)
+    }
+
+    // ─── SE FOR UPLOAD DE ARQUIVO ────────────────────────────
     if (file) {
       try {
         let mediaType: string
         let columnName: string
 
-        // Detectar tipo de mídia
         if (file.type.startsWith('image/')) {
           mediaType = 'image'
           columnName = 'image_url'
@@ -207,7 +220,6 @@ export function useChat() {
         const fileName = `chat_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`
         const filePath = `chat/${fileName}`
 
-        // Upload para o bucket 'media'
         const { error: uploadError } = await supabase.storage
           .from('media')
           .upload(filePath, file, { cacheControl: '3600', upsert: false })
@@ -217,20 +229,22 @@ export function useChat() {
           return { success: false, error: `Erro no upload: ${uploadError.message}` }
         }
 
-        // Obter URL pública
         const { data: urlData } = supabase.storage
           .from('media')
           .getPublicUrl(filePath)
 
         insertData[columnName] = urlData.publicUrl
         insertData.media_type = mediaType
+        console.log('✅ Arquivo enviado, URL:', urlData.publicUrl)
       } catch (err) {
-        console.error('❌ Erro no processamento do arquivo:', err)
+        console.error('❌ Erro inesperado no upload:', err)
         return { success: false, error: err instanceof Error ? err.message : 'Erro no upload' }
       }
     }
 
+    // ─── INSERIR MENSAGEM ──────────────────────────────────────
     try {
+      console.log('📤 Inserindo mensagem:', insertData)
       const { error: insertError } = await supabase
         .from('chat_messages')
         .insert(insertData)
@@ -239,9 +253,11 @@ export function useChat() {
         console.error('❌ Erro ao inserir mensagem:', insertError)
         return { success: false, error: insertError.message }
       }
+
+      console.log('✅ Mensagem enviada com sucesso!')
       return { success: true }
     } catch (err) {
-      console.error('❌ Erro ao enviar mensagem:', err)
+      console.error('❌ Erro inesperado ao inserir:', err)
       return { success: false, error: err instanceof Error ? err.message : 'Erro ao enviar mensagem' }
     }
   }
