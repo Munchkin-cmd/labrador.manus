@@ -56,7 +56,6 @@ export function useChat() {
       }
 
       if (data) {
-        // Busca replies separadamente
         const replyIds = data
           .map(m => m.reply_to_id)
           .filter(id => id !== null && id !== undefined) as string[]
@@ -166,7 +165,7 @@ export function useChat() {
     }
   }, [country?.id, fetchMessages])
 
-  // ─── ENVIAR MENSAGEM (COM SUPORTE A GIF/STICKER VIA URL) ──
+  // ─── ENVIAR MENSAGEM (CORRIGIDO) ──────────────────────────
 
   async function sendMessage(
     content: string,
@@ -186,11 +185,30 @@ export function useChat() {
       reply_to_id: reply_to_id || null
     }
 
-    // ─── SE FOR UMA URL DE MÍDIA (GIF/STICKER) ──────────────
+    // ─── SE FOR UMA URL DE MÍDIA (GIF/STICKER/IMAGEM/VIDEO) ──
     if (media_url) {
-      insertData.media_url = media_url
-      insertData.media_type = media_type || 'gif'
-      console.log('📤 Enviando GIF/Sticker por URL:', media_url)
+      const type = media_type || 'gif'
+      // Mapeia para a coluna correta
+      switch (type) {
+        case 'gif':
+          insertData.gif_url = media_url
+          break
+        case 'sticker':
+          insertData.sticker_url = media_url
+          break
+        case 'image':
+          insertData.image_url = media_url
+          break
+        case 'video':
+          insertData.video_url = media_url
+          break
+        case 'audio':
+          insertData.music_url = media_url
+          break
+        default:
+          insertData.file_url = media_url
+      }
+      insertData.media_type = type
     }
 
     // ─── SE FOR UPLOAD DE ARQUIVO ────────────────────────────
@@ -235,7 +253,6 @@ export function useChat() {
 
         insertData[columnName] = urlData.publicUrl
         insertData.media_type = mediaType
-        console.log('✅ Arquivo enviado, URL:', urlData.publicUrl)
       } catch (err) {
         console.error('❌ Erro inesperado no upload:', err)
         return { success: false, error: err instanceof Error ? err.message : 'Erro no upload' }
@@ -244,7 +261,6 @@ export function useChat() {
 
     // ─── INSERIR MENSAGEM ──────────────────────────────────────
     try {
-      console.log('📤 Inserindo mensagem:', insertData)
       const { error: insertError } = await supabase
         .from('chat_messages')
         .insert(insertData)
@@ -253,8 +269,6 @@ export function useChat() {
         console.error('❌ Erro ao inserir mensagem:', insertError)
         return { success: false, error: insertError.message }
       }
-
-      console.log('✅ Mensagem enviada com sucesso!')
       return { success: true }
     } catch (err) {
       console.error('❌ Erro inesperado ao inserir:', err)

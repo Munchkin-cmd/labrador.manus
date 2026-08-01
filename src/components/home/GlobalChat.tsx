@@ -5,13 +5,81 @@ import { useChat, ChatMessage } from '@/hooks/useChat'
 import { formatTime } from '@/utils/format'
 import {
   Image, Video, Music, Link2, Send,
-  Mic, Gift, Reply, X, FileText
+  Mic, Gift, Reply, X, FileText, Paperclip
 } from 'lucide-react'
 
 import { GiphyFetch } from '@giphy/js-fetch-api'
 import { Grid } from '@giphy/react-components'
 
 const gf = new GiphyFetch(process.env.NEXT_PUBLIC_GIPHY_API_KEY || '')
+
+// ─── COMPONENTE DE PRÉVIA DE LINK ──────────────────────────
+function LinkPreview({ url }: { url: string }) {
+  const [preview, setPreview] = useState<{
+    title?: string
+    description?: string
+    image?: string
+    site?: string
+  } | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchPreview = async () => {
+      try {
+        // Detectar YouTube e montar embed
+        if (url.includes('youtube.com/watch') || url.includes('youtu.be/')) {
+          const videoId = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&?]+)/)?.[1]
+          if (videoId) {
+            setPreview({
+              title: 'Vídeo do YouTube',
+              description: 'Clique para assistir',
+              image: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+              site: 'YouTube',
+            })
+            setLoading(false)
+            return
+          }
+        }
+
+        // Para outros sites, usaríamos uma API de preview
+        // (exemplo simples: usar o embed do site)
+        setPreview({
+          title: url,
+          description: 'Clique para abrir o link',
+          site: new URL(url).hostname,
+        })
+      } catch (e) {
+        console.error('Erro ao buscar preview:', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchPreview()
+  }, [url])
+
+  if (loading) return <div className="animate-pulse bg-white/5 h-16 rounded-lg" />
+  if (!preview) return null
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block mt-2 bg-white/5 rounded-lg overflow-hidden border border-white/10 hover:bg-white/10 transition-colors"
+    >
+      {preview.image && (
+        <img src={preview.image} alt={preview.title || 'Preview'} className="w-full h-32 object-cover" />
+      )}
+      <div className="p-2">
+        {preview.site && <p className="text-white/30 text-xs">{preview.site}</p>}
+        <p className="text-white/80 text-sm font-semibold">{preview.title || url}</p>
+        {preview.description && (
+          <p className="text-white/40 text-xs line-clamp-2">{preview.description}</p>
+        )}
+      </div>
+    </a>
+  )
+}
 
 export default function GlobalChat() {
   const { messages, loading, error, sendMessage } = useChat()
@@ -22,9 +90,13 @@ export default function GlobalChat() {
   const [mediaPreview, setMediaPreview] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
 
+  // ─── GIF MODAL ──────────────────────────────────────────────
   const [showGifModal, setShowGifModal] = useState(false)
   const [gifSearch, setGifSearch] = useState('')
   const [gifTab, setGifTab] = useState<'gifs' | 'stickers'>('gifs')
+
+  // ─── CLIPS MENU ─────────────────────────────────────────────
+  const [showClipsMenu, setShowClipsMenu] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -38,6 +110,13 @@ export default function GlobalChat() {
     return () => { if (mediaPreview) URL.revokeObjectURL(mediaPreview) }
   }, [mediaPreview])
 
+  // ─── DETECTAR LINKS NO TEXTO ──────────────────────────────
+  const detectLinks = (content: string): string[] => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g
+    return content.match(urlRegex) || []
+  }
+
+  // ─── SELECIONAR GIF ──────────────────────────────────────────
   const selectGif = (url: string, type: 'gif' | 'sticker' = 'gif') => {
     setSelectedGif({ url, type })
     setShowGifModal(false)
@@ -45,6 +124,7 @@ export default function GlobalChat() {
     inputRef.current?.focus()
   }
 
+  // ─── ENVIAR MENSAGEM ──────────────────────────────────────────
   async function handleSend() {
     if (!text.trim() && !selectedFile && !selectedGif) return
     if (sending) return
@@ -82,11 +162,13 @@ export default function GlobalChat() {
   }
   function cancelReply() { setReplyTo(null) }
 
-  function openFileSelector(type: string) {
+  // ─── CLIPS MENU ──────────────────────────────────────────────
+  function openFileSelector(accept: string) {
     if (fileInputRef.current) {
-      fileInputRef.current.accept = type
+      fileInputRef.current.accept = accept
       fileInputRef.current.click()
     }
+    setShowClipsMenu(false)
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -100,6 +182,7 @@ export default function GlobalChat() {
     }
   }
 
+  // ─── RENDER ──────────────────────────────────────────────────
   return (
     <div className="px-4 flex flex-col gap-3">
       <p className="text-xs font-bold tracking-widest text-white/40 uppercase">CHAT GLOBAL</p>
@@ -112,6 +195,7 @@ export default function GlobalChat() {
           <div ref={bottomRef} />
         </div>
 
+        {/* ─── ÁREA DE RESPOSTA ───────────────────────────────── */}
         {replyTo && (
           <div className="border-t border-primary/20 bg-primary/5 px-3 py-2 flex items-center justify-between">
             <div className="flex flex-col min-w-0">
@@ -130,7 +214,7 @@ export default function GlobalChat() {
         )}
 
         <div className="border-t border-white/5 p-2 flex flex-col gap-2">
-          {/* Exibe preview do GIF selecionado */}
+          {/* Preview do GIF */}
           {selectedGif && (
             <div className="relative bg-black/40 rounded-lg overflow-hidden max-h-32 max-w-full">
               <img src={selectedGif.url} alt="GIF" className="w-full h-full object-contain max-h-32" />
@@ -143,6 +227,7 @@ export default function GlobalChat() {
             </div>
           )}
 
+          {/* Preview do arquivo */}
           {mediaPreview && (
             <div className="relative bg-black/40 rounded-lg overflow-hidden max-h-32 max-w-full">
               <img src={mediaPreview} alt="Preview" className="w-full h-full object-contain max-h-32" />
@@ -154,20 +239,57 @@ export default function GlobalChat() {
 
           <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect} />
 
-          <div className="flex items-center gap-1 px-1">
+          <div className="flex items-center gap-1 px-1 relative">
+            {/* ─── CLIPS ───────────────────────────────────────── */}
+            <div className="relative">
+              <button
+                onClick={() => setShowClipsMenu(!showClipsMenu)}
+                className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"
+              >
+                <Paperclip size={18} />
+              </button>
+
+              {showClipsMenu && (
+                <div className="absolute bottom-full left-0 mb-1 bg-[#1a1a1a] border border-white/10 rounded-xl p-1 shadow-xl z-20 w-48">
+                  <button
+                    onClick={() => openFileSelector('image/*')}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-white/70 hover:bg-white/5 rounded-lg transition-colors"
+                  >
+                    <Image size={16} /> Imagem
+                  </button>
+                  <button
+                    onClick={() => openFileSelector('video/*')}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-white/70 hover:bg-white/5 rounded-lg transition-colors"
+                  >
+                    <Video size={16} /> Vídeo
+                  </button>
+                  <button
+                    onClick={() => openFileSelector('audio/*')}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-white/70 hover:bg-white/5 rounded-lg transition-colors"
+                  >
+                    <Music size={16} /> Áudio
+                  </button>
+                  <button
+                    onClick={() => openFileSelector('*/*')}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-white/70 hover:bg-white/5 rounded-lg transition-colors"
+                  >
+                    <FileText size={16} /> Arquivo
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ─── GIF ────────────────────────────────────────── */}
             <button
               onClick={() => setShowGifModal(true)}
               className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"
             >
               <Gift size={18} />
             </button>
-            <button onClick={() => openFileSelector('image/*')} className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Image size={18} /></button>
-            <button onClick={() => openFileSelector('video/*')} className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Video size={18} /></button>
-            <button onClick={() => openFileSelector('audio/*')} className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Music size={18} /></button>
-            <button onClick={() => openFileSelector('*/*')} className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><FileText size={18} /></button>
-            <button className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Link2 size={18} /></button>
-            <button className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"><Mic size={18} /></button>
+
             <div className="flex-1" />
+
+            {/* ─── ENVIAR ────────────────────────────────────── */}
             <button onClick={handleSend} disabled={(!text.trim() && !selectedFile && !selectedGif) || sending} className="bg-primary hover:bg-primary-light disabled:opacity-30 transition-colors text-white rounded-lg p-1.5">
               <Send size={18} />
             </button>
@@ -187,7 +309,7 @@ export default function GlobalChat() {
         </div>
       </div>
 
-      {/* Modal GIF */}
+      {/* ─── MODAL DE GIF ────────────────────────────────────── */}
       {showGifModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -219,7 +341,7 @@ export default function GlobalChat() {
                 fetchGifs={(offset) => {
                   const searchTerm = gifSearch || 'funny'
                   if (gifTab === 'stickers') {
-                   return gf.search(searchTerm, { offset, limit: 20, type: 'stickers' })
+                    return gf.search(searchTerm, { offset, limit: 20, type: 'stickers' })
                   }
                   return gf.search(searchTerm, { offset, limit: 20 })
                 }}
@@ -250,8 +372,33 @@ export default function GlobalChat() {
   )
 }
 
-// ── MessageBubble ──
+// ── COMPONENTE DE MENSAGEM ──
 function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: ChatMessage) => void }) {
+  // Extrai links do conteúdo
+  const urlRegex = /(https?:\/\/[^\s]+)/g
+  const links: string[] = []
+  let match
+  while ((match = urlRegex.exec(msg.content)) !== null) {
+    links.push(match[0])
+  }
+  // Reconstrói o conteúdo com links destacados
+  let contentParts: string[] = []
+  let lastIndex = 0
+  urlRegex.lastIndex = 0
+  let m
+  while ((m = urlRegex.exec(msg.content)) !== null) {
+    const linkStart = m.index
+    const linkEnd = linkStart + m[0].length
+    if (linkStart > lastIndex) {
+      contentParts.push(msg.content.substring(lastIndex, linkStart))
+    }
+    contentParts.push(m[0]) // o link
+    lastIndex = linkEnd
+  }
+  if (lastIndex < msg.content.length) {
+    contentParts.push(msg.content.substring(lastIndex))
+  }
+
   return (
     <div className="flex items-start gap-2 group hover:bg-white/5 rounded-lg px-2 py-1 transition-colors">
       <span className="text-base flex-shrink-0 mt-0.5">{msg.country?.flag_emoji ?? '🌐'}</span>
@@ -261,6 +408,7 @@ function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: Chat
           <span className="text-white/20 text-xs flex-shrink-0">{formatTime(msg.created_at)}</span>
         </div>
 
+        {/* Mídia */}
         {msg.media_url && (
           <div className="mt-2 max-w-[200px] rounded-lg overflow-hidden">
             {(msg.media_type === 'image' || msg.media_type === 'gif' || msg.media_type === 'sticker') && (
@@ -272,7 +420,37 @@ function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: Chat
           </div>
         )}
 
-        <p className="text-white/80 text-sm break-words leading-snug">{msg.content}</p>
+        {/* Conteúdo com links */}
+        {msg.content && (
+          <p className="text-white/80 text-sm break-words leading-snug mt-1">
+            {contentParts.map((part, i) => {
+              const isLink = /^https?:\/\//.test(part)
+              if (isLink) {
+                return (
+                  <a
+                    key={i}
+                    href={part}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-light hover:underline"
+                  >
+                    {part}
+                  </a>
+                )
+              }
+              return part
+            })}
+          </p>
+        )}
+
+        {/* Preview de link (se houver link) */}
+        {links.length > 0 && (
+          <div className="mt-2">
+            {links.map((link, idx) => (
+              <LinkPreview key={idx} url={link} />
+            ))}
+          </div>
+        )}
 
         {msg.reply_to_message && (
           <div className="mt-1 pl-2 border-l-2 border-white/20 bg-white/5 rounded p-1.5 text-[10px] text-white/50">

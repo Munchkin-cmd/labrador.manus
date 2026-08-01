@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
@@ -31,6 +31,13 @@ export default function ArtigoPage() {
   const [sending, setSending] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  // ─── ESTADO PARA MÍDIA DO COMENTÁRIO ─────────────────────
+  const [selectedMedia, setSelectedMedia] = useState<{
+    url: string
+    type: 'gif' | 'sticker' | 'image'
+  } | null>(null)
+
+  // ─── MODAL DE GIF ──────────────────────────────────────────
   const [showGifModal, setShowGifModal] = useState(false)
   const [gifSearch, setGifSearch] = useState('')
   const [gifTab, setGifTab] = useState<'gifs' | 'stickers'>('gifs')
@@ -79,20 +86,29 @@ export default function ArtigoPage() {
     setDeleting(false)
   }
 
+  // ─── ENVIAR COMENTÁRIO ──────────────────────────────────────
   async function handleComment() {
-    if (!reply.trim()) return
+    if (!reply.trim() && !selectedMedia) return
     setSending(true)
-    await postComment(id, reply)
+    const mediaData = selectedMedia
+      ? {
+          gif_url: selectedMedia.type === 'gif' ? selectedMedia.url : undefined,
+          sticker_url: selectedMedia.type === 'sticker' ? selectedMedia.url : undefined,
+          image_url: selectedMedia.type === 'image' ? selectedMedia.url : undefined,
+        }
+      : undefined
+
+    await postComment(id, reply.trim(), undefined, mediaData)
     setReply('')
+    setSelectedMedia(null)
     const c = await fetchComments(id)
     setComments(c)
     setSending(false)
   }
 
-  const selectGif = (url: string, type: 'gif' | 'sticker' = 'gif') => {
-    // Insere o GIF como texto markdown no campo de comentário
-    const gifMarkdown = `![GIF](${url})`
-    setReply(prev => prev ? prev + ' ' + gifMarkdown : gifMarkdown)
+  // ─── SELECIONAR GIF ──────────────────────────────────────────
+  const selectGif = (url: string, type: 'gif' | 'sticker') => {
+    setSelectedMedia({ url, type })
     setShowGifModal(false)
     setGifSearch('')
   }
@@ -146,48 +162,65 @@ export default function ArtigoPage() {
         </div>
       </div>
 
-      {/* Comentários */}
+      {/* ─── COMENTÁRIOS ────────────────────────────────────── */}
       <div className="mt-6 bg-surface-card rounded-xl p-6 border border-white/5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xs font-bold tracking-widest text-white/40 uppercase">COMENTÁRIOS</h3>
-          <button onClick={() => setShowGifModal(true)} className="text-xs text-white/40 hover:text-white/70 transition-colors flex items-center gap-1">
+          <button
+            onClick={() => setShowGifModal(true)}
+            className="text-xs text-white/40 hover:text-white/70 transition-colors flex items-center gap-1"
+          >
             <Image size={14} /> GIF
           </button>
         </div>
 
         {comments.length === 0 && <p className="text-white/20 text-sm text-center">Sem comentários ainda.</p>}
-        {comments.map((c) => (
+        {comments.map((c: any) => (
           <div key={c.id} className="flex gap-2 py-2 border-b border-white/5 last:border-0">
             <span className="text-base flex-shrink-0">{c.countries?.flag_emoji ?? '🌐'}</span>
             <div className="flex-1">
               <p className="text-white/60 text-xs font-semibold">{c.countries?.name}</p>
               {c.gif_url && <img src={c.gif_url} alt="GIF" className="max-w-[200px] rounded-lg mt-1" />}
               {c.sticker_url && <img src={c.sticker_url} alt="Sticker" className="max-w-[100px] rounded-lg mt-1" />}
+              {c.image_url && <img src={c.image_url} alt="Imagem" className="max-w-[200px] rounded-lg mt-1" />}
               <p className="text-white/80 text-sm mt-0.5">{c.content}</p>
             </div>
           </div>
         ))}
 
-        {/* Input de comentário */}
-        <div className="mt-4 flex gap-2">
-          <input
-            value={reply}
-            onChange={(e) => setReply(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleComment()}
-            placeholder="Comentar..."
-            className="flex-1 input-field py-2 text-sm"
-          />
-          <button
-            onClick={handleComment}
-            disabled={sending || !reply.trim()}
-            className="bg-primary text-white rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-30"
-          >
-            ➤
-          </button>
+        {/* ─── INPUT DE COMENTÁRIO COM PREVIEW DE MÍDIA ────── */}
+        <div className="mt-4 flex flex-col gap-2">
+          {selectedMedia && (
+            <div className="relative bg-black/40 rounded-lg overflow-hidden max-h-32 max-w-full">
+              <img src={selectedMedia.url} alt="Mídia" className="w-full h-full object-contain max-h-32" />
+              <button
+                onClick={() => setSelectedMedia(null)}
+                className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleComment()}
+              placeholder="Comentar..."
+              className="flex-1 input-field py-2 text-sm"
+            />
+            <button
+              onClick={handleComment}
+              disabled={sending || (!reply.trim() && !selectedMedia)}
+              className="bg-primary text-white rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-30"
+            >
+              ➤
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ─── MODAL DE GIF ────────────────────────────────────── */}
+      {/* ─── MODAL DE GIF (GIPHY SDK) ────────────────────────── */}
       {showGifModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -219,14 +252,14 @@ export default function ArtigoPage() {
                 fetchGifs={(offset) => {
                   const searchTerm = gifSearch || 'funny'
                   if (gifTab === 'stickers') {
-                   return gf.search(searchTerm, { offset, limit: 20, type: 'stickers' })
+                    return gf.search(searchTerm, { offset, limit: 20, type: 'stickers' })
                   }
                   return gf.search(searchTerm, { offset, limit: 20 })
                 }}
                 columns={3}
                 gutter={6}
                 width={320}
-                onGifClick={(gif, e) => {
+                onGifClick={(gif: any, e: any) => {
                   e.preventDefault()
                   selectGif(gif.images.original.url, gifTab === 'stickers' ? 'sticker' : 'gif')
                 }}
