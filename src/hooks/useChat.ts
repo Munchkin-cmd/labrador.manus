@@ -1,3 +1,4 @@
+// hooks/useChat.ts
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
@@ -175,20 +176,21 @@ export function useChat() {
     media_type?: string
   ): Promise<{ success: boolean; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
+
+    // ⚠️ Se não houver conteúdo E não houver mídia, retorna erro
     if (!content.trim() && !file && !media_url) {
       return { success: false, error: 'Mensagem vazia' }
     }
 
     let insertData: any = {
       country_id: country.id,
-      content: content.trim() || null,
+      content: content.trim() || '', // ← NUNCA NULL! Usa string vazia se não houver texto.
       reply_to_id: reply_to_id || null
     }
 
-    // ─── SE FOR UMA URL DE MÍDIA (GIF/STICKER/IMAGEM/VIDEO) ──
+    // ─── SE FOR UMA URL DE MÍDIA (GIF/STICKER/IMAGEM/VIDEO/ÁUDIO) ──
     if (media_url) {
       const type = media_type || 'gif'
-      // Mapeia para a coluna correta
       switch (type) {
         case 'gif':
           insertData.gif_url = media_url

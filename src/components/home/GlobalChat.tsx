@@ -26,7 +26,6 @@ function LinkPreview({ url }: { url: string }) {
   useEffect(() => {
     const fetchPreview = async () => {
       try {
-        // Detectar YouTube e montar embed
         if (url.includes('youtube.com/watch') || url.includes('youtu.be/')) {
           const videoId = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&?]+)/)?.[1]
           if (videoId) {
@@ -40,9 +39,6 @@ function LinkPreview({ url }: { url: string }) {
             return
           }
         }
-
-        // Para outros sites, usaríamos uma API de preview
-        // (exemplo simples: usar o embed do site)
         setPreview({
           title: url,
           description: 'Clique para abrir o link',
@@ -90,12 +86,10 @@ export default function GlobalChat() {
   const [mediaPreview, setMediaPreview] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
 
-  // ─── GIF MODAL ──────────────────────────────────────────────
   const [showGifModal, setShowGifModal] = useState(false)
   const [gifSearch, setGifSearch] = useState('')
   const [gifTab, setGifTab] = useState<'gifs' | 'stickers'>('gifs')
 
-  // ─── CLIPS MENU ─────────────────────────────────────────────
   const [showClipsMenu, setShowClipsMenu] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
@@ -110,13 +104,6 @@ export default function GlobalChat() {
     return () => { if (mediaPreview) URL.revokeObjectURL(mediaPreview) }
   }, [mediaPreview])
 
-  // ─── DETECTAR LINKS NO TEXTO ──────────────────────────────
-  const detectLinks = (content: string): string[] => {
-    const urlRegex = /(https?:\/\/[^\s]+)/g
-    return content.match(urlRegex) || []
-  }
-
-  // ─── SELECIONAR GIF ──────────────────────────────────────────
   const selectGif = (url: string, type: 'gif' | 'sticker' = 'gif') => {
     setSelectedGif({ url, type })
     setShowGifModal(false)
@@ -131,8 +118,11 @@ export default function GlobalChat() {
 
     setSending(true)
     try {
+      // ✅ Garantir que content nunca seja null – enviar string vazia se não houver texto
+      const content = text.trim() || ' ' // espaço vazio para evitar null
+
       const result = await sendMessage(
-        text.trim(),
+        content,
         selectedFile || undefined,
         replyTo?.id || null,
         selectedGif?.url,
@@ -162,7 +152,6 @@ export default function GlobalChat() {
   }
   function cancelReply() { setReplyTo(null) }
 
-  // ─── CLIPS MENU ──────────────────────────────────────────────
   function openFileSelector(accept: string) {
     if (fileInputRef.current) {
       fileInputRef.current.accept = accept
@@ -195,7 +184,6 @@ export default function GlobalChat() {
           <div ref={bottomRef} />
         </div>
 
-        {/* ─── ÁREA DE RESPOSTA ───────────────────────────────── */}
         {replyTo && (
           <div className="border-t border-primary/20 bg-primary/5 px-3 py-2 flex items-center justify-between">
             <div className="flex flex-col min-w-0">
@@ -214,7 +202,6 @@ export default function GlobalChat() {
         )}
 
         <div className="border-t border-white/5 p-2 flex flex-col gap-2">
-          {/* Preview do GIF */}
           {selectedGif && (
             <div className="relative bg-black/40 rounded-lg overflow-hidden max-h-32 max-w-full">
               <img src={selectedGif.url} alt="GIF" className="w-full h-full object-contain max-h-32" />
@@ -227,7 +214,6 @@ export default function GlobalChat() {
             </div>
           )}
 
-          {/* Preview do arquivo */}
           {mediaPreview && (
             <div className="relative bg-black/40 rounded-lg overflow-hidden max-h-32 max-w-full">
               <img src={mediaPreview} alt="Preview" className="w-full h-full object-contain max-h-32" />
@@ -240,7 +226,6 @@ export default function GlobalChat() {
           <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect} />
 
           <div className="flex items-center gap-1 px-1 relative">
-            {/* ─── CLIPS ───────────────────────────────────────── */}
             <div className="relative">
               <button
                 onClick={() => setShowClipsMenu(!showClipsMenu)}
@@ -279,7 +264,6 @@ export default function GlobalChat() {
               )}
             </div>
 
-            {/* ─── GIF ────────────────────────────────────────── */}
             <button
               onClick={() => setShowGifModal(true)}
               className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/5 rounded-lg transition-colors"
@@ -289,7 +273,6 @@ export default function GlobalChat() {
 
             <div className="flex-1" />
 
-            {/* ─── ENVIAR ────────────────────────────────────── */}
             <button onClick={handleSend} disabled={(!text.trim() && !selectedFile && !selectedGif) || sending} className="bg-primary hover:bg-primary-light disabled:opacity-30 transition-colors text-white rounded-lg p-1.5">
               <Send size={18} />
             </button>
@@ -348,7 +331,7 @@ export default function GlobalChat() {
                 columns={3}
                 gutter={6}
                 width={320}
-                onGifClick={(gif, e) => {
+                onGifClick={(gif: any, e: any) => {
                   e.preventDefault()
                   selectGif(gif.images.original.url, gifTab === 'stickers' ? 'sticker' : 'gif')
                 }}
@@ -374,14 +357,13 @@ export default function GlobalChat() {
 
 // ── COMPONENTE DE MENSAGEM ──
 function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: ChatMessage) => void }) {
-  // Extrai links do conteúdo
   const urlRegex = /(https?:\/\/[^\s]+)/g
   const links: string[] = []
   let match
   while ((match = urlRegex.exec(msg.content)) !== null) {
     links.push(match[0])
   }
-  // Reconstrói o conteúdo com links destacados
+
   let contentParts: string[] = []
   let lastIndex = 0
   urlRegex.lastIndex = 0
@@ -392,7 +374,7 @@ function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: Chat
     if (linkStart > lastIndex) {
       contentParts.push(msg.content.substring(lastIndex, linkStart))
     }
-    contentParts.push(m[0]) // o link
+    contentParts.push(m[0])
     lastIndex = linkEnd
   }
   if (lastIndex < msg.content.length) {
@@ -408,7 +390,6 @@ function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: Chat
           <span className="text-white/20 text-xs flex-shrink-0">{formatTime(msg.created_at)}</span>
         </div>
 
-        {/* Mídia */}
         {msg.media_url && (
           <div className="mt-2 max-w-[200px] rounded-lg overflow-hidden">
             {(msg.media_type === 'image' || msg.media_type === 'gif' || msg.media_type === 'sticker') && (
@@ -420,8 +401,7 @@ function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: Chat
           </div>
         )}
 
-        {/* Conteúdo com links */}
-        {msg.content && (
+        {msg.content && msg.content.trim() && (
           <p className="text-white/80 text-sm break-words leading-snug mt-1">
             {contentParts.map((part, i) => {
               const isLink = /^https?:\/\//.test(part)
@@ -443,7 +423,6 @@ function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: Chat
           </p>
         )}
 
-        {/* Preview de link (se houver link) */}
         {links.length > 0 && (
           <div className="mt-2">
             {links.map((link, idx) => (
