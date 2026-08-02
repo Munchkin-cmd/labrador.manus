@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
+import MapaPlano from '@/components/MapaPlano'
  
 interface CountryInfo {
-  id: number // ✅ CORRIGIDO: string → number
+  id: number
   name: string
-   slug: string | null  // ← pode ser null
+  slug: string | null
   flag_emoji: string
   capital: string
   terrain: string
@@ -45,102 +46,111 @@ export default function MapaPage() {
       })
   }, [])
  
+  const handleGlobeClick = (nomePais: string) => {
+    const pais = countries.find(c => c.name === nomePais);
+    if (pais) {
+      setSelected(prev => prev?.id === pais.id ? null : pais);
+    }
+  }
+ 
   const filtered = countries.filter(c =>
     (!search || c.name.toLowerCase().includes(search.toLowerCase())) &&
     (!filter || c.terrain === filter)
   )
  
   return (
-    <div className="flex flex-col gap-4 pb-6 p-4">
+    <div className="relative flex h-screen w-screen overflow-hidden bg-[#0d1b2a]">
+      
+      {/* 📋 PAINEL LATERAL: COLOCADO PRIMEIRO (Lado Esquerdo) */}
+      <div className="relative z-10 w-[400px] h-full bg-[#0d1b2a]/90 backdrop-blur-md border-r border-white/10 flex flex-col p-4 overflow-y-auto custom-scrollbar">
+        
+        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-4">MAPA MUNDIAL</p>
  
-      <p className="text-xs font-bold tracking-widest text-white/40 uppercase">MAPA MUNDIAL</p>
- 
-      {/* Legenda de terrenos */}
-      <div className="grid grid-cols-2 gap-2">
-        {Object.entries(TERRAIN_COLORS).map(([t, cls]) => (
-          <button key={t} onClick={() => setFilter(filter === t ? '' : t)}
-            className={`border rounded-xl px-3 py-2 text-xs font-semibold transition-all ${cls}
-                        ${filter === t ? 'ring-2 ring-white/20' : 'opacity-70 hover:opacity-100'}`}>
-            {t.charAt(0).toUpperCase() + t.slice(1)}
-          </button>
-        ))}
-      </div>
- 
-      {/* Busca */}
-      <input
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        placeholder="🔍 Buscar país..."
-        className="input-field"
-      />
- 
-      {/* Contagem */}
-      <p className="text-white/30 text-xs">
-        {filtered.filter(c => c.is_active).length} ativos · {filtered.length} total
-      </p>
- 
-      {/* Lista de países */}
-      {loading ? (
-        <div className="flex flex-col gap-2">
-          {[1,2,3,4,5].map(i => <div key={i} className="h-14 bg-surface-card rounded-xl animate-pulse" />)}
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {filtered.map(c => (
-            <button
-              key={c.id}
-              onClick={() => setSelected(selected?.id === c.id ? null : c)}
-              className={`bg-surface-card rounded-xl p-3 text-left transition-all
-                          ${selected?.id === c.id ? 'ring-2 ring-primary' : 'hover:bg-white/5'}`}
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{c.flag_emoji}</span>
-                <div className="flex-1 min-w-0">
-                  {/* 🔥 NOME DO PAÍS */}
-                  <Link 
-                    href={`/game/pais/${c.slug}`}
-                    className="text-white font-semibold text-sm truncate hover:text-primary-light transition-colors block"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {c.name}
-                  </Link>
-                  <p className="text-white/40 text-xs">{c.capital}</p>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className={`text-xs px-2 py-0.5 rounded-full border ${TERRAIN_COLORS[c.terrain]}`}>
-                    {c.terrain}
-                  </span>
-                  {c.is_active && (
-                    <span className="text-xs text-green-400">● ativo</span>
-                  )}
-                </div>
-              </div>
- 
-              {/* Expanded info */}
-              {selected?.id === c.id && (
-                <div className="mt-3 pt-3 border-t border-white/10 text-xs text-white/50 flex flex-col gap-1">
-                  <p>⛏️ Recursos: {TERRAIN_RESOURCES[c.terrain]}</p>
-                  <p>⚙️ + Aço (via Siderúrgica + Ferro em qualquer terreno)</p>
-                  {c.is_active ? (
-                    <p className="text-green-400 mt-1">✅ País com jogador ativo</p>
-                  ) : (
-                    <p className="text-white/30 mt-1">⚪ Disponível para jogadores</p>
-                  )}
-                  {/* 🔥 BOTÃO PARA VISITAR */}
-                  <Link 
-                    href={`/game/pais/${c.slug}`}
-                    className="mt-2 text-primary-light hover:text-primary text-sm font-semibold transition-colors block"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    👁️ Ver perfil do país →
-                  </Link>
-                </div>
-              )}
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {Object.entries(TERRAIN_COLORS).map(([t, cls]) => (
+            <button key={t} onClick={() => setFilter(filter === t ? '' : t)}
+              className={`border rounded-xl px-3 py-2 text-xs font-semibold transition-all ${cls}
+                          ${filter === t ? 'ring-2 ring-white/20' : 'opacity-70 hover:opacity-100'}`}>
+              {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </div>
-      )}
  
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="🔍 Buscar país..."
+          className="input-field w-full mb-4"
+        />
+ 
+        <p className="text-white/30 text-xs mb-4">
+          {filtered.filter(c => c.is_active).length} ativos · {filtered.length} total
+        </p>
+ 
+        {loading ? (
+          <div className="flex flex-col gap-2">
+            {[1,2,3,4,5].map(i => <div key={i} className="h-14 bg-surface-card rounded-xl animate-pulse" />)}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 pb-20">
+            {filtered.map(c => (
+              <button
+                key={c.id}
+                onClick={() => setSelected(selected?.id === c.id ? null : c)}
+                className={`bg-surface-card/50 backdrop-blur-sm rounded-xl p-3 text-left transition-all
+                            ${selected?.id === c.id ? 'ring-2 ring-primary' : 'hover:bg-white/5'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{c.flag_emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <Link 
+                      href={`/game/pais/${c.slug}`}
+                      className="text-white font-semibold text-sm truncate hover:text-primary-light transition-colors block"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {c.name}
+                    </Link>
+                    <p className="text-white/40 text-xs">{c.capital}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${TERRAIN_COLORS[c.terrain]}`}>
+                      {c.terrain}
+                    </span>
+                    {c.is_active && (
+                      <span className="text-xs text-green-400">● ativo</span>
+                    )}
+                  </div>
+                </div>
+ 
+                {selected?.id === c.id && (
+                  <div className="mt-3 pt-3 border-t border-white/10 text-xs text-white/50 flex flex-col gap-1">
+                    <p>⛏️ Recursos: {TERRAIN_RESOURCES[c.terrain]}</p>
+                    <p>⚙️ + Aço (via Siderúrgica + Ferro em qualquer terreno)</p>
+                    {c.is_active ? (
+                      <p className="text-green-400 mt-1">✅ País com jogador ativo</p>
+                    ) : (
+                      <p className="text-white/30 mt-1">⚪ Disponível para jogadores</p>
+                    )}
+                    <Link 
+                      href={`/game/pais/${c.slug}`}
+                      className="mt-2 text-primary-light hover:text-primary text-sm font-semibold transition-colors block"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      👁️ Ver perfil do país →
+                    </Link>
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 🌍 MAPA PLANO: COLOCADO DEPOIS (Lado Direito) */}
+      <div className="flex-1 h-full relative z-0">
+        <MapaPlano onCountryClick={handleGlobeClick} />
+      </div>
+
     </div>
   )
-} 
+}

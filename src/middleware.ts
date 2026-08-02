@@ -2,8 +2,15 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  console.log('🔵 Middleware executou, path:', request.nextUrl.pathname)
-  return NextResponse.next() // ← Permite todas as rotas livremente
+  const pathname = request.nextUrl.pathname
+
+  // ✅ Se for a pasta de dados, apenas libera imediatamente (sem logs para não poluir)
+  if (pathname.startsWith('/data')) {
+    return NextResponse.next()
+  }
+
+  console.log('🔵 Middleware executou, path:', pathname)
+  return NextResponse.next()
 }
 
 export const config = {
