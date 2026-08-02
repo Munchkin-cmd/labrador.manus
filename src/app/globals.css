@@ -176,3 +176,27 @@
 .animate-float {
   animation: float infinite alternate ease-in-out;
 }
+
+/* Animação das bandeiras (Fade In / Fade Out) */
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  20% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  80% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+.animate-float {
+  animation: fadeInOut infinite alternate ease-in-out;
+}
