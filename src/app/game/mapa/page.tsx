@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
-import MapaPlano from '@/components/MapaPlano'
+import dynamic from 'next/dynamic' // ✅ Importe o dynamic
+
+// ✅ Cria o componente dinâmico (sem SSR)
+const MapaPlano = dynamic(
+  () => import('@/components/MapaPlano'),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-full text-white/50">Carregando mapa...</div> }
+)
  
 interface CountryInfo {
   id: number
@@ -61,7 +67,7 @@ export default function MapaPage() {
   return (
     <div className="relative flex h-screen w-screen overflow-hidden bg-[#0d1b2a]">
       
-      {/* 📋 PAINEL LATERAL: COLOCADO PRIMEIRO (Lado Esquerdo) */}
+      {/* 📋 PAINEL LATERAL */}
       <div className="relative z-10 w-[400px] h-full bg-[#0d1b2a]/90 backdrop-blur-md border-r border-white/10 flex flex-col p-4 overflow-y-auto custom-scrollbar">
         
         <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-4">MAPA MUNDIAL</p>
@@ -146,7 +152,7 @@ export default function MapaPage() {
         )}
       </div>
 
-      {/* 🌍 MAPA PLANO: COLOCADO DEPOIS (Lado Direito) */}
+      {/* 🌍 MAPA PLANO (Lado Direito) */}
       <div className="flex-1 h-full relative z-0">
         <MapaPlano onCountryClick={handleGlobeClick} />
       </div>

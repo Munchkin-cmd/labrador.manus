@@ -4,13 +4,6 @@ import { MapContainer, GeoJSON, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
-
 interface MapaPlanoProps { onCountryClick?: (nomePais: string) => void; }
 
 function FitBounds({ bounds }: { bounds: L.LatLngBoundsExpression }) {
@@ -22,6 +15,18 @@ function FitBounds({ bounds }: { bounds: L.LatLngBoundsExpression }) {
 export default function MapaPlano({ onCountryClick }: MapaPlanoProps) {
   const [dadosMapa, setDadosMapa] = useState<any>(null);
   const [bounds, setBounds] = useState<L.LatLngBoundsExpression | null>(null);
+
+  // ✅ Corrige ícones do Leaflet APENAS no cliente
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      delete (L.Icon.Default.prototype as any)._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+      });
+    }
+  }, []);
 
   useEffect(() => {
     async function carregarMapa() {
@@ -47,8 +52,6 @@ export default function MapaPlano({ onCountryClick }: MapaPlanoProps) {
 
   return (
     <div style={{ height: '100%', width: '100%', position: 'relative' }}>
-      
-      {/* Fundo escuro com grade sutil */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
         backgroundColor: '#0a0f18',
@@ -63,22 +66,20 @@ export default function MapaPlano({ onCountryClick }: MapaPlanoProps) {
         style={{ height: '100%', width: '100%', background: 'transparent', position: 'relative', zIndex: 1 }}
         zoomControl={false}
       >
-        {/* 🗺️ Geojson com estilização de borda camuflada */}
         <GeoJSON
           data={dadosMapa}
           onEachFeature={onEachCountry}
           style={(feature) => {
             const cor = feature?.properties?.cor || '#4a4a4a';
             return {
-              color: cor,           // A borda recebe a MESMA cor do país
-              weight: 0.8,          // Espessura fina
-              opacity: 0.4,         // Opacidade mais baixa para sumir na cor sólida
+              color: cor,
+              weight: 0.8,
+              opacity: 0.4,
               fillColor: cor,
               fillOpacity: 0.95,
             };
           }}
         />
-
         {bounds && <FitBounds bounds={bounds} />}
       </MapContainer>
     </div>
