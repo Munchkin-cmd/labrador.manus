@@ -1,5 +1,6 @@
 'use client'
 
+
 import { useState, useEffect, useRef } from 'react'
 import { useCountry } from '@/hooks/useCountry'
 import { useParliament } from '@/hooks/useParliament'
@@ -8,16 +9,19 @@ import { supabase } from '@/lib/supabase/client'
 import { formatMoney, formatNumber, formatPopulation } from '@/utils/format'
 import TrustBar from '@/components/home/TrustBar'
 
-import { 
-  Map, Plus, Flag, Crown, 
+
+import {
+  Map, Plus, Flag, Crown,
   Landmark, Users, Coins, TrendingUp, TrendingDown,
   Shield, Gavel, Radiation
 } from 'lucide-react'
 
-import { 
+
+import {
   IoPeople, IoDisc, IoShield, IoAirplane, IoCog,
   IoBug, IoRocket, IoNuclear, IoFlame
 } from 'react-icons/io5'
+
 
 export default function StatePage() {
   const { country: myCountry } = useAuthStore()
@@ -34,9 +38,11 @@ export default function StatePage() {
     getCountdown,
   } = useParliament()
 
+
   // ─── XP DE COMBATE ──────────────────────────────────────
   const [combatXP, setCombatXP] = useState<{ experience: number; wars_participated: number } | null>(null)
   const [loadingXP, setLoadingXP] = useState(true)
+
 
   useEffect(() => {
     async function fetchCombatXP() {
@@ -52,7 +58,7 @@ export default function StatePage() {
           .eq('country_id', myCountry.id)
           .maybeSingle()
         if (error) throw error
-        
+       
         // ✅ CORREÇÃO: Garantir que os valores sejam números (não null)
         if (data) {
           setCombatXP({
@@ -71,6 +77,7 @@ export default function StatePage() {
     fetchCombatXP()
   }, [myCountry?.id])
 
+
   // ─── BANNER ──────────────────────────────────────────────
   const [bannerIndex, setBannerIndex] = useState(0)
   const bannerImages = profile?.banner_urls || []
@@ -78,12 +85,14 @@ export default function StatePage() {
   const bannerContainerRef = useRef<HTMLDivElement>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
+
   const stopTimer = () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
     }
   }
+
 
   const startTimer = () => {
     stopTimer()
@@ -94,10 +103,12 @@ export default function StatePage() {
     }
   }
 
+
   useEffect(() => {
     startTimer()
     return () => stopTimer()
   }, [bannerImages.length])
+
 
   const goToSlide = (index: number) => {
     setBannerIndex(index)
@@ -105,17 +116,20 @@ export default function StatePage() {
     startTimer()
   }
 
+
   const goNext = () => {
     setBannerIndex((prev) => (prev + 1) % bannerImages.length)
     stopTimer()
     startTimer()
   }
 
+
   const goPrev = () => {
     setBannerIndex((prev) => (prev - 1 + bannerImages.length) % bannerImages.length)
     stopTimer()
     startTimer()
   }
+
 
   const handleBannerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!bannerContainerRef.current || bannerImages.length <= 1) return
@@ -126,9 +140,11 @@ export default function StatePage() {
     else goNext()
   }
 
+
   // ─── DADOS MILITARES ──────────────────────────────────
   const [military, setMilitary] = useState<any>(null)
   const [loadingMil, setLoadingMil] = useState(true)
+
 
   useEffect(() => {
     async function fetchMilitary() {
@@ -152,25 +168,31 @@ export default function StatePage() {
     fetchMilitary()
   }, [myCountry?.id])
 
+
   // ─── REGIÕES ──────────────────────────────────────────
   const [regions, setRegions] = useState<any[]>([])
   const [buildingsCount, setBuildingsCount] = useState<Record<string, number>>({})
 
+
   const fetchRegions = async () => {
     if (!data?.id) return
+
 
     const { data: regionsData, error: regionsError } = await supabase
       .from('regions')
       .select('id, name, used_area')
       .eq('country_id', data.id)
 
+
     if (regionsError) {
       console.error('❌ Erro ao buscar regiões:', regionsError)
       return
     }
 
+
     if (regionsData && regionsData.length > 0) {
       setRegions(regionsData)
+
 
       const regionIds = regionsData.map((r: any) => r.id)
       if (regionIds.length > 0) {
@@ -178,6 +200,7 @@ export default function StatePage() {
           .from('buildings')
           .select('region_id, quantity')
           .in('region_id', regionIds)
+
 
         if (buildingsData) {
           const count: Record<string, number> = {}
@@ -192,9 +215,11 @@ export default function StatePage() {
     }
   }
 
+
   useEffect(() => {
     fetchRegions()
   }, [data?.id])
+
 
   // ─── ESTADOS DO MODAL ────────────────────────────────────
   const [selectedLawId, setSelectedLawId] = useState<number | ''>('')
@@ -209,12 +234,15 @@ export default function StatePage() {
   const [forcing, setForcing] = useState<string | null>(null)
   const [forceMsg, setForceMsg] = useState('')
 
+
   // ─── PAÍSES E GUERRAS ATIVAS (para selects) ──────────
   const [countries, setCountries] = useState<any[]>([])
   const [activeWars, setActiveWars] = useState<any[]>([])
 
+
   useEffect(() => {
     if (!data?.id) return
+
 
     async function fetchAuxData() {
       try {
@@ -222,6 +250,7 @@ export default function StatePage() {
           .from('countries')
           .select('id, name, flag_emoji')
         setCountries(cData || [])
+
 
         const { data: wData } = await supabase
           .from('wars')
@@ -233,11 +262,14 @@ export default function StatePage() {
       }
     }
 
+
     fetchAuxData()
   }, [data?.id])
 
+
   // ─── ESTADOS DE CARREGAMENTO ─────────────────────────────
   if (loadingC || loadingP) return <PageLoading />
+
 
   if (!data || !economy) {
     return (
@@ -250,6 +282,7 @@ export default function StatePage() {
     )
   }
 
+
   // ─── CÁLCULOS ────────────────────────────────────────
   const coalition_pct = parliament
     ? Math.round((parliament.coalition_seats / parliament.total_seats) * 100)
@@ -261,9 +294,11 @@ export default function StatePage() {
     ? parliament.coalition_seats === parliament.total_seats / 2
     : false
 
+
   let parlamentoStatus = '📊 Parlamento Equilibrado'
   if (has_majority) parlamentoStatus = '🟢 Parlamento Majoritário (Coalizão)'
   else if (!is_balanced && parliament) parlamentoStatus = '🔴 Parlamento Minoritário (Oposição)'
+
 
   // ─── LEIS ──────────────────────────────────────────────
   const selectedLaw = catalog.find(l => l.id === selectedLawId)
@@ -271,11 +306,13 @@ export default function StatePage() {
   const activeLaws = laws.filter(l => l.status === 'active')
   const rejectedLaws = laws.filter(l => l.status === 'revoked').slice(0, 5)
 
+
   // ─── FUNÇÕES ──────────────────────────────────────────
   async function handlePropose() {
     if (!selectedLawId) return
     setProposing(true)
     setLawMsg('')
+
 
     const target = {
       countryId: targetCountryId || undefined,
@@ -285,8 +322,10 @@ export default function StatePage() {
       taxValue: taxValue || undefined,
     }
 
+
     const res = await proposeLaw(Number(selectedLawId), target)
     setLawMsg(res.message ?? res.error ?? 'Erro')
+
 
     if (res.success) {
       setShowLawModal(false)
@@ -298,8 +337,10 @@ export default function StatePage() {
       setTaxValue(0)
     }
 
+
     setProposing(false)
   }
+
 
   async function handleForce(lawId: string) {
     setForcing(lawId)
@@ -309,20 +350,21 @@ export default function StatePage() {
     setForcing(null)
   }
 
+
   // ─── RENDER ──────────────────────────────────────────
   return (
     <div className="flex flex-col gap-5 pb-8 w-full max-w-4xl mx-auto overflow-x-hidden">
-      
+     
       {/* ─── BANNER ─────────────────────────────────────── */}
-      <div 
+      <div
         ref={bannerContainerRef}
         onClick={handleBannerClick}
         className={`relative h-48 w-full overflow-hidden rounded-xl mx-4 bg-black/40 border border-white/10 ${hasBanner && bannerImages.length > 1 ? 'cursor-pointer' : ''}`}
       >
         {hasBanner ? (
           <>
-            <img 
-              src={bannerImages[bannerIndex]} 
+            <img
+              src={bannerImages[bannerIndex]}
               alt="Banner do país"
               className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
             />
@@ -369,6 +411,7 @@ export default function StatePage() {
         </div>
       </div>
 
+
       {/* ─── INFORMAÇÕES DO PAÍS ────────────────────────── */}
       <Section title={<span className="flex items-center gap-2"><Landmark size={16} /> INFORMAÇÕES</span>}>
         <InfoRow label="Título" value={`${data.leader_title}${data.leader_name ? ': ' + data.leader_name : ''}`} />
@@ -378,6 +421,7 @@ export default function StatePage() {
         <InfoRow label="Terreno"   value={data.terrain ? data.terrain.charAt(0).toUpperCase() + data.terrain.slice(1) : 'Planície'} />
       </Section>
 
+
       {/* ─── REGIÕES ────────────────────────────────────── */}
       <div className="px-4">
         <div className="bg-surface-card rounded-xl p-4 border border-white/5">
@@ -386,6 +430,7 @@ export default function StatePage() {
               <Map size={16} /> REGIÕES ({regions.length})
             </div>
           </div>
+
 
           {regions.length === 0 ? (
             <p className="text-white/30 text-sm text-center py-4">Nenhuma região cadastrada</p>
@@ -414,6 +459,7 @@ export default function StatePage() {
         </div>
       </div>
 
+
       {/* ─── STATUS POLÍTICO ────────────────────────────── */}
       <Section title={<span className="flex items-center gap-2"><Shield size={16} /> STATUS POLÍTICO</span>}>
         <div className="flex flex-col gap-2">
@@ -421,10 +467,10 @@ export default function StatePage() {
           <TrustBar trust={data.intl_approval || 50} label="Aprovação" color="bg-blue-400" />
           <TrustBar trust={data.political_power || 50} label="Poder Pol." color="bg-purple-400" />
           {!loadingXP && combatXP && (
-            <TrustBar 
-              trust={Math.min(100, (combatXP.experience / 10))} 
-              label="XP de Combate" 
-              color="bg-orange-500" 
+            <TrustBar
+              trust={Math.min(100, (combatXP.experience / 10))}
+              label="XP de Combate"
+              color="bg-orange-500"
             />
           )}
           {!loadingXP && !combatXP && (
@@ -432,6 +478,7 @@ export default function StatePage() {
           )}
         </div>
       </Section>
+
 
       {/* ─── PARLAMENTO VISUAL ──────────────────────────── */}
       <Section title={<span className="flex items-center gap-2"><Users size={16} /> PARLAMENTO</span>}>
@@ -467,6 +514,7 @@ export default function StatePage() {
                 </div>
               </div>
 
+
               <div className="flex-1 w-full">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
@@ -487,6 +535,7 @@ export default function StatePage() {
                   </span>
                 </div>
 
+
                 <div className="mt-3 text-center">
                   <span className={`text-sm font-bold px-3 py-1 rounded-full ${
                     has_majority ? 'bg-green-500/20 text-green-400' :
@@ -496,6 +545,7 @@ export default function StatePage() {
                     {parlamentoStatus}
                   </span>
                 </div>
+
 
                 <div className="grid grid-cols-2 gap-2 mt-3">
                   <div className="card-sm text-center">
@@ -515,6 +565,7 @@ export default function StatePage() {
         )}
       </Section>
 
+
       {/* ─── PROPOR LEI ───────────────────────────────────── */}
       <Section title={<span className="flex items-center gap-2"><Gavel size={16} /> PROPOR LEI</span>}>
         <button
@@ -524,10 +575,11 @@ export default function StatePage() {
           <Gavel size={18} /> Propor Nova Lei
         </button>
         <p className="text-white/30 text-xs text-center mt-2">
-          Confiança: <span className="text-green-400">{data.trust}%</span> · 
+          Confiança: <span className="text-green-400">{data.trust}%</span> ·
           Poder Político: <span className="text-purple-400">{data.political_power}</span>
         </p>
       </Section>
+
 
       {/* ─── LEIS PENDENTES ────────────────────────────── */}
       {pendingLaws.length > 0 && (
@@ -553,6 +605,7 @@ export default function StatePage() {
           ))}
         </Section>
       )}
+
 
       {/* ─── LEIS REJEITADAS ────────────────────────────── */}
       {rejectedLaws.length > 0 && (
@@ -586,6 +639,7 @@ export default function StatePage() {
         </Section>
       )}
 
+
       {/* ─── LEIS ATIVAS ────────────────────────────────── */}
       {activeLaws.length > 0 && (
         <Section title={<span className="flex items-center gap-2"><Landmark size={16} /> LEIS ATIVAS</span>}>
@@ -603,6 +657,7 @@ export default function StatePage() {
         </Section>
       )}
 
+
       {/* ─── ECONOMIA ────────────────────────────────────── */}
       <Section title={<span className="flex items-center gap-2"><Coins size={16} /> ESTATÍSTICAS ECONÔMICAS</span>}>
         <div className="grid grid-cols-2 gap-2">
@@ -616,6 +671,7 @@ export default function StatePage() {
           <StatCard label="Poluição"   value={`${Number(economy.pollution || 0).toFixed(0)}%`} icon={<Radiation size={20} />} />
         </div>
       </Section>
+
 
       {/* ─── MILITAR ────────────────────────────────────── */}
       <Section title={<span className="flex items-center gap-2"><Shield size={16} /> EQUIPAMENTOS MILITARES</span>}>
@@ -644,6 +700,7 @@ export default function StatePage() {
         )}
       </Section>
 
+
       {/* ─── MODAL DE PROPOR LEI ─────────────────────────── */}
       {showLawModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -663,6 +720,7 @@ export default function StatePage() {
                 ✕
               </button>
             </div>
+
 
             {/* Select da lei */}
             <select
@@ -687,10 +745,12 @@ export default function StatePage() {
               ))}
             </select>
 
+
             {/* ─── CAMPOS DINÂMICOS ───────────────────────── */}
             {selectedLaw && (
               <div className="bg-white/5 rounded-lg p-3 mb-3 space-y-2">
                 <p className="text-white/40 text-xs">{selectedLaw.description}</p>
+
 
                 {/* 12: Transferência de Região */}
                 {selectedLaw.id === 12 && (
@@ -718,6 +778,7 @@ export default function StatePage() {
                   </>
                 )}
 
+
                 {/* 4: Transferir Capital */}
                 {selectedLaw.id === 4 && (
                   <select
@@ -731,6 +792,7 @@ export default function StatePage() {
                     ))}
                   </select>
                 )}
+
 
                 {/* 8: Declarar Guerra */}
                 {selectedLaw.id === 8 && (
@@ -746,6 +808,7 @@ export default function StatePage() {
                   </select>
                 )}
 
+
                 {/* 13: Alterar Regime */}
                 {selectedLaw.id === 13 && (
                   <input
@@ -756,6 +819,7 @@ export default function StatePage() {
                     className="input-field text-sm"
                   />
                 )}
+
 
                 {/* 1: Propor Paz */}
                 {selectedLaw.id === 1 && (
@@ -770,6 +834,7 @@ export default function StatePage() {
                     ))}
                   </select>
                 )}
+
 
                 {/* 11: Participar de Guerra */}
                 {selectedLaw.id === 11 && (
@@ -802,6 +867,7 @@ export default function StatePage() {
                   </div>
                 )}
 
+
                 {/* 10: Aplicar Sanções */}
                 {selectedLaw.id === 10 && (
                   <select
@@ -816,6 +882,7 @@ export default function StatePage() {
                   </select>
                 )}
 
+
                 {/* 2: Alterar Nome de Estado */}
                 {selectedLaw.id === 2 && (
                   <input
@@ -827,6 +894,7 @@ export default function StatePage() {
                   />
                 )}
 
+
                 {/* 3: Criar Região */}
                 {selectedLaw.id === 3 && (
                   <input
@@ -837,6 +905,7 @@ export default function StatePage() {
                     className="input-field text-sm"
                   />
                 )}
+
 
                 {/* 17: Mudar Impostos */}
                 {selectedLaw.id === 17 && (
@@ -865,11 +934,13 @@ export default function StatePage() {
               </div>
             )}
 
+
             {lawMsg && (
               <p className={`text-xs text-center mb-2 ${lawMsg.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>
                 {lawMsg}
               </p>
             )}
+
 
             <div className="flex gap-2">
               <button
@@ -897,7 +968,9 @@ export default function StatePage() {
   )
 }
 
+
 // ─── COMPONENTES AUXILIARES ──────────────────────────────
+
 
 function Section({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -910,6 +983,7 @@ function Section({ title, children }: { title: React.ReactNode; children: React.
   )
 }
 
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between items-center py-1.5 border-b border-white/5 last:border-0">
@@ -918,6 +992,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
+
 
 function StatCard({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   return (
@@ -930,6 +1005,7 @@ function StatCard({ label, value, icon }: { label: string; value: string; icon?:
     </div>
   )
 }
+
 
 function PageLoading() {
   return (

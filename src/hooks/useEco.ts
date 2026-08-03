@@ -11,11 +11,8 @@ type BuildingRow = Database['public']['Tables']['buildings']['Row']
 
 // ─── INTERFACES PARA USO NO HOOK (com joins) ────────────
 export interface Economy extends EconomyRow {}
-
 export interface Region extends RegionRow {}
-
 export interface BuildingCatalog extends BuildingCatalogRow {}
-
 export interface Building extends BuildingRow {
   building_catalog?: BuildingCatalog
   region?: Region
@@ -24,9 +21,9 @@ export interface Building extends BuildingRow {
 type RpcResult = { success: boolean; message?: string; error?: string }
 
 // ─── HOOK ────────────────────────────────────────────────
-
 export function useEco() {
   const countryId = useAuthStore(state => state.country?.id)
+
   const [loading, setLoading] = useState(true)
   const [regions, setRegions] = useState<Region[]>([])
   const [buildings, setBuildings] = useState<Building[]>([])
@@ -38,7 +35,10 @@ export function useEco() {
   const lastLoadedIdRef = useRef<number | null>(null)
 
   const fetchAll = useCallback(async () => {
+    console.log('🔍 [useEco] fetchAll() chamado. countryId:', countryId)
+    
     if (!countryId) {
+      console.warn('⚠️ [useEco] countryId não definido, limpando estado')
       setRegions([])
       setBuildings([])
       setCatalog([])
@@ -47,74 +47,108 @@ export function useEco() {
       return
     }
 
-    if (fetchingRef.current || lastLoadedIdRef.current === countryId) {
+    if (fetchingRef.current) {
+      console.warn('⚠️ [useEco] fetchAll já em progresso, ignorando chamada')
+      return
+    }
+
+    if (lastLoadedIdRef.current === countryId) {
+      console.warn('⚠️ [useEco] countryId igual ao anterior, ignorando')
       return
     }
 
     fetchingRef.current = true
+    console.log('✅ [useEco] Iniciando fetch. setLoading(true)')
     setLoading(true)
     setError(null)
 
     try {
       // 1. ECONOMIA
+      console.log('📡 [useEco] Fetching economy para country_id:', countryId)
       const { data: eData, error: eError } = await supabase
         .from('economy')
         .select('*')
         .eq('country_id', countryId)
         .maybeSingle()
 
-      if (eError) throw eError
+      if (eError) {
+        console.error('❌ [useEco] Erro economy:', eError)
+        throw eError
+      }
+      console.log('✅ [useEco] Economy recebido:', eData)
       setEconomy(eData || null)
 
       // 2. REGIÕES
+      console.log('📡 [useEco] Fetching regions para country_id:', countryId)
       const { data: rData, error: rError } = await supabase
         .from('regions')
         .select('*')
         .eq('country_id', countryId)
 
-      if (rError) throw rError
+      if (rError) {
+        console.error('❌ [useEco] Erro regions:', rError)
+        throw rError
+      }
+      console.log('✅ [useEco] Regions recebido:', rData?.length || 0, 'regiões')
       setRegions(rData || [])
 
-      // 3. CATÁLOGO
+      // 3. CATÁLOGO (sem filtro de country, é global)
+      console.log('📡 [useEco] Fetching building_catalog')
       const { data: cData, error: cError } = await supabase
         .from('building_catalog')
         .select('*')
         .order('category')
 
-      if (cError) throw cError
+      if (cError) {
+        console.error('❌ [useEco] Erro building_catalog:', cError)
+        throw cError
+      }
+      console.log('✅ [useEco] Catalog recebido:', cData?.length || 0, 'tipos')
       setCatalog(cData || [])
 
-      // 4. EDIFÍCIOS (com join no catálogo)
+      // 4. EDIFÍCIOS - SEM JOIN DIRETO (porque a relação é por 'type', não 'id')
+      console.log('📡 [useEco] Fetching buildings para country_id:', countryId)
       const { data: bData, error: bError } = await supabase
         .from('buildings')
-        .select(`
-          *,
-          building_catalog(*)
-        `)
+        .select('*')
         .eq('country_id', countryId)
 
-      if (bError) throw bError
+      if (bError) {
+        console.error('❌ [useEco] Erro buildings:', bError)
+        throw bError
+      }
+      console.log('✅ [useEco] Buildings recebido:', bData?.length || 0, 'edifícios')
 
-      // Mapeia os dados para incluir o catálogo no objeto
-      const buildingsWithCatalog: Building[] = (bData || []).map((item: any) => ({
-        ...item,
-        building_catalog: item.building_catalog || undefined,
-      }))
+      // ✅ JOIN MANUAL: associa cada building com seu catalog
+      const buildingsWithCatalog: Building[] = (bData || []).map((building: BuildingRow) => {
+        const catalogItem = (cData || []).find(c => c.type === building.building_type)
+        return {
+          ...building,
+          building_catalog: catalogItem,
+        }
+      })
 
+      console.log('✅ [useEco] Buildings com catalog:', buildingsWithCatalog.length)
       setBuildings(buildingsWithCatalog)
-
       lastLoadedIdRef.current = countryId
+
     } catch (err: any) {
-      console.error('❌ [useEco] Erro:', err)
+      console.error('❌ [useEco] ERRO CRÍTICO:', err.message)
+      console.error('Stack:', err.stack)
       setError(err.message)
     } finally {
+      console.log('✅ [useEco] Fetch concluído. setLoading(false)')
       setLoading(false)
       fetchingRef.current = false
     }
   }, [countryId])
 
+  // ─── CARREGA DADOS APENAS QUANDO countryId MUDA ──────────────
   useEffect(() => {
+    console.log('🔄 [useEco] useEffect triggered. countryId:', countryId)
+    
     if (!countryId) {
+      console.warn('⚠️ [useEco] countryId não definido no useEffect')
       setRegions([])
       setBuildings([])
       setCatalog([])
@@ -124,21 +158,31 @@ export function useEco() {
     }
 
     if (lastLoadedIdRef.current !== countryId) {
+      console.log('📡 [useEco] CountryId mudou, chamando fetchAll()')
       fetchAll()
+    } else {
+      console.log('⏭️ [useEco] CountryId igual ao anterior, pulando fetch')
     }
   }, [countryId, fetchAll])
 
   // ─── CONSTRUIR EDIFÍCIO ──────────────────────────────────
-
-  async function build(regionId: string, buildingType: string, quantity: number = 1): Promise<RpcResult> {
+  async function build(
+    regionId: string,
+    buildingType: string,
+    quantity: number = 1
+  ): Promise<RpcResult> {
     if (!countryId) return { success: false, error: 'País não encontrado' }
 
     try {
+      // Valida se tem dinheiro antes de chamar RPC
       const catalogItem = catalog.find(c => c.type === buildingType)
       if (catalogItem && economy) {
         const totalCost = catalogItem.cost_money * quantity
         if (economy.money < totalCost) {
-          return { success: false, error: `Dinheiro insuficiente. Necessário: ${totalCost}, disponível: ${economy.money}` }
+          return {
+            success: false,
+            error: `Dinheiro insuficiente. Necessário: ${totalCost}, disponível: ${economy.money}`,
+          }
         }
       }
 
@@ -154,6 +198,7 @@ export function useEco() {
         return { success: false, error: error.message }
       }
 
+      // Força reload após construir
       lastLoadedIdRef.current = null
       await fetchAll()
 
@@ -165,8 +210,10 @@ export function useEco() {
   }
 
   // ─── PRODUZIR EQUIPAMENTO ─────────────────────────────────
-
-  async function produceEquipment(equipType: string, quantity: number = 1): Promise<RpcResult> {
+  async function produceEquipment(
+    equipType: string,
+    quantity: number = 1
+  ): Promise<RpcResult> {
     if (!countryId) return { success: false, error: 'País não encontrado' }
 
     try {
@@ -181,6 +228,7 @@ export function useEco() {
         return { success: false, error: error.message }
       }
 
+      // Força reload após produzir
       lastLoadedIdRef.current = null
       await fetchAll()
 
@@ -192,7 +240,6 @@ export function useEco() {
   }
 
   // ─── REFETCH ─────────────────────────────────────────────
-
   const refetch = useCallback(() => {
     lastLoadedIdRef.current = null
     fetchAll()

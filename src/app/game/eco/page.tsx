@@ -1,29 +1,29 @@
 'use client'
-
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useEco } from '@/hooks/useEco'
 import { useWar } from '@/hooks/useWar'
 import { formatMoney, formatNumber, formatTime } from '@/utils/format'
 import { Hammer, Factory, Package, RefreshCw } from 'lucide-react'
 
 const UNITS = [
-  { key: 'soldiers',   label: 'Soldados',    emoji: '⚔️', cost: 5000000 },
-  { key: 'tanks',      label: 'Tanques',      emoji: '🛡️', cost: 20000000 },
-  { key: 'artillery',  label: 'Artilharia',   emoji: '💣', cost: 15000000 },
-  { key: 'aircraft',   label: 'Aeronaves',    emoji: '✈️', cost: 80000000 },
-  { key: 'helicopters',label: 'Helicópteros', emoji: '🚁', cost: 40000000 },
-  { key: 'drones',     label: 'Drones',       emoji: '🤖', cost: 10000000 },
-  { key: 'missiles',   label: 'Mísseis',      emoji: '🎯', cost: 50000000 },
-  { key: 'warheads',   label: 'Ogivas',       emoji: '☢️', cost: 100000000 },
+  { key: 'soldiers', label: 'Soldados', emoji: '⚔️', cost: 5000000 },
+  { key: 'tanks', label: 'Tanques', emoji: '🛡️', cost: 20000000 },
+  { key: 'artillery', label: 'Artilharia', emoji: '💣', cost: 15000000 },
+  { key: 'aircraft', label: 'Aeronaves', emoji: '✈️', cost: 80000000 },
+  { key: 'helicopters', label: 'Helicópteros', emoji: '🚁', cost: 40000000 },
+  { key: 'drones', label: 'Drones', emoji: '🤖', cost: 10000000 },
+  { key: 'missiles', label: 'Mísseis', emoji: '🎯', cost: 50000000 },
+  { key: 'warheads', label: 'Ogivas', emoji: '☢️', cost: 100000000 },
 ]
 
 export default function EcoPage() {
   const { economy, regions, buildings, catalog, loading, build, produceEquipment, refetch } = useEco()
-  const { military, refetch: refetchMilitary } = useWar()
+  const { military } = useWar()
 
+  console.log('🔍 [EcoPage] RENDER - loading:', loading)
   console.log('🔍 [EcoPage] economy:', economy)
   console.log('🔍 [EcoPage] regions:', regions)
-  console.log('🔍 [EcoPage] catalog:', catalog)
+  console.log('🔍 [EcoPage] catalog:', catalog?.length || 0)
   console.log('🔍 [EcoPage] buildings:', buildings)
 
   // ─── ESTADOS DE CONSTRUÇÃO ──────────────────────────────
@@ -39,59 +39,36 @@ export default function EcoPage() {
   const [prodFeedback, setProdFeedback] = useState('')
   const [prodSubmitting, setProdSub] = useState(false)
 
-  // ─── TIMER DE PRODUÇÃO (CICLO DE 30 MINUTOS) ──────────
-  const [timeLeft, setTimeLeft] = useState(0)
-
-  useEffect(() => {
-    const nextCycle = new Date()
-    nextCycle.setMinutes(Math.ceil(nextCycle.getMinutes() / 30) * 30, 0, 0)
-
-    const updateTimer = () => {
-      const now = Date.now()
-      const msLeft = nextCycle.getTime() - now
-      setTimeLeft(msLeft > 0 ? msLeft : 0)
+  // ─── HANDLERS ────────────────────────────────────────────
+  async function handleBuild() {
+    console.log('🔨 [EcoPage] handleBuild chamado:', { selectedRegion, selectedType, qty })
+    if (!selectedRegion || !selectedType) {
+      console.warn('⚠️ [EcoPage] Região ou tipo não selecionado')
+      return
     }
+    setSub(true)
+    setFeedback('')
 
-    updateTimer()
-    const interval = setInterval(updateTimer, 1000)
-    return () => clearInterval(interval)
-  }, [])
+    const res = await build(selectedRegion, selectedType, qty)
+    console.log('📢 [EcoPage] Build response:', res)
+    setFeedback(res?.message ?? res?.error ?? 'Erro')
+    setSub(false)
+  }
 
-  // ─── TIMER PARA ATUALIZAR CONSTRUÇÕES ──────────────────
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
-
-  useEffect(() => {
-    if (buildings.length === 0) return
-
-    const now = Date.now()
-    let nextFinish = Infinity
-
-    buildings.forEach(b => {
-      // ✅ CORRIGIDO: usa 'finished_at' em vez de 'construction_ends_at'
-      if (!b.is_built && b.finished_at) {
-        const t = new Date(b.finished_at).getTime()
-        if (t < nextFinish) nextFinish = t
-      }
-    })
-
-    if (nextFinish === Infinity) return
-
-    const delay = Math.max(0, nextFinish - now + 1000)
-
-    if (timerRef.current) return
-
-    timerRef.current = setTimeout(() => {
-      refetch()
-      timerRef.current = null
-    }, delay)
-
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current)
-        timerRef.current = null
-      }
+  async function handleProduce() {
+    console.log('🎯 [EcoPage] handleProduce chamado:', { prodUnit, prodQty })
+    if (!prodUnit) {
+      console.warn('⚠️ [EcoPage] Unidade não selecionada')
+      return
     }
-  }, [buildings, refetch])
+    setProdSub(true)
+    setProdFeedback('')
+
+    const res = await produceEquipment(prodUnit, prodQty)
+    console.log('📢 [EcoPage] Produce response:', res)
+    setProdFeedback(res?.message ?? res?.error ?? 'Erro')
+    setProdSub(false)
+  }
 
   // ─── FILTROS PARA CATÁLOGO ─────────────────────────────
   const selectedCat = catalog.find(c => c.type === selectedType)
@@ -101,33 +78,24 @@ export default function EcoPage() {
     return acc
   }, {})
 
-  // ─── HANDLERS ────────────────────────────────────────────
-  async function handleBuild() {
-    if (!selectedRegion || !selectedType) return
-    setSub(true)
-    setFeedback('')
-    const res = await build(selectedRegion, selectedType, qty)
-    setFeedback(res?.message ?? res?.error ?? 'Erro')
-    setSub(false)
+  if (loading) {
+    console.log('⏳ [EcoPage] Renderizando LOADING')
+    return <Loading />
   }
 
-  async function handleProduce() {
-    if (!prodUnit) return
-    setProdSub(true)
-    setProdFeedback('')
-    const res = await produceEquipment(prodUnit, prodQty)
-    setProdFeedback(res?.message ?? res?.error ?? 'Erro')
-    await refetchMilitary()
-    setProdSub(false)
-  }
-
-  if (loading) return <Loading />
   if (!economy) {
+    console.log('❌ [EcoPage] Sem economia')
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
         <p className="text-white/60 text-sm">Dados econômicos não encontrados.</p>
         <p className="text-white/30 text-xs mt-2">Verifique se a economia está configurada para o seu país.</p>
-        <button onClick={() => refetch()} className="mt-4 btn-primary text-sm py-2 px-4">
+        <button
+          onClick={() => {
+            console.log('🔄 [EcoPage] Manual refetch')
+            refetch()
+          }}
+          className="mt-4 btn-primary text-sm py-2 px-4"
+        >
           Recarregar
         </button>
       </div>
@@ -136,27 +104,9 @@ export default function EcoPage() {
 
   return (
     <div className="flex flex-col gap-4 pb-24 px-4 pt-4 max-w-4xl mx-auto w-full">
-
-      {/* ─── TIMER DE PRODUÇÃO ────────────────────────────── */}
-      <div className="bg-surface-card rounded-xl p-4 border border-white/5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Factory size={20} className="text-primary-light" />
-          <div>
-            <p className="text-white/60 text-xs font-semibold uppercase">Próxima Produção</p>
-            <p className="text-white font-bold text-sm font-mono">
-              {timeLeft > 0 ? formatTime(new Date(Date.now() + timeLeft).toISOString()) : 'Processando...'}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-1 text-white/30 text-xs">
-          <RefreshCw size={12} className="animate-spin-slow" />
-          <span>Ciclo de 30 min</span>
-        </div>
-      </div>
-
       {/* ─── FINANÇAS ────────────────────────────────────── */}
       <div>
-        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-2">💰 FINANÇAS</p>
+        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-2">Finanças</p>
         <div className="bg-surface-card rounded-xl p-4 border border-white/5 grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div className="text-center">
             <p className="text-white/40 text-[10px] uppercase">Dinheiro</p>
@@ -179,7 +129,7 @@ export default function EcoPage() {
 
       {/* ─── RECURSOS ────────────────────────────────────── */}
       <div>
-        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-2">📦 RECURSOS</p>
+        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-2">Recursos</p>
         <div className="bg-surface-card rounded-xl p-4 border border-white/5 grid grid-cols-3 sm:grid-cols-6 gap-2">
           <Resource label="Comida" value={economy.food || 0} />
           <Resource label="Ouro" value={economy.gold || 0} />
@@ -199,9 +149,15 @@ export default function EcoPage() {
           <Hammer size={18} className="text-white/40" />
           <p className="text-xs font-bold tracking-widest text-white/40 uppercase">Construir Edifício</p>
         </div>
-
         <div className="flex flex-col gap-2">
-          <select value={selectedRegion} onChange={e => setReg(e.target.value)} className="input-field text-sm">
+          <select
+            value={selectedRegion}
+            onChange={e => {
+              console.log('📍 [EcoPage] Região selecionada:', e.target.value)
+              setReg(e.target.value)
+            }}
+            className="input-field text-sm"
+          >
             <option value="">Selecionar região...</option>
             {regions.map(r => (
               <option key={r.id} value={r.id}>
@@ -210,7 +166,14 @@ export default function EcoPage() {
             ))}
           </select>
 
-          <select value={selectedType} onChange={e => setType(e.target.value)} className="input-field text-sm">
+          <select
+            value={selectedType}
+            onChange={e => {
+              console.log('🏗️ [EcoPage] Tipo selecionado:', e.target.value)
+              setType(e.target.value)
+            }}
+            className="input-field text-sm"
+          >
             <option value="">Selecionar edifício...</option>
             {Object.entries(grouped).map(([cat, items]) => (
               <optgroup key={cat} label={cat.toUpperCase()}>
@@ -263,29 +226,36 @@ export default function EcoPage() {
         {/* ─── EDIFÍCIOS EM CONSTRUÇÃO ──────────────────────── */}
         {buildings.filter(b => !b.is_built).length > 0 && (
           <div className="mt-2">
-            <p className="text-xs font-semibold text-white/40 mb-1">🔨 Em construção</p>
-            {buildings.filter(b => !b.is_built).slice(0, 5).map(b => {
-              // ✅ CORRIGIDO: calcula progresso com base em 'started_at' e 'build_time_min'
-              const buildTimeMin = b.building_catalog?.build_time_min || 30
-              const totalMs = buildTimeMin * 60 * 1000
-              const elapsed = Date.now() - new Date(b.started_at).getTime()
-              const progress = Math.min(100, (elapsed / totalMs) * 100)
-              const remaining = Math.max(0, totalMs - elapsed)
+            <p className="text-xs font-semibold text-white/40 mb-1">Em construção</p>
+            {buildings
+              .filter(b => !b.is_built)
+              .slice(0, 5)
+              .map(b => {
+                const buildTimeMin = b.building_catalog?.build_time_min || 30
+                const totalMs = buildTimeMin * 60 * 1000
+                const elapsed = Date.now() - new Date(b.started_at).getTime()
+                const progress = Math.min(100, (elapsed / totalMs) * 100)
+                const remaining = Math.max(0, totalMs - elapsed)
 
-              return (
-                <div key={b.id} className="bg-white/5 rounded-lg p-2.5 mb-2">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-white/70 text-sm">{b.building_catalog?.name || 'Edifício'}</span>
-                    <span className="text-white/30 text-xs">
-                      {remaining > 0 ? formatTime(new Date(Date.now() + remaining).toISOString()) : 'Concluído'}
-                    </span>
+                return (
+                  <div key={b.id} className="bg-white/5 rounded-lg p-2.5 mb-2">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-white/70 text-sm">
+                        {b.building_catalog?.name || 'Edifício'}
+                      </span>
+                      <span className="text-white/30 text-xs">
+                        {remaining > 0 ? formatTime(new Date(Date.now() + remaining).toISOString()) : 'Concluído'}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-yellow-500 rounded-full"
+                        style={{ width: `${Math.min(100, progress)}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-yellow-500 rounded-full" style={{ width: `${Math.min(100, progress)}%` }} />
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })}
           </div>
         )}
       </div>
@@ -296,9 +266,15 @@ export default function EcoPage() {
           <Package size={18} className="text-white/40" />
           <p className="text-xs font-bold tracking-widest text-white/40 uppercase">Produzir Equipamento</p>
         </div>
-
         <div className="flex flex-col gap-2">
-          <select value={prodUnit} onChange={e => setProdUnit(e.target.value)} className="input-field text-sm">
+          <select
+            value={prodUnit}
+            onChange={e => {
+              console.log('⚔️ [EcoPage] Unidade selecionada:', e.target.value)
+              setProdUnit(e.target.value)
+            }}
+            className="input-field text-sm"
+          >
             <option value="">Selecionar equipamento...</option>
             {UNITS.map(u => (
               <option key={u.key} value={u.key}>
@@ -332,7 +308,6 @@ export default function EcoPage() {
           )}
         </div>
       </div>
-
     </div>
   )
 }

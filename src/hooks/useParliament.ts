@@ -3,7 +3,9 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
 
+
 // ─── TIPOS ──────────────────────────────────────────────
+
 
 export interface Parliament {
   id: string
@@ -16,6 +18,7 @@ export interface Parliament {
   election_type: 'trust' | 'random'
   updated_at: string
 }
+
 
 export interface Law {
   id: string
@@ -38,6 +41,7 @@ export interface Law {
   } | null
 }
 
+
 export interface LawCatalog {
   id: number
   name: string
@@ -46,7 +50,9 @@ export interface LawCatalog {
   political_power_cost: number
 }
 
+
 // ─── HOOK ──────────────────────────────────────────────
+
 
 export function useParliament() {
   const { country } = useAuthStore()
@@ -56,10 +62,13 @@ export function useParliament() {
   const [loading, setLoading] = useState(true)
   const [countdowns, setCountdowns] = useState<Record<string, number>>({})
 
+
   const fetchingRef = useRef(false)
   const lastLoadedIdRef = useRef<number | null>(null)
 
+
   // ─── BUSCAR DADOS ──────────────────────────────────────
+
 
   const fetchAll = useCallback(async () => {
     if (!country?.id) {
@@ -70,12 +79,15 @@ export function useParliament() {
       return
     }
 
+
     if (fetchingRef.current || lastLoadedIdRef.current === country.id) {
       return
     }
 
+
     fetchingRef.current = true
     setLoading(true)
+
 
     try {
       // 1. Parlamento
@@ -85,8 +97,10 @@ export function useParliament() {
         .eq('country_id', country.id)
         .maybeSingle()
 
+
       if (pError) throw pError
       setParliament(pData as Parliament || null)
+
 
       // 2. Leis
       const { data: lData, error: lError } = await supabase
@@ -100,8 +114,10 @@ export function useParliament() {
         .order('created_at', { ascending: false })
         .limit(30)
 
+
       if (lError) throw lError
       setLaws(lData as Law[] || [])
+
 
       // 3. Catálogo
       const { data: cData, error: cError } = await supabase
@@ -109,8 +125,10 @@ export function useParliament() {
         .select('id, name, description, requires_parliament, political_power_cost')
         .order('id')
 
+
       if (cError) throw cError
       setCatalog(cData as LawCatalog[] || [])
+
 
       lastLoadedIdRef.current = country.id
     } catch (err) {
@@ -120,6 +138,7 @@ export function useParliament() {
       fetchingRef.current = false
     }
   }, [country?.id])
+
 
   useEffect(() => {
     if (country?.id && lastLoadedIdRef.current !== country.id) {
@@ -132,7 +151,9 @@ export function useParliament() {
     }
   }, [country?.id, fetchAll])
 
+
   // ─── TIMER PARA CONTAGEM REGRESSIVA (5 minutos) ──────
+
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -150,7 +171,9 @@ export function useParliament() {
     return () => clearInterval(interval)
   }, [laws])
 
+
   // ─── FUNÇÕES DE TEMPO (ELEIÇÕES) ──────────────────────
+
 
   function nextElectionIn(): string {
     if (!parliament) return '—'
@@ -162,6 +185,7 @@ export function useParliament() {
     return `${h}h ${m}m`
   }
 
+
   function nextRandomIn(): string {
     if (!parliament) return '—'
     const last = new Date(parliament.last_random_at).getTime()
@@ -172,6 +196,7 @@ export function useParliament() {
     return `${h}h ${m}m`
   }
 
+
   function getCountdown(lawId: string): string {
     const ms = countdowns[lawId]
     if (ms === undefined) return '—'
@@ -181,7 +206,9 @@ export function useParliament() {
     return `${m}:${s.toString().padStart(2, '0')}`
   }
 
+
   // ─── PROPOR LEI ──────────────────────────────────────────
+
 
   async function proposeLaw(
     lawCatalogId: number,
@@ -195,8 +222,10 @@ export function useParliament() {
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
+
     const law = catalog.find(l => l.id === lawCatalogId)
     if (!law) return { success: false, error: 'Lei não encontrada no catálogo' }
+
 
     // Verifica poder político
     const { data: ppData, error: ppError } = await supabase
@@ -205,10 +234,12 @@ export function useParliament() {
       .eq('id', country.id)
       .single()
 
+
     if (ppError) return { success: false, error: 'Erro ao verificar poder político' }
     if (ppData.political_power < law.political_power_cost) {
       return { success: false, error: `Poder político insuficiente (precisa de ${law.political_power_cost}, tem ${ppData.political_power})` }
     }
+
 
     // Desconta o poder político
     await supabase
@@ -216,10 +247,12 @@ export function useParliament() {
       .update({ political_power: ppData.political_power - law.political_power_cost })
       .eq('id', country.id)
 
+
     // Se a lei não requer parlamento, ação direta
     if (!law.requires_parliament) {
       return await executeDirectAction(lawCatalogId, target)
     }
+
 
     // BUSCA OS ASSENTOS ATUAIS DO PARLAMENTO
     let coalition_seats = 50
@@ -240,6 +273,7 @@ export function useParliament() {
       }
     }
 
+
     // Monta o objeto de parâmetros para salvar em 'data'
     const params = {
       target_country_id: target?.countryId || null,
@@ -249,6 +283,7 @@ export function useParliament() {
       target_tax_value: target?.taxValue || null,
       target_type: target?.countryId ? 'country' : target?.regionId ? 'region' : target?.text ? 'text' : null,
     }
+
 
     // Insere a lei com os votos da coalizão (a favor) e oposição (contra)
     const { data: newLaw, error: insertError } = await supabase
@@ -266,6 +301,7 @@ export function useParliament() {
       .select()
       .single()
 
+
     if (insertError) {
       console.error('❌ Erro ao inserir lei:', insertError)
       // Reverte o poder político em caso de erro
@@ -276,16 +312,20 @@ export function useParliament() {
       return { success: false, error: insertError.message }
     }
 
+
     // Agenda a finalização da votação (5 minutos)
     setTimeout(async () => {
       await finalizeVoting(newLaw.id)
     }, 5 * 60 * 1000) // 5 minutos
 
+
     await fetchAll()
     return { success: true, message: 'Lei proposta com sucesso!' }
   }
 
+
   // ─── FINALIZAR VOTAÇÃO ──────────────────────────────────
+
 
   async function finalizeVoting(lawId: string) {
     const { data: law, error } = await supabase
@@ -294,7 +334,9 @@ export function useParliament() {
       .eq('id', lawId)
       .single()
 
+
     if (error || !law || law.status !== 'pending') return
+
 
     const approved = law.votes_for > law.votes_against
     const newStatus = approved ? 'active' : 'revoked'
@@ -305,21 +347,26 @@ export function useParliament() {
       updateData.revoked_at = new Date().toISOString()
     }
 
+
     await supabase
       .from('laws')
       .update(updateData)
       .eq('id', lawId)
+
 
     // Se aprovada, executa o efeito
     if (approved) {
       await executeLawEffect(lawId)
     }
 
+
     // Recarrega dados
     await fetchAll()
   }
 
+
   // ─── AÇÕES DIRETAS ─────────────────────────────────────
+
 
   async function executeDirectAction(
     lawCatalogId: number,
@@ -332,6 +379,7 @@ export function useParliament() {
     }
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
+
 
     try {
       // Propor Paz (ID 1)
@@ -351,6 +399,7 @@ export function useParliament() {
         return { success: true, message: '✅ Proposta de paz enviada!' }
       }
 
+
       // Livre Comercio e Circulação (ID 9)
       if (lawCatalogId === 9) {
         if (!target?.countryId) return { success: false, error: 'Selecione um país para revogar sanções' }
@@ -368,6 +417,7 @@ export function useParliament() {
         })
         return { success: true, message: '✅ Proposta de livre comércio enviada!' }
       }
+
 
       // Aplicar Sanções (ID 10)
       if (lawCatalogId === 10) {
@@ -387,6 +437,7 @@ export function useParliament() {
         return { success: true, message: '✅ Sanções aplicadas!' }
       }
 
+
       return { success: false, error: 'Ação direta não implementada para esta lei' }
     } catch (err: any) {
       console.error('❌ Erro na ação direta:', err)
@@ -394,18 +445,24 @@ export function useParliament() {
     }
   }
 
+
   // ─── EXECUTAR EFEITO DA LEI ────────────────────────────
+
 
   async function executeLawEffect(lawId: string): Promise<{ success: boolean; message?: string; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
+
     const law = laws.find(l => l.id === lawId)
     if (!law) return { success: false, error: 'Lei não encontrada' }
+
 
     const catalogItem = catalog.find(c => c.id === law.law_catalog_id)
     if (!catalogItem) return { success: false, error: 'Catálogo não encontrado' }
 
+
     const params = law.data || {}
+
 
     try {
       switch (catalogItem.id) {
@@ -416,6 +473,7 @@ export function useParliament() {
             .update({ name: params.target_text })
             .eq('id', country.id)
           return { success: true, message: `Nome alterado para ${params.target_text}` }
+
 
         case 3: // Criar Nova Região
           if (!params.target_text) return { success: false, error: 'Nome da região não especificado' }
@@ -435,6 +493,7 @@ export function useParliament() {
             })
           return { success: true, message: `Região ${params.target_text} criada!` }
 
+
         case 4: // Transferir Capital
           if (!params.target_region_id) return { success: false, error: 'Região não selecionada' }
           const { data: region } = await supabase
@@ -448,6 +507,7 @@ export function useParliament() {
             .update({ capital: region.name })
             .eq('id', country.id)
           return { success: true, message: `Capital alterada para ${region.name}` }
+
 
         case 8: // Declarar Guerra
           if (!params.target_country_id) return { success: false, error: 'País alvo não especificado' }
@@ -463,6 +523,7 @@ export function useParliament() {
             })
           return { success: true, message: 'Guerra declarada!' }
 
+
         case 11: // Participar de Guerra
           if (!params.target_country_id) return { success: false, error: 'Guerra não selecionada' }
           // Aqui você precisa definir como será a participação.
@@ -472,6 +533,7 @@ export function useParliament() {
             .update({ defender_id: country.id })
             .eq('id', params.target_country_id)
           return { success: true, message: 'Participação confirmada!' }
+
 
         case 12: // Transferência de Região
           if (!params.target_region_id || !params.target_country_id) {
@@ -483,6 +545,7 @@ export function useParliament() {
             .eq('id', params.target_region_id)
           return { success: true, message: 'Região transferida!' }
 
+
         case 13: // Alterar Regime
           if (!params.target_text) return { success: false, error: 'Regime não especificado' }
           await supabase
@@ -491,9 +554,11 @@ export function useParliament() {
             .eq('id', country.id)
           return { success: true, message: `Regime alterado para ${params.target_text}` }
 
+
         case 16: // Imprimir Dinheiro
           await supabase.rpc('imprimir_dinheiro') // crie esta função no banco ou faça update manual
           return { success: true, message: 'Dinheiro impresso!' }
+
 
         case 17: // Alterar impostos
           if (!params.target_tax_type || params.target_tax_value === undefined) {
@@ -507,6 +572,7 @@ export function useParliament() {
             .eq('country_id', country.id)
           return { success: true, message: 'Impostos alterados!' }
 
+
         default:
           return { success: false, error: 'Lei sem efeito definido' }
       }
@@ -516,18 +582,24 @@ export function useParliament() {
     }
   }
 
+
   // ─── FORÇAR LEI ──────────────────────────────────────────
+
 
   async function forceLaw(lawId: string): Promise<{ success: boolean; message?: string; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
+
     const law = laws.find(l => l.id === lawId)
     if (!law) return { success: false, error: 'Lei não encontrada' }
+
 
     const catalogItem = catalog.find(c => c.id === law.law_catalog_id)
     if (!catalogItem) return { success: false, error: 'Catálogo não encontrado' }
 
+
     const cost = catalogItem.political_power_cost
+
 
     const { data: ppData, error: ppError } = await supabase
       .from('countries')
@@ -535,10 +607,12 @@ export function useParliament() {
       .eq('id', country.id)
       .single()
 
+
     if (ppError) return { success: false, error: 'Erro ao verificar poder político' }
     if (ppData.political_power < cost) {
       return { success: false, error: `Poder insuficiente (precisa de ${cost}, tem ${ppData.political_power})` }
     }
+
 
     // Desconta poder
     await supabase
@@ -546,25 +620,31 @@ export function useParliament() {
       .update({ political_power: ppData.political_power - cost })
       .eq('id', country.id)
 
+
     // Aprova a lei
     await supabase
       .from('laws')
       .update({ status: 'active', approved_at: new Date().toISOString(), forced_approval: true })
       .eq('id', lawId)
 
+
     // Executa o efeito
     await executeLawEffect(lawId)
+
 
     await fetchAll()
     return { success: true, message: 'Lei aprovada por força política!' }
   }
 
+
   // ─── REFETCH ────────────────────────────────────────────
+
 
   const refetch = useCallback(() => {
     lastLoadedIdRef.current = null
     fetchAll()
   }, [fetchAll])
+
 
   return {
     parliament,
