@@ -13,6 +13,7 @@ interface AuthState {
   loading: boolean
   setUser: (user: AuthState['user']) => void
   setCountry: (country: CountrySummary | null) => void
+  setLoading: (loading: boolean) => void // ✅ ADICIONADO PARA O AuthContext
   fetchUserCountry: () => Promise<void>
   signOut: () => Promise<void>
 }
@@ -24,6 +25,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setUser: (user) => {
     const current = get().user
+    // Evita re-render se os dados forem iguais
     if (user === null && current === null) return
     if (user && current && user.id === current.id && user.email === current.email) return
     set({ user })
@@ -36,6 +38,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ country })
   },
 
+  // ✅ ADICIONADO para o AuthContext controlar o estado de carregamento
+  setLoading: (loading) => {
+    set({ loading })
+  },
+
   fetchUserCountry: async () => {
     const { user } = get()
     if (!user) {
@@ -46,12 +53,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     console.log('🔍 fetchUserCountry: buscando país para user.id:', user.id)
 
     try {
-      // ✅ CORREÇÃO: usar 'user_id' (coluna que referencia auth.users)
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('country_id')
-        .eq('user_id', user.id)  // ← AQUI! Deve ser 'user_id', não 'id'
-        .maybeSingle()           // ← melhor que .single() para evitar erro se não encontrar
+        .eq('user_id', user.id)
+        .maybeSingle()
 
       if (userError) {
         console.error('❌ Erro ao buscar country_id:', userError)
@@ -60,7 +66,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       if (!userData?.country_id) {
-        console.warn('⚠️ Usuário sem país associado. Execute: UPDATE users SET country_id = 14 WHERE user_id = ?')
+        console.warn('⚠️ Usuário sem país associado.')
         set({ country: null, loading: false })
         return
       }
@@ -79,6 +85,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (countryData) {
         console.log('✅ País encontrado:', countryData)
+        // Chama o setter que já verifica igualdade
         get().setCountry(countryData)
       } else {
         console.warn('⚠️ País não encontrado para country_id:', userData.country_id)

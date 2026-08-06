@@ -18,9 +18,15 @@ export interface Comment extends CommentRow {
 }
 
 export const CATEGORIES = [
-  'Governança','Política','Economia','Social',
-  'Ambiental','Moda','Anúncio','Humor','Militar',
+  'Governança', 'Política', 'Economia', 'Social',
+  'Ambiental', 'Moda', 'Anúncio', 'Humor', 'Militar',
 ]
+
+type PostCommentResult = {
+  success: boolean
+  message?: string
+  error?: string
+}
 
 export function useFeed() {
   const { country, user } = useAuthStore()
@@ -85,7 +91,7 @@ export function useFeed() {
   }, [fetchArticles])
 
   // ─── VOTAR ──────────────────────────────────────────────────
-  async function voteArticle(articleId: string, vote: 1 | -1) {
+  const voteArticle = useCallback(async (articleId: string, vote: 1 | -1) => {
     if (!user?.id) return
 
     const { error } = await supabase.rpc('vote_article', {
@@ -99,7 +105,6 @@ export function useFeed() {
       return
     }
 
-    // Atualiza localmente
     setArticles(prev =>
       prev.map(a => {
         if (a.id !== articleId) return a
@@ -108,27 +113,21 @@ export function useFeed() {
         let dislikes = a.dislikes
 
         if (prevVote === vote) {
-          // Remove voto
           if (vote === 1) likes--
           else dislikes--
           return { ...a, likes, dislikes, user_vote: null }
         }
-
-        // Remove voto anterior se existir
         if (prevVote === 1) likes--
         else if (prevVote === -1) dislikes--
-
-        // Adiciona novo voto
         if (vote === 1) likes++
         else dislikes++
-
         return { ...a, likes, dislikes, user_vote: vote }
       })
     )
-  }
+  }, [user?.id])
 
   // ─── PUBLICAR ARTIGO ──────────────────────────────────────
-  async function publishArticle(
+  const publishArticle = useCallback(async (
     title: string,
     content: string,
     category: string,
@@ -138,7 +137,7 @@ export function useFeed() {
       file_url?: string | null
       media_type?: string | null
     }
-  ) {
+  ) => {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
     const { error } = await supabase.from('articles').insert({
@@ -161,10 +160,10 @@ export function useFeed() {
 
     await fetchArticles(true)
     return { success: true }
-  }
+  }, [country?.id, fetchArticles])
 
   // ─── EDITAR ARTIGO ─────────────────────────────────────────
-  async function updateArticle(
+  const updateArticle = useCallback(async (
     articleId: string,
     title: string,
     content: string,
@@ -175,10 +174,9 @@ export function useFeed() {
       file_url?: string | null
       media_type?: string | null
     }
-  ) {
+  ) => {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
-    // Verifica se o artigo pertence ao país
     const { data: check, error: checkError } = await supabase
       .from('articles')
       .select('country_id')
@@ -209,10 +207,10 @@ export function useFeed() {
 
     await fetchArticles(true)
     return { success: true }
-  }
+  }, [country?.id, fetchArticles])
 
   // ─── DELETAR ARTIGO ────────────────────────────────────────
-  async function deleteArticle(articleId: string) {
+  const deleteArticle = useCallback(async (articleId: string) => {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
     const { data: check, error: checkError } = await supabase
@@ -237,10 +235,13 @@ export function useFeed() {
 
     await fetchArticles(true)
     return { success: true }
-  }
+  }, [country?.id, fetchArticles])
 
   // ─── COMENTÁRIOS ───────────────────────────────────────────
-  async function fetchComments(articleId: string): Promise<Comment[]> {
+  // ✅ CORREÇÃO AQUI: ADICIONAMOS O useCallback
+  const fetchComments = useCallback(async (articleId: string): Promise<Comment[]> => {
+    console.log('📡 [useFeed] fetchComments para articleId:', articleId)
+    
     const { data, error } = await supabase
       .from('comments')
       .select('*, countries(name, flag_emoji)')
@@ -248,14 +249,16 @@ export function useFeed() {
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error('Erro ao buscar comentários:', error)
+      console.error('❌ [useFeed] Erro ao buscar comentários:', error)
       return []
     }
 
+    console.log('✅ [useFeed] Comentários recebidos:', data?.length || 0)
     return (data || []) as Comment[]
-  }
+  }, []) // ✅ Array de dependências vazio, pois não depende de nada externo ao hook!
 
-  async function postComment(
+  // ✅ VERSÃO CORRIGIDA: postComment com retorno e logs detalhados
+  const postComment = useCallback(async (
     articleId: string,
     content: string,
     parentId?: string,
@@ -264,13 +267,28 @@ export function useFeed() {
       sticker_url?: string | null
       image_url?: string | null
     }
-  ) {
-    if (!country?.id) return
+  ): Promise<PostCommentResult> => {
+    console.log('💬 [useFeed] postComment() chamado:', { articleId, content, parentId })
+
+    if (!country?.id) {
+      console.error('❌ [useFeed] country?.id não definido')
+      return { success: false, error: 'País não encontrado. Faça login novamente.' }
+    }
+
+    if (!content || content.trim() === '') {
+      console.error('❌ [useFeed] Conteúdo vazio')
+      return { success: false, error: 'O comentário não pode estar vazio.' }
+    }
+
+    if (!articleId) {
+      console.error('❌ [useFeed] articleId não definido')
+      return { success: false, error: 'Artigo não encontrado.' }
+    }
 
     const insertData: any = {
       article_id: articleId,
       country_id: country.id,
-      content,
+      content: content.trim(),
       parent_id: parentId ?? null,
     }
 
@@ -278,11 +296,32 @@ export function useFeed() {
     if (mediaData?.sticker_url) insertData.sticker_url = mediaData.sticker_url
     if (mediaData?.image_url) insertData.image_url = mediaData.image_url
 
-    const { error } = await supabase.from('comments').insert(insertData)
+    console.log('📝 [useFeed] Dados para inserir:', insertData)
+
+    const { data, error } = await supabase
+      .from('comments')
+      .insert(insertData)
+      .select()
+
     if (error) {
-      console.error('Erro ao postar comentário:', error)
+      console.error('❌ [useFeed] Erro ao inserir comentário:', error)
+      console.error('Detalhes do erro:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      })
+      return {
+        success: false,
+        error: `Erro ao postar comentário: ${error.message}`,
+      }
     }
-  }
+
+    console.log('✅ [useFeed] Comentário inserido com sucesso:', data)
+    return {
+      success: true,
+      message: 'Comentário postado com sucesso!',
+    }
+  }, [country?.id])
 
   return {
     articles,
