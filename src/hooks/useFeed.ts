@@ -137,7 +137,7 @@ export function useFeed() {
       file_url?: string | null
       media_type?: string | null
     }
-  ) => {
+  ): Promise<{ success: boolean; error?: string }> => {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
     const { error } = await supabase.from('articles').insert({
@@ -174,7 +174,7 @@ export function useFeed() {
       file_url?: string | null
       media_type?: string | null
     }
-  ) => {
+  ): Promise<{ success: boolean; error?: string }> => {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
     const { data: check, error: checkError } = await supabase
@@ -210,7 +210,9 @@ export function useFeed() {
   }, [country?.id, fetchArticles])
 
   // ─── DELETAR ARTIGO ────────────────────────────────────────
-  const deleteArticle = useCallback(async (articleId: string) => {
+  const deleteArticle = useCallback(async (
+    articleId: string
+  ): Promise<{ success: boolean; error?: string }> => {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
     const { data: check, error: checkError } = await supabase
@@ -238,7 +240,6 @@ export function useFeed() {
   }, [country?.id, fetchArticles])
 
   // ─── COMENTÁRIOS ───────────────────────────────────────────
-  // ✅ CORREÇÃO AQUI: ADICIONAMOS O useCallback
   const fetchComments = useCallback(async (articleId: string): Promise<Comment[]> => {
     console.log('📡 [useFeed] fetchComments para articleId:', articleId)
     
@@ -255,9 +256,9 @@ export function useFeed() {
 
     console.log('✅ [useFeed] Comentários recebidos:', data?.length || 0)
     return (data || []) as Comment[]
-  }, []) // ✅ Array de dependências vazio, pois não depende de nada externo ao hook!
+  }, [])
 
-  // ✅ VERSÃO CORRIGIDA: postComment com retorno e logs detalhados
+  // ✅ VERSÃO CORRIGIDA DEFINITIVA: Permite enviar Mídia sem texto!
   const postComment = useCallback(async (
     articleId: string,
     content: string,
@@ -270,19 +271,13 @@ export function useFeed() {
   ): Promise<PostCommentResult> => {
     console.log('💬 [useFeed] postComment() chamado:', { articleId, content, parentId })
 
-    if (!country?.id) {
-      console.error('❌ [useFeed] country?.id não definido')
-      return { success: false, error: 'País não encontrado. Faça login novamente.' }
-    }
+    if (!country?.id) return { success: false, error: 'País não encontrado. Faça login novamente.' }
+    if (!articleId) return { success: false, error: 'Artigo não encontrado.' }
 
-    if (!content || content.trim() === '') {
-      console.error('❌ [useFeed] Conteúdo vazio')
+    // ✅ AQUI ESTÁ A CORREÇÃO: Verifica se tem mídia antes de bloquear texto vazio
+    const hasMedia = !!(mediaData?.gif_url || mediaData?.sticker_url || mediaData?.image_url)
+    if (!content.trim() && !hasMedia) {
       return { success: false, error: 'O comentário não pode estar vazio.' }
-    }
-
-    if (!articleId) {
-      console.error('❌ [useFeed] articleId não definido')
-      return { success: false, error: 'Artigo não encontrado.' }
     }
 
     const insertData: any = {
@@ -305,22 +300,11 @@ export function useFeed() {
 
     if (error) {
       console.error('❌ [useFeed] Erro ao inserir comentário:', error)
-      console.error('Detalhes do erro:', {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-      })
-      return {
-        success: false,
-        error: `Erro ao postar comentário: ${error.message}`,
-      }
+      return { success: false, error: `Erro ao postar comentário: ${error.message}` }
     }
 
     console.log('✅ [useFeed] Comentário inserido com sucesso:', data)
-    return {
-      success: true,
-      message: 'Comentário postado com sucesso!',
-    }
+    return { success: true, message: 'Comentário postado com sucesso!' }
   }, [country?.id])
 
   return {

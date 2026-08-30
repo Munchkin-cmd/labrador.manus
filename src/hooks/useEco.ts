@@ -6,7 +6,8 @@ import { Database } from '@/types/database'
 // ─── TIPOS IMPORTADOS DO database.ts ────────────────────
 type EconomyRow = Database['public']['Tables']['economy']['Row']
 type RegionRow = Database['public']['Tables']['regions']['Row']
-type BuildingCatalogRow = Database['public']['Tables']['building_catalog']['Row']
+type BuildingCatalogRow =
+  Database['public']['Tables']['building_catalog']['Row']
 type BuildingRow = Database['public']['Tables']['buildings']['Row']
 
 // ─── INTERFACES PARA USO NO HOOK (com joins) ────────────
@@ -23,7 +24,6 @@ type RpcResult = { success: boolean; message?: string; error?: string }
 // ─── HOOK ────────────────────────────────────────────────
 export function useEco() {
   const countryId = useAuthStore(state => state.country?.id)
-
   const [loading, setLoading] = useState(true)
   const [regions, setRegions] = useState<Region[]>([])
   const [buildings, setBuildings] = useState<Building[]>([])
@@ -34,11 +34,91 @@ export function useEco() {
   const fetchingRef = useRef(false)
   const lastLoadedIdRef = useRef<number | null>(null)
 
+  // ─── 🔧 NOVA FUNÇÃO: Marcar buildings completos ─────────────
+  const completeFinishedBuildings = useCallback(
+    async (buildingsToCheck: Building[]) => {
+      if (!countryId || buildingsToCheck.length === 0) return
+
+      const now = new Date()
+      const completedIds: string[] = []
+      const completedBuildings: Building[] = []
+
+      // 🔍 Verificar quais buildings já terminaram a construção
+      for (const building of buildingsToCheck) {
+        if (
+          !building.is_built &&
+          building.finished_at &&
+          new Date(building.finished_at) <= now
+        ) {
+          completedIds.push(building.id)
+          completedBuildings.push({
+            ...building,
+            is_built: true,
+            is_active: true,
+          })
+
+          console.log(
+            `✅ [useEco] Building pronto: ${building.id} (${building.building_type})`
+          )
+        }
+      }
+
+      // 📝 Se há buildings prontos, atualizar no banco
+      if (completedIds.length > 0) {
+        console.log(
+          `🔄 [useEco] Marcando ${completedIds.length} buildings como completos...`
+        )
+
+        try {
+          // Atualizar cada building no banco (o trigger SQL também vai rodar)
+          for (const id of completedIds) {
+            const { error } = await supabase
+              .from('buildings')
+              .update({
+                is_built: true,
+                is_active: true,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', id)
+
+            if (error) {
+              console.error(
+                `❌ [useEco] Erro ao marcar ${id} como completo:`,
+                error
+              )
+            }
+          }
+
+          // ✅ Atualizar state local imediatamente (sem refetch)
+          setBuildings(prevBuildings =>
+            prevBuildings.map(b =>
+              completedIds.includes(b.id)
+                ? { ...b, is_built: true, is_active: true }
+                : b
+            )
+          )
+
+          console.log(
+            `✅ [useEco] ${completedIds.length} buildings marcados como completos`
+          )
+        } catch (err: any) {
+          console.error(
+            '❌ [useEco] Erro ao atualizar buildings completos:',
+            err.message
+          )
+        }
+      }
+    },
+    [countryId]
+  )
+
   const fetchAll = useCallback(async () => {
     console.log('🔍 [useEco] fetchAll() chamado. countryId:', countryId)
-    
+
     if (!countryId) {
-      console.warn('⚠️ [useEco] countryId não definido, limpando estado')
+      console.warn(
+        '⚠️ [useEco] countryId não definido, limpando estado'
+      )
       setRegions([])
       setBuildings([])
       setCatalog([])
@@ -107,7 +187,10 @@ export function useEco() {
       setCatalog(cData || [])
 
       // 4. EDIFÍCIOS - SEM JOIN DIRETO (porque a relação é por 'type', não 'id')
-      console.log('📡 [useEco] Fetching buildings para country_id:', countryId)
+      console.log(
+        '📡 [useEco] Fetching buildings para country_id:',
+        countryId
+      )
       const { data: bData, error: bError } = await supabase
         .from('buildings')
         .select('*')
@@ -117,21 +200,35 @@ export function useEco() {
         console.error('❌ [useEco] Erro buildings:', bError)
         throw bError
       }
-      console.log('✅ [useEco] Buildings recebido:', bData?.length || 0, 'edifícios')
+      console.log(
+        '✅ [useEco] Buildings recebido:',
+        bData?.length || 0,
+        'edifícios'
+      )
 
       // ✅ JOIN MANUAL: associa cada building com seu catalog
-      const buildingsWithCatalog: Building[] = (bData || []).map((building: BuildingRow) => {
-        const catalogItem = (cData || []).find(c => c.type === building.building_type)
-        return {
-          ...building,
-          building_catalog: catalogItem,
+      const buildingsWithCatalog: Building[] = (bData || []).map(
+        (building: BuildingRow) => {
+          const catalogItem = (cData || []).find(
+            c => c.type === building.building_type
+          )
+          return {
+            ...building,
+            building_catalog: catalogItem,
+          }
         }
-      })
+      )
 
-      console.log('✅ [useEco] Buildings com catalog:', buildingsWithCatalog.length)
+      console.log(
+        '✅ [useEco] Buildings com catalog:',
+        buildingsWithCatalog.length
+      )
       setBuildings(buildingsWithCatalog)
-      lastLoadedIdRef.current = countryId
 
+      // 🔧 NOVO: Marcar buildings completos (roda UMA VEZ após fetch)
+      await completeFinishedBuildings(buildingsWithCatalog)
+
+      lastLoadedIdRef.current = countryId
     } catch (err: any) {
       console.error('❌ [useEco] ERRO CRÍTICO:', err.message)
       console.error('Stack:', err.stack)
@@ -141,12 +238,12 @@ export function useEco() {
       setLoading(false)
       fetchingRef.current = false
     }
-  }, [countryId])
+  }, [countryId, completeFinishedBuildings])
 
   // ─── CARREGA DADOS APENAS QUANDO countryId MUDA ──────────────
   useEffect(() => {
     console.log('🔄 [useEco] useEffect triggered. countryId:', countryId)
-    
+
     if (!countryId) {
       console.warn('⚠️ [useEco] countryId não definido no useEffect')
       setRegions([])
@@ -171,7 +268,8 @@ export function useEco() {
     buildingType: string,
     quantity: number = 1
   ): Promise<RpcResult> {
-    if (!countryId) return { success: false, error: 'País não encontrado' }
+    if (!countryId)
+      return { success: false, error: 'País não encontrado' }
 
     try {
       // Valida se tem dinheiro antes de chamar RPC
@@ -202,7 +300,10 @@ export function useEco() {
       lastLoadedIdRef.current = null
       await fetchAll()
 
-      return (data as RpcResult) ?? { success: false, error: 'Erro desconhecido' }
+      return (data as RpcResult) ?? {
+        success: false,
+        error: 'Erro desconhecido',
+      }
     } catch (err: any) {
       console.error('❌ [useEco] Erro em build:', err)
       return { success: false, error: err.message }
@@ -214,7 +315,8 @@ export function useEco() {
     equipType: string,
     quantity: number = 1
   ): Promise<RpcResult> {
-    if (!countryId) return { success: false, error: 'País não encontrado' }
+    if (!countryId)
+      return { success: false, error: 'País não encontrado' }
 
     try {
       const { data, error } = await supabase.rpc('produce_equipment', {
@@ -224,7 +326,10 @@ export function useEco() {
       })
 
       if (error) {
-        console.error('❌ [useEco] Erro na RPC produce_equipment:', error)
+        console.error(
+          '❌ [useEco] Erro na RPC produce_equipment:',
+          error
+        )
         return { success: false, error: error.message }
       }
 
@@ -232,7 +337,10 @@ export function useEco() {
       lastLoadedIdRef.current = null
       await fetchAll()
 
-      return (data as RpcResult) ?? { success: false, error: 'Erro desconhecido' }
+      return (data as RpcResult) ?? {
+        success: false,
+        error: 'Erro desconhecido',
+      }
     } catch (err: any) {
       console.error('❌ [useEco] Erro em produceEquipment:', err)
       return { success: false, error: err.message }
