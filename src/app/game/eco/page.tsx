@@ -4,6 +4,8 @@ import { useEco } from '@/hooks/useEco'
 import { useWar } from '@/hooks/useWar'
 import { formatMoney, formatNumber, formatTime } from '@/utils/format'
 import { Hammer, Factory, Package, RefreshCw } from 'lucide-react'
+// ✅ IMPORTAÇÃO DO NOVO COMPONENTE
+import { BuildingsOverview } from '@/components/BuildingsOverview'
 
 const UNITS = [
   { key: 'soldiers', label: 'Soldados', emoji: '⚔️', cost: 5000000 },
@@ -142,6 +144,9 @@ export default function EcoPage() {
           <Resource label="Energia" value={economy.energy || 0} />
         </div>
       </div>
+
+      {/* ─── RESUMO DE EDIFÍCIOS (NOVO COMPONENTE) ─────────── */}
+      <BuildingsOverview buildings={buildings} catalog={catalog} regions={regions} />
 
       {/* ─── CONSTRUIR EDIFÍCIO ──────────────────────────── */}
       <div className="bg-surface-card rounded-xl p-4 border border-white/5 flex flex-col gap-3">

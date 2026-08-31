@@ -419,7 +419,7 @@ export default function StatePage() {
         <div className="flex flex-col gap-2">
           <TrustBar trust={data.trust || 50} label="Confiança" color="bg-green-500" />
           <TrustBar trust={data.intl_approval || 50} label="Aprovação" color="bg-blue-400" />
-          <TrustBar trust={data.political_power || 50} label="Poder Pol." color="bg-purple-400" />
+          <TrustBar trust={data.political_power ?? 0} label="Poder Pol." color="bg-purple-400" />
           {!loadingXP && combatXP && (
             <TrustBar
               trust={Math.min(100, (combatXP.experience / 10))}

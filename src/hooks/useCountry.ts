@@ -50,7 +50,9 @@ export interface UserProfile {
 }
 
 export function useCountry() {
-  const { country } = useAuthStore()
+  // 🔥 Melhor prática: selecionar apenas o ID para evitar loops de renderização
+  const countryId = useAuthStore(state => state.country?.id)
+  
   const [data, setData] = useState<CountryFull | null>(null)
   const [economy, setEconomy] = useState<Economy | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -62,10 +64,7 @@ export function useCountry() {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const fetchAll = useCallback(async () => {
-    console.log('🔵 [useCountry] fetchAll executado, country:', country)
-
-    if (!country?.id) {
-      console.log('🔴 [useCountry] Sem país, limpando dados')
+    if (!countryId) {
       setData(null)
       setEconomy(null)
       setProfile(null)
@@ -74,16 +73,9 @@ export function useCountry() {
     }
 
     if (fetchingRef.current) {
-      console.log('⏸️ [useCountry] Já está carregando, ignorando')
       return
     }
 
-    if (lastLoadedIdRef.current === country.id) {
-      console.log(`⏹️ [useCountry] País ${country.id} já carregado, ignorando`)
-      return
-    }
-
-    console.log(`🟡 [useCountry] Iniciando requisição para país ${country.id}`)
     fetchingRef.current = true
     setLoading(true)
     setError(null)
@@ -91,7 +83,6 @@ export function useCountry() {
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
     timeoutRef.current = setTimeout(() => {
       if (fetchingRef.current) {
-        console.warn('⏰ [useCountry] Timeout – forçando loading false')
         setLoading(false)
         fetchingRef.current = false
       }
@@ -105,20 +96,15 @@ export function useCountry() {
           economy(*),
           users(flag_url, leader_url, banner_urls)
         `)
-        .eq('id', country.id)
+        .eq('id', countryId)
         .maybeSingle()
-
-      console.log('📦 [useCountry] Resposta do Supabase:', { result, err })
 
       if (err) throw err
 
       if (result) {
         setData(result)
-
-        // 🔥 CORREÇÃO: `economy` é um objeto (porque é to-one)
         setEconomy(result.economy || null)
 
-        // 🔥 CORREÇÃO: `users` é um array – pegamos o primeiro ou null
         const user = result.users && Array.isArray(result.users) && result.users.length > 0
           ? result.users[0]
           : null
@@ -129,10 +115,8 @@ export function useCountry() {
           banner_urls: user.banner_urls ?? [],
         } : null)
 
-        lastLoadedIdRef.current = country.id
-        console.log(`✅ [useCountry] Dados carregados para país ${country.id}`)
+        lastLoadedIdRef.current = countryId
       } else {
-        console.warn(`⚠️ [useCountry] Nenhum dado encontrado para país ${country.id}`)
         setData(null)
         setEconomy(null)
         setProfile(null)
@@ -144,24 +128,22 @@ export function useCountry() {
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       setLoading(false)
       fetchingRef.current = false
-      console.log(`🔚 [useCountry] loading setado para false`)
     }
-  }, [country])
+  }, [countryId])
 
   useEffect(() => {
-    console.log(`🔄 [useCountry] useEffect executou, country.id: ${country?.id}, lastLoaded: ${lastLoadedIdRef.current}`)
+    // 🔥 CORREÇÃO PRINCIPAL: Sempre reseta o cache ao montar a página
+    lastLoadedIdRef.current = null
 
-    if (country?.id && lastLoadedIdRef.current !== country.id) {
+    if (countryId) {
       fetchAll()
-    } else if (!country?.id) {
+    } else {
       setData(null)
       setEconomy(null)
       setProfile(null)
       setLoading(false)
-    } else {
-      console.log(`ℹ️ [useCountry] Nenhuma ação necessária (país já carregado)`)
     }
-  }, [country, fetchAll])
+  }, [countryId, fetchAll])
 
   return {
     data,
@@ -170,7 +152,6 @@ export function useCountry() {
     loading,
     error,
     refetch: () => {
-      console.log('🔄 [useCountry] Refetch manual')
       lastLoadedIdRef.current = null
       fetchAll()
     },
