@@ -5,15 +5,9 @@ import { useRouter } from 'next/navigation'
 import { useConfiguracoes } from '@/hooks/useMenu'
 import { useAuthStore } from '@/store/authStore'
 import { supabase } from '@/lib/supabase/client'
-import { Loader2, Upload, X, Check } from 'lucide-react'
+import { Loader2, Upload, X } from 'lucide-react'
 
-const LEADER_TITLES = ['Presidente','Monarca','Rei','Papa','Primeiro Ministro','Chefe Supremo','Chanceler','Imperador']
-const RELIGIONS = ['Sem religião oficial','Cristianismo','Islamismo','Judaísmo','Hinduísmo','Budismo','Ateísmo','Outras']
-const LANGUAGES = ['Português','Inglês','Espanhol','Francês','Alemão','Árabe','Mandarim','Russo','Japonês','Outros']
-const STATE_STRUCTURES = [
-  'Democracia','República Federal','Monarquia Constitucional','Monarquia Absoluta',
-  'Ditadura','República Socialista','Anarquia','Teocracia','Oligarquia',
-]
+// ─── REMOVIDOS: LEADER_TITLES, RELIGIONS, LANGUAGES, STATE_STRUCTURES (não são mais usados)
 
 export default function ConfiguracoesPage() {
   const router = useRouter()
@@ -41,7 +35,7 @@ export default function ConfiguracoesPage() {
   const [uploadingFlag, setUploadingFlag] = useState(false)
   const [uploadingLeader, setUploadingLeader] = useState(false)
   const [uploadingBanner, setUploadingBanner] = useState(false)
-  const [activeBannerIndex, setActiveBannerIndex] = useState<number | null>(null) // Índice do banner que está sendo enviado
+  const [activeBannerIndex, setActiveBannerIndex] = useState<number | null>(null)
   
   const flagInputRef = useRef<HTMLInputElement>(null)
   const leaderInputRef = useRef<HTMLInputElement>(null)
@@ -98,7 +92,7 @@ export default function ConfiguracoesPage() {
       setFeedback(`❌ Erro no upload: ${err.message}`)
     } finally {
       setUploading(false)
-      setActiveBannerIndex(null) // Limpa o índice ativo após o upload
+      setActiveBannerIndex(null)
     }
   }
 
@@ -110,12 +104,11 @@ export default function ConfiguracoesPage() {
       saveProfile({ 
         flag_url: flagUrl || null, 
         leader_url: leaderUrl || null,
-        banner_urls: bannerUrls, // ✅ Salva o array de banners
+        banner_urls: bannerUrls,
       }),
     ])
     setFeedback(r1.success && r2.success ? '✅ Alterações salvas!' : '❌ Erro ao salvar')
     
-    // ✅ OBRIGATÓRIO: Força o Next.js a recarregar os dados da página STATE e HOME
     router.refresh()
     
     setTimeout(() => setFeedback(''), 4000)
@@ -127,7 +120,6 @@ export default function ConfiguracoesPage() {
     const res = await saveProfile({ banner_urls: bannerUrls })
     setFeedback(res.success ? '✅ Banners salvos com sucesso!' : '❌ Erro ao salvar banners')
     
-    // ✅ Força o recarregamento dos dados do State/Home
     router.refresh()
     
     setTimeout(() => setFeedback(''), 4000)
@@ -154,9 +146,8 @@ export default function ConfiguracoesPage() {
           <input value={leaderName} onChange={e => setLeaderName(e.target.value)} className="input-field" placeholder="Nome do líder" />
         </Field>
         <Field label="Título">
-          <select value={leaderTitle} onChange={e => setLeaderTitle(e.target.value)} className="input-field">
-            {LEADER_TITLES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
+          {/* ✅ Substituído select por input de texto */}
+          <input value={leaderTitle} onChange={e => setLeaderTitle(e.target.value)} className="input-field" placeholder="Ex: Presidente, Rei, etc." />
         </Field>
 
         {/* Upload da Foto do Líder */}
@@ -240,19 +231,16 @@ export default function ConfiguracoesPage() {
           <input value={currency} onChange={e => setCurrency(e.target.value)} className="input-field" placeholder="Ex: Real (R$)" />
         </Field>
         <Field label="Estrutura de Estado">
-          <select value={stateStructure} onChange={e => setStructure(e.target.value)} className="input-field">
-            {STATE_STRUCTURES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+          {/* ✅ Substituído select por input de texto */}
+          <input value={stateStructure} onChange={e => setStructure(e.target.value)} className="input-field" placeholder="Ex: Democracia, Monarquia, etc." />
         </Field>
         <Field label="Religião Oficial">
-          <select value={religion} onChange={e => setReligion(e.target.value)} className="input-field">
-            {RELIGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
+          {/* ✅ Substituído select por input de texto */}
+          <input value={religion} onChange={e => setReligion(e.target.value)} className="input-field" placeholder="Ex: Cristianismo, Sem religião, etc." />
         </Field>
         <Field label="Idioma">
-          <select value={language} onChange={e => setLanguage(e.target.value)} className="input-field">
-            {LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
-          </select>
+          {/* ✅ Substituído select por input de texto */}
+          <input value={language} onChange={e => setLanguage(e.target.value)} className="input-field" placeholder="Ex: Português, Inglês, etc." />
         </Field>
       </Section>
 
@@ -262,7 +250,6 @@ export default function ConfiguracoesPage() {
           Clique em um quadrado para enviar uma foto para aquela posição.
         </p>
         
-        {/* Exibição dos banners */}
         <div className="grid grid-cols-3 gap-2 mt-2">
           {Array.from({ length: 13 }).map((_, i) => {
             const imgUrl = bannerUrls[i] || null
@@ -300,7 +287,6 @@ export default function ConfiguracoesPage() {
           })}
         </div>
 
-        {/* Input escondido para upload de banners */}
         <input
           ref={bannerInputRef}
           type="file"
@@ -309,7 +295,6 @@ export default function ConfiguracoesPage() {
           onChange={(e) => {
             const file = e.target.files?.[0]
             if (file && activeBannerIndex !== null) {
-              // ✅ Envia para o índice específico que foi clicado
               handleUpload(
                 file, 
                 'banners', 
@@ -324,7 +309,6 @@ export default function ConfiguracoesPage() {
           }}
         />
 
-        {/* Botão específico para salvar banners */}
         <div className="flex gap-3 mt-3">
           <button
             onClick={handleSaveBanners}
