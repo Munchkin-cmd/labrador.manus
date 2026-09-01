@@ -133,7 +133,7 @@ export function useParliament() {
       setCatalog([])
       setLoading(false)
     }
-  }, [country?.id])
+  }, [country?.id, fetchAll])
 
   // ─── FUNÇÃO AUXILIAR: Checa maioria no parlamento ──────
   function hasCoalitionMajority(): boolean {
@@ -658,7 +658,7 @@ export function useParliament() {
   const refetch = useCallback(() => {
     lastLoadedIdRef.current = null
     fetchAll()
-  }, [])
+  }, [fetchAll])
 
   return {
     parliament,

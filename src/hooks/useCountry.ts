@@ -132,12 +132,10 @@ export function useCountry() {
   }, [countryId])
 
   useEffect(() => {
-    // 🔥 CORREÇÃO PRINCIPAL: Sempre reseta o cache ao montar a página
-    lastLoadedIdRef.current = null
-
-    if (countryId) {
+    // 🔥 Não resetamos lastLoadedIdRef aqui! Isso é feito apenas dentro do fetchAll.
+    if (countryId && lastLoadedIdRef.current !== countryId) {
       fetchAll()
-    } else {
+    } else if (!countryId) {
       setData(null)
       setEconomy(null)
       setProfile(null)
@@ -145,15 +143,17 @@ export function useCountry() {
     }
   }, [countryId, fetchAll])
 
+  const refetch = useCallback(() => {
+    lastLoadedIdRef.current = null
+    fetchAll()
+  }, [fetchAll])
+
   return {
     data,
     economy,
     profile,
     loading,
     error,
-    refetch: () => {
-      lastLoadedIdRef.current = null
-      fetchAll()
-    },
+    refetch,
   }
 }
