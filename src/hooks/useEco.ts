@@ -34,7 +34,28 @@ export function useEco() {
   const fetchingRef = useRef(false)
   const lastLoadedIdRef = useRef<number | null>(null)
 
-  // ─── 🔧 NOVA FUNÇÃO: Marcar buildings completos ─────────────
+  // ─── 🎬 NOVA FUNÇÃO: Rodar ciclo de produção ─────────────────
+  const runProductionCycle = useCallback(async () => {
+    console.log('🎬 [useEco] Rodando production cycle...')
+
+    try {
+      const { data, error } = await supabase.rpc(
+        'run_production_cycle'
+      )
+
+      if (error) {
+        console.error('❌ [useEco] Erro em run_production_cycle:', error)
+        return
+      }
+
+      console.log('✅ [useEco] Production cycle concluído')
+      return data
+    } catch (err: any) {
+      console.error('❌ [useEco] Erro ao rodar production cycle:', err.message)
+    }
+  }, [])
+
+  // ─── 🔧 FUNÇÃO: Marcar buildings completos ─────────────
   const completeFinishedBuildings = useCallback(
     async (buildingsToCheck: Building[]) => {
       if (!countryId || buildingsToCheck.length === 0) return
@@ -225,8 +246,23 @@ export function useEco() {
       )
       setBuildings(buildingsWithCatalog)
 
-      // 🔧 NOVO: Marcar buildings completos (roda UMA VEZ após fetch)
+      // 🔧 Marcar buildings completos (roda UMA VEZ após fetch)
       await completeFinishedBuildings(buildingsWithCatalog)
+
+      // 🎬 Rodar ciclo de produção
+      await runProductionCycle()
+
+      // 🔄 Refetch economia após production cycle (para mostrar novos valores)
+      const { data: eDataNew } = await supabase
+        .from('economy')
+        .select('*')
+        .eq('country_id', countryId)
+        .maybeSingle()
+
+      if (eDataNew) {
+        console.log('✅ [useEco] Economy atualizada após production cycle:', eDataNew)
+        setEconomy(eDataNew)
+      }
 
       lastLoadedIdRef.current = countryId
     } catch (err: any) {
@@ -238,7 +274,7 @@ export function useEco() {
       setLoading(false)
       fetchingRef.current = false
     }
-  }, [countryId, completeFinishedBuildings])
+  }, [countryId, completeFinishedBuildings, runProductionCycle])
 
   // ─── CARREGA DADOS APENAS QUANDO countryId MUDA ──────────────
   useEffect(() => {

@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -22,18 +21,24 @@ import {
 
 export default function StatePage() {
   const { country: myCountry } = useAuthStore()
-  const { data, economy, profile, loading: loadingC } = useCountry()
+  const { data, economy, profile, loading: loadingC, refetch: refetchCountry } = useCountry()
   const {
     parliament,
     laws,
     catalog,
     loading: loadingP,
     proposeLaw,
-    forceLaw,
-    nextElectionIn,
-    nextRandomIn,
-    getCountdown,
+    forceLawApproval,
+    hasCoalitionMajority,
+    lastLawResult,
+    refetch: refetchParliament,
   } = useParliament()
+
+  // ─── FORÇAR RECARREGAMENTO QUANDO A PÁGINA ABRE ──────────
+  useEffect(() => {
+    refetchCountry()
+    refetchParliament()
+  }, [refetchCountry, refetchParliament])
 
   // ─── XP DE COMBATE ──────────────────────────────────────
   const [combatXP, setCombatXP] = useState<{ experience: number; wars_participated: number } | null>(null)
@@ -257,19 +262,14 @@ export default function StatePage() {
   const has_majority = parliament
     ? parliament.coalition_seats > parliament.total_seats / 2
     : false
-  const is_balanced = parliament
-    ? parliament.coalition_seats === parliament.total_seats / 2
-    : false
 
   let parlamentoStatus = '📊 Parlamento Equilibrado'
   if (has_majority) parlamentoStatus = '🟢 Parlamento Majoritário (Coalizão)'
-  else if (!is_balanced && parliament) parlamentoStatus = '🔴 Parlamento Minoritário (Oposição)'
+  else parlamentoStatus = '🔴 Parlamento Minoritário (Oposição)'
 
   // ─── LEIS ──────────────────────────────────────────────
   const selectedLaw = catalog.find(l => l.id === selectedLawId)
-  const pendingLaws = laws.filter(l => l.status === 'pending')
   const activeLaws = laws.filter(l => l.status === 'active')
-  const rejectedLaws = laws.filter(l => l.status === 'revoked').slice(0, 5)
 
   // ─── FUNÇÕES ──────────────────────────────────────────
   async function handlePropose() {
@@ -301,11 +301,27 @@ export default function StatePage() {
     setProposing(false)
   }
 
-  async function handleForce(lawId: string) {
-    setForcing(lawId)
+  async function handleForce(lawId: number) {
+    setForcing(String(lawId))
     setForceMsg('')
-    const res = await forceLaw(lawId)
+    const target = {
+      countryId: targetCountryId || undefined,
+      regionId: targetRegionId || undefined,
+      text: targetText || undefined,
+      taxType: taxType || undefined,
+      taxValue: taxValue || undefined,
+    }
+    const res = await forceLawApproval(lawId, target)
     setForceMsg(res.message ?? res.error ?? 'Erro')
+    if (res.success) {
+      setShowLawModal(false)
+      setSelectedLawId('')
+      setTargetCountryId(null)
+      setTargetRegionId('')
+      setTargetText('')
+      setTaxType('')
+      setTaxValue(0)
+    }
     setForcing(null)
   }
 
@@ -417,8 +433,8 @@ export default function StatePage() {
       {/* ─── STATUS POLÍTICO ────────────────────────────── */}
       <Section title={<span className="flex items-center gap-2"><Shield size={16} /> STATUS POLÍTICO</span>}>
         <div className="flex flex-col gap-2">
-          <TrustBar trust={data.trust || 50} label="Confiança" color="bg-green-500" />
-          <TrustBar trust={data.intl_approval || 50} label="Aprovação" color="bg-blue-400" />
+          <TrustBar trust={data.trust ?? 0} label="Confiança" color="bg-green-500" />
+          <TrustBar trust={data.intl_approval ?? 0} label="Aprovação" color="bg-blue-400" />
           <TrustBar trust={data.political_power ?? 0} label="Poder Pol." color="bg-purple-400" />
           {!loadingXP && combatXP && (
             <TrustBar
@@ -506,22 +522,10 @@ export default function StatePage() {
                 <div className="mt-3 text-center">
                   <span className={`text-sm font-bold px-3 py-1 rounded-full ${
                     has_majority ? 'bg-green-500/20 text-green-400' :
-                    is_balanced ? 'bg-yellow-500/20 text-yellow-400' :
                     'bg-red-500/20 text-red-400'
                   }`}>
                     {parlamentoStatus}
                   </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mt-3">
-                  <div className="card-sm text-center">
-                    <p className="text-white/40 text-[10px]">Próxima Eleição (Confiança)</p>
-                    <p className="text-white font-bold text-sm">{nextElectionIn()}</p>
-                  </div>
-                  <div className="card-sm text-center">
-                    <p className="text-white/40 text-[10px]">Eleição Aleatória</p>
-                    <p className="text-white font-bold text-sm">{nextRandomIn()}</p>
-                  </div>
                 </div>
               </div>
             </div>
@@ -544,63 +548,6 @@ export default function StatePage() {
           Poder Político: <span className="text-purple-400">{data.political_power}</span>
         </p>
       </Section>
-
-      {/* ─── LEIS PENDENTES ────────────────────────────── */}
-      {pendingLaws.length > 0 && (
-        <Section title={<span className="flex items-center gap-2"><Users size={16} /> EM VOTAÇÃO</span>}>
-          {pendingLaws.map(law => (
-            <div key={law.id} className="card-sm mb-2">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-white font-bold text-sm">{law.law_catalog?.name}</p>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="text-green-400 text-xs">👍 {law.votes_for}</span>
-                    <span className="text-red-400 text-xs">👎 {law.votes_against}</span>
-                  </div>
-                </div>
-                <span className={`badge ${getCountdown(law.id) === 'Votação encerrada' ? 'badge-red' : 'badge-yellow'}`}>
-                  ⏱️ {getCountdown(law.id)}
-                </span>
-              </div>
-              <div className="progress-track mt-2">
-                <div className="progress-fill" style={{ width: `${coalition_pct}%`, background: has_majority ? '#22C55E' : '#EF4444' }} />
-              </div>
-            </div>
-          ))}
-        </Section>
-      )}
-
-      {/* ─── LEIS REJEITADAS ────────────────────────────── */}
-      {rejectedLaws.length > 0 && (
-        <Section title={<span className="flex items-center gap-2"><Gavel size={16} /> LEIS REJEITADAS</span>}>
-          <p className="text-white/40 text-xs mb-2">
-            Você pode forçar a aprovação gastando o poder político equivalente ao custo da lei.
-          </p>
-          {forceMsg && (
-            <p className={`text-xs text-center mb-2 ${forceMsg.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>
-              {forceMsg}
-            </p>
-          )}
-          {rejectedLaws.map(law => {
-            const cost = catalog.find(c => c.id === law.law_catalog_id)?.political_power_cost || 50
-            return (
-              <div key={law.id} className="card-sm mb-2 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-white font-bold text-sm">{law.law_catalog?.name}</p>
-                  <p className="text-white/40 text-xs">{law.votes_for} a favor · {law.votes_against} contra</p>
-                </div>
-                <button
-                  onClick={() => handleForce(law.id)}
-                  disabled={forcing === law.id || data.political_power < cost}
-                  className="bg-purple-900 hover:bg-purple-800 disabled:opacity-30 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  {forcing === law.id ? '...' : `⚡ Forçar (${cost})`}
-                </button>
-              </div>
-            )
-          })}
-        </Section>
-      )}
 
       {/* ─── LEIS ATIVAS ────────────────────────────────── */}
       {activeLaws.length > 0 && (
@@ -673,6 +620,7 @@ export default function StatePage() {
                   setShowLawModal(false)
                   setSelectedLawId('')
                   setLawMsg('')
+                  setForceMsg('')
                 }}
                 className="text-white/40 hover:text-white text-xl"
               >
@@ -691,6 +639,8 @@ export default function StatePage() {
                 setTargetText('')
                 setTaxType('')
                 setTaxValue(0)
+                setLawMsg('')
+                setForceMsg('')
               }}
               className="input-field mb-3"
             >
@@ -881,10 +831,31 @@ export default function StatePage() {
               </div>
             )}
 
+            {/* ─── FEEDBACK E BOTÃO FORÇAR ─────────────────── */}
             {lawMsg && (
-              <p className={`text-xs text-center mb-2 ${lawMsg.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>
+              <p className={`text-xs text-center mb-2 ${lawMsg.includes('sucesso') ? 'text-green-400' : 'text-red-400'}`}>
                 {lawMsg}
               </p>
+            )}
+            {forceMsg && (
+              <p className={`text-xs text-center mb-2 ${forceMsg.includes('sucesso') ? 'text-green-400' : 'text-red-400'}`}>
+                {forceMsg}
+              </p>
+            )}
+
+            {lastLawResult && lastLawResult.requiresForce && !lastLawResult.success && (
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 mb-3 text-center">
+                <p className="text-yellow-400 text-xs font-semibold mb-2">
+                  ⚠️ Oposição tem maioria. Você pode forçar a aprovação!
+                </p>
+                <button
+                  onClick={() => handleForce(Number(selectedLawId))}
+                  disabled={forcing === String(selectedLawId) || (data?.political_power ?? 0) < (lastLawResult.forceCost ?? 0)}
+                  className="w-full bg-purple-900 hover:bg-purple-800 disabled:opacity-30 text-white text-xs font-bold py-2.5 rounded-lg transition-colors"
+                >
+                  {forcing === String(selectedLawId) ? 'Forçando...' : `⚡ Forçar Aprovação (${lastLawResult.forceCost} PP)`}
+                </button>
+              </div>
             )}
 
             <div className="flex gap-2">
