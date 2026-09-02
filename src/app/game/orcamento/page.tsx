@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useEco } from '@/hooks/useEco'  // ✅ apenas useEco
+import { useEco } from '@/hooks/useEco' // ✅ Mantendo useEco (possui catálogo processado)
 import { useAuthStore } from '@/store/authStore'
 import { formatMoney, formatNumber } from '@/utils/format'
 import { Coins, Sprout, Pickaxe, Factory, Droplet, Landmark, Zap, ArrowRightLeft } from 'lucide-react'
@@ -9,8 +9,8 @@ import { supabase } from '@/lib/supabase/client'
 
 export default function OrcamentoPage() {
   const { country } = useAuthStore()
-  const { economy, buildings, loading } = useEco() // ✅ usa useEco para tudo
-  
+  const { economy, buildings, loading } = useEco() // ✅ Retorna buildings com building_catalog
+
   // ─── BUSCAR IMPOSTOS ────────────────────────────────────────
   const [taxes, setTaxes] = useState<any>(null)
   const [loadingTax, setLoadingTax] = useState(true)
@@ -22,7 +22,7 @@ export default function OrcamentoPage() {
         .from('taxes')
         .select('*')
         .eq('country_id', country.id)
-        .single()
+        .maybeSingle() // ✅ Evita erro se não existir
       setTaxes(data)
       setLoadingTax(false)
     }
@@ -32,13 +32,10 @@ export default function OrcamentoPage() {
   if (loading || loadingTax) return <Loading />
   if (!economy || !taxes || !buildings) return null
 
-  // ─── 1. RECEITAS BRUTAS ──────────────────────────────────────
+  // ─── 1. RECEITAS BRUTAS (APENAS Renda, Propriedade e Manufatura) ──
   const incomeTax = Number(taxes.income_tax || 0)
-  const corporateTax = Number(taxes.corporate_tax || 0)
   const propertyTax = Number(taxes.property_tax || 0)
   const manufacturingTax = Number(taxes.manufacturing_tax || 0)
-  const vat = Number(taxes.vat || 0)
-  const customs = Number(taxes.customs || 0)
 
   const grossProfitPerTurn = buildings
     .filter(b => b.is_built && b.is_active)
@@ -50,11 +47,8 @@ export default function OrcamentoPage() {
 
   const turnValues = {
     incomeTax: taxBase * (incomeTax / 100),
-    corporateTax: taxBase * (corporateTax / 100),
     propertyTax: propertyBase * (propertyTax / 100),
     manufacturingTax: taxBase * (manufacturingTax / 100),
-    vat: taxBase * (vat / 100),
-    customs: taxBase * (customs / 100),
     grossProfit: grossProfitPerTurn,
   }
 
@@ -97,7 +91,7 @@ export default function OrcamentoPage() {
   buildings.filter(b => b.is_built && b.is_active).forEach(b => {
     const cat = b.building_catalog as any
     const qty = Number(b.quantity || 1)
-    
+
     if (cat.produces && cat.produces_qty > 0) {
       const resKey = cat.produces as keyof typeof resources
       if (resources[resKey]) {
@@ -128,11 +122,8 @@ export default function OrcamentoPage() {
       {/* ─── RECEITAS BRUTAS ──────────────────────────────────── */}
       <Section title="Receitas Brutas" color="bg-blue-900/60">
         <TableRow label="Imposto de Renda" value={turnValues.incomeTax} />
-        <TableRow label="Imposto Corporativo" value={turnValues.corporateTax} />
         <TableRow label="Imposto sobre Propriedade" value={turnValues.propertyTax} />
-        <TableRow label="Manufatura Avançada" value={turnValues.manufacturingTax} />
-        <TableRow label="IVA (Imposto sobre Valor)" value={turnValues.vat} />
-        <TableRow label="Alfândega (Customs)" value={turnValues.customs} />
+        <TableRow label="Manufatura" value={turnValues.manufacturingTax} />
         <TableRow label="Lucro Bruto (Edifícios)" value={turnValues.grossProfit} icon={<Coins size={16} />} />
         <div className="mt-2 border-t border-white/10 pt-2">
           <TableRow label="Total de Receitas" value={totalTurnRevenue} isTotal />
@@ -209,9 +200,7 @@ export default function OrcamentoPage() {
             </span>
           </div>
         </div>
-
       </Section>
-
     </div>
   )
 }

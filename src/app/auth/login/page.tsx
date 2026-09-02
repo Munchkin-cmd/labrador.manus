@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,58 +17,48 @@ export default function LoginPage() {
     setError('')
 
     const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
+      email: identifier.includes('@') ? identifier : `${identifier}@labrador.com`,
       password,
     })
 
     if (authError) {
-      setError('Email ou senha inválidos.')
+      setError('Usuário ou senha inválidos.')
       setLoading(false)
       return
     }
 
-    // ✅ Aguarda o cookie ser gravado (500ms é seguro)
     await new Promise(resolve => setTimeout(resolve, 500))
-
-    // ✅ Redireciona com router.push (NÃO use window.location.href)
     router.push('/game/home')
-  }
-
-  async function handleGoogle() {
-    setLoading(true)
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/game/home` },
-    })
   }
 
   return (
     <div className="flex flex-col gap-6 max-w-md mx-auto w-full px-4 py-8">
-      {/* Banner */}
-      <div className="w-full bg-gradient-to-r from-green-800 via-green-600 to-green-800 
-                      border-4 border-green-500/50 rounded-xl p-6 text-center shadow-[0_0_40px_rgba(34,197,94,0.3)]">
-        <h2 className="text-5xl font-black text-white tracking-widest drop-shadow-[0_0_15px_rgba(0,255,0,0.5)]">
-          labrador
-        </h2>
-        <p className="text-green-200/60 text-xs mt-1 font-mono">✦ ESTRATÉGIA GEOPOLÍTICA ✦</p>
+      
+      {/* Banner com a nota de dólar e texto "labrador" sobreposto */}
+      <div className="w-full border-4 border-green-500/50 rounded-xl shadow-[0_0_40px_rgba(34,197,94,0.3)] h-40 overflow-hidden relative bg-black">
+        {/* Imagem de fundo */}
+        <img
+          src="https://conteudo.imguol.com.br/c/noticias/05/2022/01/14/notas-dolar-eua-1642179172721_v2_450x600.jpg"
+          alt="Nota de dólar"
+          className="absolute inset-0 w-full h-full object-cover object-top"
+          style={{ transform: 'scale(1.2)', transformOrigin: 'center top' }}
+        />
+        
+        {/* Texto "labrador" sobreposto */}
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <h2 className="text-4xl font-black text-white tracking-widest drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+            labrador
+          </h2>
+        </div>
       </div>
 
-      <button
-        onClick={handleGoogle}
-        disabled={loading}
-        className="btn-primary bg-white text-gray-900 hover:bg-gray-100 flex items-center justify-center gap-2"
-      >
-        <span>G</span> Entrar com Google
-      </button>
-
-      <div className="text-center text-white/40 text-sm">ou</div>
-
+      {/* Login com usuário e senha */}
       <div className="flex flex-col gap-3">
         <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
+          type="text"
+          placeholder="Usuário"
+          value={identifier}
+          onChange={e => setIdentifier(e.target.value)}
           className="input-field"
           disabled={loading}
         />

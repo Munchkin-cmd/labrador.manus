@@ -1,11 +1,17 @@
+// ============================================================
+// useMenu.ts - CORRIGIDO E COMPLETO
+// ============================================================
+
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
 
+// ─── HOOK: ECONOMIA (usado no Armazém e Orçamento) ─────────────
 export function useEconomy() {
   const { country } = useAuthStore()
   const [economy, setEconomy] = useState<any>(null)
   const [military, setMilitary] = useState<any>(null)
+  const [buildings, setBuildings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const fetchingRef = useRef(false)
   const lastLoadedIdRef = useRef<number | null>(null)
@@ -14,6 +20,7 @@ export function useEconomy() {
     if (!country?.id) {
       setEconomy(null)
       setMilitary(null)
+      setBuildings([])
       setLoading(false)
       return
     }
@@ -26,13 +33,15 @@ export function useEconomy() {
     setLoading(true)
 
     try {
-      const [e, m] = await Promise.all([
+      const [e, m, b] = await Promise.all([
         supabase.from('economy').select('*').eq('country_id', country.id).maybeSingle(),
         supabase.from('military').select('*').eq('country_id', country.id).maybeSingle(),
+        supabase.from('buildings').select('*').eq('country_id', country.id),
       ])
 
       setEconomy(e.data)
       setMilitary(m.data)
+      setBuildings(b.data ?? [])
       lastLoadedIdRef.current = country.id
     } catch (err) {
       console.error('Erro ao buscar economia:', err)
@@ -48,14 +57,15 @@ export function useEconomy() {
     } else if (!country?.id) {
       setEconomy(null)
       setMilitary(null)
+      setBuildings([])
       setLoading(false)
     }
   }, [country?.id, fetchData])
 
-  return { economy, military, loading, refetch: fetchData }
+  return { economy, military, buildings, loading, refetch: fetchData }
 }
 
-// ─── BRIEFING (CORRIGIDO) ───────────────────────────────────
+// ─── BRIEFING (CORRIGIDO - MOSTRA TODAS E NÃO SOME AO LER) ──
 export function useBriefing() {
   const { country } = useAuthStore()
   const [notifications, setNotifications] = useState<any[]>([])
@@ -83,14 +93,13 @@ export function useBriefing() {
     setLoading(true)
 
     try {
-      console.log('📡 [useBriefing] Buscando notificações não-lidas para country_id:', country.id)
+      console.log('📡 [useBriefing] Buscando TODAS as notificações para country_id:', country.id)
 
-      // ✅ FILTRA APENAS is_read: false (MUDANÇA CRÍTICA!)
+      // ✅ REMOVIDO O FILTRO is_read: false - Agora busca TODAS (lidas e não lidas)
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
         .eq('country_id', country.id)
-        .eq('is_read', false)  // ← IMPORTANTE: Só não-lidas
         .order('created_at', { ascending: false })
         .limit(50)
 
@@ -99,7 +108,7 @@ export function useBriefing() {
         throw error
       }
 
-      console.log('✅ [useBriefing] Notificações não-lidas recebidas:', data?.length || 0)
+      console.log('✅ [useBriefing] Notificações recebidas:', data?.length || 0)
       setNotifications(data ?? [])
       lastLoadedIdRef.current = country.id
     } catch (err) {
@@ -111,7 +120,7 @@ export function useBriefing() {
     }
   }, [country?.id])
 
-  // ✅ REALTIME CORRIGIDO: Trata INSERT e UPDATE corretamente
+  // ✅ REALTIME: Atualiza itens sem removê-los
   useEffect(() => {
     if (!country?.id) {
       setNotifications([])
@@ -132,8 +141,8 @@ export function useBriefing() {
         { event: 'INSERT', schema: 'public', table: 'notifications' },
         (payload) => {
           console.log('🆕 [useBriefing] Nova notificação INSERT:', payload.new.id)
-          if (payload.new.country_id === country.id && !payload.new.is_read) {
-            // ✅ Só adiciona se for não-lida
+          if (payload.new.country_id === country.id) {
+            // ✅ Adiciona a nova notificação no topo (mesmo que já esteja lida)
             setNotifications(prev => [payload.new, ...prev])
           }
         }
@@ -143,18 +152,11 @@ export function useBriefing() {
         { event: 'UPDATE', schema: 'public', table: 'notifications' },
         (payload) => {
           console.log('🔄 [useBriefing] Notificação UPDATE:', payload.new.id, 'is_read:', payload.new.is_read)
-
           if (payload.new.country_id === country.id) {
-            if (payload.new.is_read) {
-              // ✅ Se foi marcada como lida, REMOVE da lista
-              setNotifications(prev => prev.filter(n => n.id !== payload.new.id))
-              console.log('✅ [useBriefing] Notificação removida da lista (foi lida)')
-            } else {
-              // Se ainda não está lida, atualiza
-              setNotifications(prev =>
-                prev.map(n => (n.id === payload.new.id ? payload.new : n))
-              )
-            }
+            // ✅ Atualiza o item na lista (não remove)
+            setNotifications(prev =>
+              prev.map(n => (n.id === payload.new.id ? payload.new : n))
+            )
           }
         }
       )
@@ -166,16 +168,14 @@ export function useBriefing() {
     }
   }, [country?.id, fetchInitial])
 
-  // ✅ MARK READ: Remove localmente (atualização otimista)
+  // ✅ MARK READ: Atualiza localmente para is_read: true (NÃO REMOVE)
   const markRead = useCallback(async (id: string) => {
     console.log('📍 [useBriefing] markRead() chamado para:', id)
 
-    // Atualização otimista: REMOVE da lista imediatamente
-    setNotifications(prev => {
-      const remaining = prev.filter(n => n.id !== id)
-      console.log('✅ [useBriefing] Removido localmente. Restam:', remaining.length)
-      return remaining
-    })
+    // Atualiza o item para is_read: true sem removê-lo
+    setNotifications(prev =>
+      prev.map(n => (n.id === id ? { ...n, is_read: true } : n))
+    )
 
     // Atualiza no banco
     const { error } = await supabase
@@ -185,33 +185,32 @@ export function useBriefing() {
 
     if (error) {
       console.error('❌ [useBriefing] Erro ao marcar como lida:', error)
-      // Reverte se houver erro
       fetchInitial()
     } else {
       console.log('✅ [useBriefing] Marcada como lida no banco')
     }
   }, [fetchInitial])
 
-  // ✅ MARK ALL: Query direta (SEM RPC)
+  // ✅ MARK ALL: Atualiza todas localmente para is_read: true (NÃO LIMPA)
   const markAllRead = useCallback(async () => {
     if (!country?.id) return
 
     console.log('📋 [useBriefing] markAllRead() chamado. Notificações:', notifications.length)
 
-    // Atualização otimista: limpa a lista
-    setNotifications([])
-    console.log('✅ [useBriefing] Lista limpa localmente')
+    // Atualiza todas para is_read: true
+    setNotifications(prev =>
+      prev.map(n => ({ ...n, is_read: true }))
+    )
 
     // ✅ QUERY DIRETA (sem RPC) - atualiza todas não-lidas para lidas
     const { error } = await supabase
       .from('notifications')
       .update({ is_read: true })
       .eq('country_id', country.id)
-      .eq('is_read', false)  // Só atualiza as que ainda estão não-lidas
+      .eq('is_read', false)
 
     if (error) {
       console.error('❌ [useBriefing] Erro ao marcar todas como lidas:', error)
-      // Reverte se houver erro
       fetchInitial()
     } else {
       console.log('✅ [useBriefing] Todas marcadas como lidas no banco')
