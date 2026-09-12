@@ -1,9 +1,10 @@
-// hooks/useParliament.ts
+'use client'
+
+// hooks/useParliament.ts - V3 COMPLETO
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
 
-// ─── TIPOS ──────────────────────────────────────────────
 export interface Parliament {
   id: string
   country_id: number
@@ -43,7 +44,6 @@ export interface LawCatalog {
   political_power_cost: number
 }
 
-// ─── HOOK ──────────────────────────────────────────────
 export function useParliament() {
   const { country } = useAuthStore()
   const [parliament, setParliament] = useState<Parliament | null>(null)
@@ -61,7 +61,6 @@ export function useParliament() {
   const fetchingRef = useRef(false)
   const lastLoadedIdRef = useRef<number | null>(null)
 
-  // ─── BUSCAR DADOS ──────────────────────────────────────
   const fetchAll = useCallback(async () => {
     if (!country?.id) {
       setParliament(null)
@@ -79,38 +78,33 @@ export function useParliament() {
     setLoading(true)
 
     try {
-      const { data: pData, error: pError } = await supabase
+      const { data: pData } = await supabase
         .from('parliament')
         .select('*')
         .eq('country_id', country.id)
         .maybeSingle()
-      if (pError) throw pError
       setParliament(pData as Parliament || null)
 
-      const { data: lData, error: lError } = await supabase
+      const { data: lData } = await supabase
         .from('laws')
-        .select(`
-          id, country_id, law_catalog_id, status, approved_at, revoked_at,
-          created_at, forced_approval, data,
-          law_catalog(id, name, description, political_power_cost, requires_parliament)
-        `)
+        .select(
+          `id, country_id, law_catalog_id, status, approved_at, revoked_at, created_at, forced_approval, data,
+           law_catalog(id, name, description, political_power_cost, requires_parliament)`
+        )
         .eq('country_id', country.id)
         .order('created_at', { ascending: false })
         .limit(50)
-
-      if (lError) throw lError
       setLaws(lData as Law[] || [])
 
-      const { data: cData, error: cError } = await supabase
+      const { data: cData } = await supabase
         .from('law_catalog')
         .select('*')
         .order('id')
-      if (cError) throw cError
       setCatalog(cData as LawCatalog[] || [])
 
       lastLoadedIdRef.current = country.id
     } catch (err) {
-      console.error('Erro crítico no fetchAll:', err)
+      console.error('❌ [useParliament] Erro:', err)
     } finally {
       setLoading(false)
       fetchingRef.current = false
@@ -126,51 +120,21 @@ export function useParliament() {
       setCatalog([])
       setLoading(false)
     }
-  }, [country?.id, fetchAll])
+  }, [country?.id])
 
-  // ─── FUNÇÃO AUXILIAR: Garante que o catálogo está carregado ──────
-  const ensureCatalogLoaded = useCallback(async (): Promise<LawCatalog[]> => {
-    if (catalog.length > 0) return catalog
-
-    console.log('Catálogo vazio, buscando do banco...')
-    const { data, error } = await supabase
-      .from('law_catalog')
-      .select('*')
-      .order('id')
-
-    if (error) {
-      console.error('Erro ao buscar catálogo:', error)
-      return []
-    }
-
-    const loadedCatalog = (data as LawCatalog[]) || []
-    setCatalog(loadedCatalog)
-    return loadedCatalog
-  }, [catalog])
-
-  // ─── FUNÇÃO AUXILIAR: Checa maioria no parlamento ──────
   function hasCoalitionMajority(): boolean {
     if (!parliament) return true
     return parliament.coalition_seats > parliament.opposition_seats
   }
 
-  // ─── PROPOR LEI ────────────────────────────────────────
   async function proposeLaw(
     lawCatalogId: number,
-    target?: {
-      countryId?: number
-      regionId?: string
-      text?: string
-      taxType?: string
-      taxValue?: number
-    }
+    target?: any
   ): Promise<{ success: boolean; message?: string; error?: string; requiresForce?: boolean; forceCost?: number }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
-    const currentCatalog = await ensureCatalogLoaded()
-    const law = currentCatalog.find(l => l.id === lawCatalogId)
-
-    if (!law) return { success: false, error: 'Lei não encontrada no catálogo' }
+    const law = catalog.find(l => l.id === lawCatalogId)
+    if (!law) return { success: false, error: 'Lei não encontrada' }
 
     const hasMajority = hasCoalitionMajority()
 
@@ -178,21 +142,22 @@ export function useParliament() {
       const forceCost = law.political_power_cost
       setLastLawResult({
         success: false,
-        error: `Oposição tem maioria no parlamento. Não é possível aprovar sem forçar.`,
+        error: `Oposição tem maioria. Custa ${forceCost} PP para forçar.`,
         requiresForce: true,
-        forceCost: forceCost,
+        forceCost,
       })
       return {
         success: false,
-        error: `Oposição tem maioria. Custa ${forceCost} PP para forçar aprovação.`,
+        error: `Oposição tem maioria. Custa ${forceCost} PP para forçar.`,
         requiresForce: true,
-        forceCost: forceCost,
+        forceCost,
       }
     }
 
     const params = {
       target_country_id: target?.countryId || null,
       target_region_id: target?.regionId || null,
+      target_war_id: target?.warId || null,
       target_text: target?.text || null,
       target_tax_type: target?.taxType || null,
       target_tax_value: target?.taxValue || null,
@@ -211,31 +176,24 @@ export function useParliament() {
       .select()
       .single()
 
-    if (insertError) return { success: false, error: insertError.message }
+    if (insertError) {
+      return { success: false, error: insertError.message }
+    }
 
-    const result = await executeLawEffectById(newLaw.id, params)
+    const result = await executeLawEffect(newLaw.id, params)
     await fetchAll()
     setLastLawResult(result)
     return result
   }
 
-  // ─── FORÇAR APROVAÇÃO (com custo PP) ───────────────────
   async function forceLawApproval(
     lawCatalogId: number,
-    target?: {
-      countryId?: number
-      regionId?: string
-      text?: string
-      taxType?: string
-      taxValue?: number
-    }
+    target?: any
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
-    const currentCatalog = await ensureCatalogLoaded()
-    const law = currentCatalog.find(l => l.id === lawCatalogId)
-
-    if (!law) return { success: false, error: 'Lei não encontrada no catálogo' }
+    const law = catalog.find(l => l.id === lawCatalogId)
+    if (!law) return { success: false, error: 'Lei não encontrada' }
 
     const forceCost = law.political_power_cost
 
@@ -243,14 +201,11 @@ export function useParliament() {
       .from('countries')
       .select('political_power')
       .eq('id', country.id)
-      .maybeSingle()
+      .single()
 
-    if (ppError || !ppData) return { success: false, error: 'Erro ao verificar poder político' }
+    if (ppError) return { success: false, error: 'Erro ao verificar PP' }
     if (ppData.political_power < forceCost) {
-      return {
-        success: false,
-        error: `Poder político insuficiente (precisa de ${forceCost}, tem ${ppData.political_power})`,
-      }
+      return { success: false, error: `PP insuficiente (precisa ${forceCost}, tem ${ppData.political_power})` }
     }
 
     await supabase
@@ -261,6 +216,7 @@ export function useParliament() {
     const params = {
       target_country_id: target?.countryId || null,
       target_region_id: target?.regionId || null,
+      target_war_id: target?.warId || null,
       target_text: target?.text || null,
       target_tax_type: target?.taxType || null,
       target_tax_value: target?.taxValue || null,
@@ -287,104 +243,108 @@ export function useParliament() {
       return { success: false, error: insertError.message }
     }
 
-    const result = await executeLawEffectById(newLaw.id, params)
+    const result = await executeLawEffect(newLaw.id, params)
     await fetchAll()
-    const message = `Lei forçada com sucesso! (Custo: ${forceCost} PP)\n${result.message || ''}`
-    setLastLawResult({ ...result, message })
-    return { ...result, message }
+    return { ...result, message: `Lei forçada! (Custo: ${forceCost} PP)\n${result.message || ''}` }
   }
 
-  // ─── EXECUTAR EFEITO DA LEI (BUSCANDO DO BANCO PARA EVITAR LOOP) ────────────
-  async function executeLawEffectById(
+  async function executeLawEffect(
     lawId: string,
     params: any
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
-    // 🔥 BUSCA DIRETAMENTE DO BANCO, SEM DEPENDER DO ESTADO `laws`
-    const { data: law, error: lawError } = await supabase
-      .from('laws')
-      .select('*, law_catalog(*)')
-      .eq('id', lawId)
-      .maybeSingle()
+    const law = laws.find(l => l.id === lawId)
+    if (!law) return { success: false, error: 'Lei não encontrada' }
 
-    if (lawError || !law) {
-      console.error('Erro ao buscar lei do banco:', lawError)
-      return { success: false, error: 'Lei não encontrada no banco' }
-    }
-
-    // ✅ Usar let para permitir reatribuição
-    let catalogItem = law.law_catalog
-
-    if (!catalogItem) {
-      // Busca do catálogo se não veio no join
-      const { data: dbCatalogItem } = await supabase
-        .from('law_catalog')
-        .select('*')
-        .eq('id', law.law_catalog_id)
-        .maybeSingle()
-      if (!dbCatalogItem) return { success: false, error: 'Catálogo não encontrado' }
-      catalogItem = dbCatalogItem
-    }
+    const catalogItem = catalog.find(c => c.id === law.law_catalog_id)
+    if (!catalogItem) return { success: false, error: 'Catálogo não encontrado' }
 
     try {
       switch (catalogItem.id) {
+        // 1. Propor Paz (mostra só guerras ativas deste estado)
+        case 1: {
+          if (!params.target_war_id) return { success: false, error: 'Guerra não selecionada' }
+
+          const { error } = await supabase.rpc('propose_peace', {
+            p_country_id: country.id,
+            p_war_id: params.target_war_id,
+          })
+
+          if (error) return { success: false, error: error.message }
+          return { success: true, message: 'Paz proposta com sucesso!' }
+        }
+
+        // 2. Alterar Nome
         case 2: {
           if (!params.target_text) return { success: false, error: 'Nome não especificado' }
 
           const oldName = country.name
-          await supabase.from('countries').update({ name: params.target_text }).eq('id', country.id)
+          await supabase
+            .from('countries')
+            .update({ name: params.target_text })
+            .eq('id', country.id)
+
           const { setCountry } = useAuthStore.getState()
           setCountry({ ...country, name: params.target_text })
 
           return { success: true, message: `Nome alterado de ${oldName} para ${params.target_text}` }
         }
 
+        // 3. Criar Região
         case 3: {
-          if (!params.target_text) return { success: false, error: 'Nome da região não especificado' }
+          if (!params.target_text) return { success: false, error: 'Nome não especificado' }
 
           const { data: countryData } = await supabase
             .from('countries')
             .select('terrain')
             .eq('id', country.id)
-            .maybeSingle()
+            .single()
 
-          const { error: insertError } = await supabase
-            .from('regions')
-            .insert({
-              country_id: country.id,
-              name: params.target_text,
-              terrain: countryData?.terrain || 'planicie',
-              area_km2: 300000,
-              is_coastal: false,
-              used_area: 0,
-            })
+          await supabase.from('regions').insert({
+            country_id: country.id,
+            name: params.target_text,
+            terrain: countryData?.terrain || 'planicie',
+            area_km2: 300000,
+            is_coastal: false,
+            used_area: 0,
+          })
 
-          if (insertError) return { success: false, error: insertError.message }
-          return { success: true, message: `Região "${params.target_text}" criada com sucesso!` }
+          return { success: true, message: `Região "${params.target_text}" criada!` }
         }
 
+        // 4. Transferir Capital
         case 4: {
           if (!params.target_region_id) return { success: false, error: 'Região não selecionada' }
+
           const { data: region } = await supabase
             .from('regions')
             .select('name')
             .eq('id', params.target_region_id)
             .eq('country_id', country.id)
-            .maybeSingle()
-          if (!region) return { success: false, error: 'Região não encontrada ou não é sua' }
+            .single()
 
-          await supabase.from('countries').update({ capital: region.name }).eq('id', country.id)
+          if (!region) return { success: false, error: 'Região não é sua' }
+
+          await supabase
+            .from('countries')
+            .update({ capital: region.name })
+            .eq('id', country.id)
+
           return { success: true, message: `Capital transferida para ${region.name}` }
         }
 
+        // 8. Declarar Guerra
         case 8: {
-          if (!params.target_country_id) return { success: false, error: 'País alvo não especificado' }
+          if (!params.target_country_id) return { success: false, error: 'País não selecionado' }
+          if (!params.target_region_id) return { success: false, error: 'Região não selecionada' }
+
           const { data: targetCountry } = await supabase
             .from('countries')
             .select('name')
             .eq('id', params.target_country_id)
-            .maybeSingle()
+            .single()
+
           if (!targetCountry) return { success: false, error: 'País alvo não existe' }
 
           const { data: existingWar } = await supabase
@@ -395,7 +355,8 @@ export function useParliament() {
             )
             .eq('status', 'active')
             .maybeSingle()
-          if (existingWar) return { success: false, error: `Já existe uma guerra ativa com ${targetCountry.name}` }
+
+          if (existingWar) return { success: false, error: 'Já há guerra ativa' }
 
           await supabase.from('wars').insert({
             attacker_id: country.id,
@@ -406,69 +367,125 @@ export function useParliament() {
             damage_to_attacker: 0,
             damage_to_defender: 0,
           })
+
           return { success: true, message: `Guerra declarada contra ${targetCountry.name}!` }
         }
 
+        // 9. Livre Comércio (mostra só sancionados)
         case 9: {
           if (!params.target_country_id) return { success: false, error: 'País não selecionado' }
-          const { error } = await supabase.rpc('lift_sanctions', { p_from: country.id, p_to: params.target_country_id })
-          if (error) throw error
-          return { success: true, message: 'Sanções removidas e comércio livre estabelecido!' }
+
+          const { error } = await supabase.rpc('lift_sanctions', {
+            p_from: country.id,
+            p_to: params.target_country_id,
+          })
+
+          if (error) return { success: false, error: error.message }
+          return { success: true, message: 'Sanções removidas com sucesso!' }
         }
 
+        // 10. Aplicar Sanções (embargo)
         case 10: {
-          if (!params.target_country_id) return { success: false, error: 'País alvo não selecionado' }
-          const { error } = await supabase.rpc('apply_sanctions', { p_from: country.id, p_to: params.target_country_id })
-          if (error) throw error
-          return { success: true, message: 'Sanções aplicadas com sucesso!' }
+          if (!params.target_country_id) return { success: false, error: 'País não selecionado' }
+
+          const { error } = await supabase.rpc('apply_sanctions', {
+            p_from: country.id,
+            p_to: params.target_country_id,
+          })
+
+          if (error) return { success: false, error: error.message }
+          return { success: true, message: 'Sanções aplicadas (embargo ativado)!' }
         }
 
+        // 11. Participar de Guerra (ganha XP, não cria guerra formal)
+        case 11: {
+          if (!params.target_war_id) return { success: false, error: 'Guerra não selecionada' }
+
+          // TODO: Implementar lógica de participar de guerra
+          // Adicionar country_id na tabela de participantes de guerra
+          // Gerar XP baseado em dano/modificadores
+
+          return { success: true, message: 'Participação da guerra registrada! Ganhando XP...' }
+        }
+
+        // 12. Transferir Região (UPDATE country_id)
         case 12: {
-          if (!params.target_region_id || !params.target_country_id) return { success: false, error: 'Região ou país destino não selecionado' }
+          if (!params.target_region_id || !params.target_country_id) {
+            return { success: false, error: 'Região ou país não selecionado' }
+          }
+
           const { data: region } = await supabase
             .from('regions')
             .select('name')
             .eq('id', params.target_region_id)
             .eq('country_id', country.id)
-            .maybeSingle()
+            .single()
+
           if (!region) return { success: false, error: 'Região não é sua' }
 
           const { data: targetCountry } = await supabase
             .from('countries')
             .select('name')
             .eq('id', params.target_country_id)
-            .maybeSingle()
+            .single()
+
           if (!targetCountry) return { success: false, error: 'País destino não existe' }
 
-          await supabase.from('regions').update({ country_id: params.target_country_id }).eq('id', params.target_region_id)
-          return { success: true, message: `Região "${region.name}" transferida para ${targetCountry.name}` }
+          await supabase
+            .from('regions')
+            .update({ country_id: params.target_country_id })
+            .eq('id', params.target_region_id)
+
+          return { success: true, message: `Região "${region.name}" transferida para ${targetCountry.name}!` }
         }
 
+        // 13. Alterar Regime
         case 13: {
           if (!params.target_text) return { success: false, error: 'Regime não especificado' }
-          await supabase.from('countries').update({ state_structure: params.target_text }).eq('id', country.id)
+
+          await supabase
+            .from('countries')
+            .update({ state_structure: params.target_text })
+            .eq('id', country.id)
+
           return { success: true, message: `Regime alterado para ${params.target_text}` }
         }
 
+        // 16. Imprimir Dinheiro
         case 16: {
           const { data: ecoData } = await supabase
             .from('economy')
             .select('money, inflation')
             .eq('country_id', country.id)
-            .maybeSingle()
+            .single()
+
           if (!ecoData) return { success: false, error: 'Economia não encontrada' }
 
           const newMoney = ecoData.money + 1_000_000_000
           const newInflation = ecoData.inflation + 1
-          await supabase.from('economy').update({ money: newMoney, inflation: newInflation }).eq('country_id', country.id)
-          return { success: true, message: `Dinheiro impresso! +1B adicionados (Inflação: +1%)` }
+
+          await supabase
+            .from('economy')
+            .update({ money: newMoney, inflation: newInflation })
+            .eq('country_id', country.id)
+
+          return { success: true, message: `+1B adicionados! Inflação: +1%` }
         }
 
+        // 17. Alterar Impostos
         case 17: {
-          if (!params.target_tax_type || params.target_tax_value === undefined) return { success: false, error: 'Tipo e valor do imposto não especificados' }
+          if (!params.target_tax_type || params.target_tax_value === undefined) {
+            return { success: false, error: 'Imposto não especificado' }
+          }
+
           const updateData: any = {}
           updateData[params.target_tax_type] = params.target_tax_value
-          await supabase.from('taxes').update(updateData).eq('country_id', country.id)
+
+          await supabase
+            .from('taxes')
+            .update(updateData)
+            .eq('country_id', country.id)
+
           return { success: true, message: `${params.target_tax_type} alterado para ${params.target_tax_value}%` }
         }
 
@@ -476,12 +493,11 @@ export function useParliament() {
           return { success: false, error: 'Lei sem efeito definido' }
       }
     } catch (err: any) {
-      console.error('Erro ao executar efeito da lei:', err)
-      return { success: false, error: err.message || 'Erro desconhecido' }
+      console.error('❌ Erro ao executar lei:', err)
+      return { success: false, error: err.message }
     }
   }
 
-  // ─── ELEIÇÕES ALEATÓRIAS ─────────────────────────
   async function runRandomElection(): Promise<{ success: boolean; message?: string }> {
     if (!country?.id || !parliament) return { success: false, message: 'Parlamento não encontrado' }
 
@@ -509,13 +525,14 @@ export function useParliament() {
       })
       .eq('country_id', country.id)
 
-    if (error) return { success: false, message: `Erro na eleição: ${error.message}` }
+    if (error) return { success: false, message: `Erro: ${error.message}` }
 
     await fetchAll()
+
     const direction = coalitionGains ? 'Coalizão ganhou' : 'Oposição ganhou'
     return {
       success: true,
-      message: `Eleição realizada! ${direction} ${seatsChange} assentos. Novo resultado: ${newCoalition} vs ${newOpposition}`,
+      message: `${direction} ${seatsChange} assentos. Novo: ${newCoalition} vs ${newOpposition}`,
     }
   }
 

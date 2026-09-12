@@ -1,4 +1,4 @@
-// hooks/useWar.ts
+// hooks/useWar.ts - VERSÃO FINAL
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
@@ -15,6 +15,8 @@ export interface War {
   started_at: string
   damage_to_attacker: number | null
   damage_to_defender: number | null
+  pending_peace_from: number | null
+  peace_proposed_at: string | null
   attacker: {
     name: string
     flag_emoji: string
@@ -86,14 +88,14 @@ export function useWar() {
         // Minhas guerras (ativas e pausadas)
         supabase
           .from('wars')
-          .select('id, attacker_id, defender_id, status, terrain, started_at, damage_to_attacker, damage_to_defender')
+          .select('id, attacker_id, defender_id, status, terrain, started_at, damage_to_attacker, damage_to_defender, pending_peace_from, peace_proposed_at')
           .or(`attacker_id.eq.${country.id},defender_id.eq.${country.id}`)
           .in('status', ['active', 'paused']),
 
         // Guerras do mundo (apenas ativas)
         supabase
           .from('wars')
-          .select('id, attacker_id, defender_id, status, terrain, started_at, damage_to_attacker, damage_to_defender')
+          .select('id, attacker_id, defender_id, status, terrain, started_at, damage_to_attacker, damage_to_defender, pending_peace_from, peace_proposed_at')
           .eq('status', 'active')
           .order('started_at', { ascending: false })
           .limit(20),
@@ -116,7 +118,7 @@ export function useWar() {
         supabase.from('countries').select('id, name, flag_emoji'),
       ])
 
-      // 2. Criar map de países
+      // Criar map de países
       const countryMap = new Map()
       if (allCountries && allCountries.data) {
         allCountries.data.forEach((c: any) => {
@@ -124,7 +126,7 @@ export function useWar() {
         })
       }
 
-      // 3. Enriquecer guerras
+      // Enriquecer guerras
       const enrichWars = (wars: any[]) =>
         wars.map((war: any) => ({
           ...war,
@@ -174,8 +176,11 @@ export function useWar() {
     return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
   }
 
+  // ✅ ATAQUE - usa SOMENTE a RPC (dano real)
   async function attack(warId: string, unitType: string, quantity: number): Promise<RpcAttackResult> {
-    if (!country?.id) return { success: false, error: 'País não encontrado', damage_dealt: 0, losses_suffered: 0 }
+    if (!country?.id) {
+      return { success: false, error: 'País não encontrado', damage_dealt: 0, losses_suffered: 0 }
+    }
 
     try {
       const { data, error } = await supabase.rpc('attack', {
@@ -187,15 +192,24 @@ export function useWar() {
 
       if (error) throw error
 
-      await addCombatXP(10)
+      lastLoadedIdRef.current = null
       await fetchAll()
 
-      return (data as RpcAttackResult) ?? { success: false, error: 'Erro desconhecido', damage_dealt: 0, losses_suffered: 0 }
+      return (data as RpcAttackResult) ?? {
+        success: false,
+        error: 'Erro desconhecido',
+        damage_dealt: 0,
+        losses_suffered: 0,
+      }
     } catch (err: any) {
+      console.error('❌ Erro ao executar ataque:', err)
       return { success: false, error: err.message, damage_dealt: 0, losses_suffered: 0 }
     }
   }
 
+  // ─── PAZ ──────────────────────────────────────────────
+
+  // ✅ Propor paz
   async function proposePeace(warId: string): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
@@ -204,6 +218,36 @@ export function useWar() {
       p_country_id: country.id,
     })
 
+    await fetchAll()
+    if (error) return { success: false, error: error.message }
+    return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
+  }
+
+  // ✅ Aceitar paz
+  async function acceptPeace(warId: string): Promise<RpcSimpleResult> {
+    if (!country?.id) return { success: false, error: 'País não encontrado' }
+
+    const { data, error } = await supabase.rpc('accept_peace', {
+      p_war_id: warId,
+      p_country_id: country.id,
+    })
+
+    lastLoadedIdRef.current = null
+    await fetchAll()
+    if (error) return { success: false, error: error.message }
+    return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
+  }
+
+  // ✅ Recusar paz
+  async function rejectPeace(warId: string): Promise<RpcSimpleResult> {
+    if (!country?.id) return { success: false, error: 'País não encontrado' }
+
+    const { data, error } = await supabase.rpc('reject_peace', {
+      p_war_id: warId,
+      p_country_id: country.id,
+    })
+
+    lastLoadedIdRef.current = null
     await fetchAll()
     if (error) return { success: false, error: error.message }
     return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
@@ -259,6 +303,8 @@ export function useWar() {
     declareWar,
     attack,
     proposePeace,
+    acceptPeace,
+    rejectPeace,
     refetch: fetchAll,
   }
 }

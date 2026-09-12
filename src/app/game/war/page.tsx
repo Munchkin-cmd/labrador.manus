@@ -1,25 +1,34 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { useWar } from '@/hooks/useWar'
 import { useAuthStore } from '@/store/authStore'
 import { formatNumber } from '@/utils/format'
-import { Swords, Shield, Users } from 'lucide-react'
+import { Swords, Shield, Check, X, Clock } from 'lucide-react'
 
 const UNITS = [
-  { key: 'soldiers',   label: 'Soldados',    emoji: '⚔️' },
-  { key: 'tanks',      label: 'Tanques',      emoji: '🛡️' },
-  { key: 'artillery',  label: 'Artilharia',   emoji: '💣' },
-  { key: 'aircraft',   label: 'Aeronaves',    emoji: '✈️' },
-  { key: 'helicopters',label: 'Helicópteros', emoji: '🚁' },
-  { key: 'drones',     label: 'Drones',       emoji: '🤖' },
-  { key: 'missiles',   label: 'Mísseis',      emoji: '🎯' },
-  { key: 'warheads',   label: 'Ogivas',       emoji: '☢️' },
+  { key: 'soldiers',    label: 'Soldados',    emoji: '⚔️' },
+  { key: 'tanks',       label: 'Tanques',     emoji: '🛡️' },
+  { key: 'artillery',   label: 'Artilharia',  emoji: '💣' },
+  { key: 'aircraft',    label: 'Aeronaves',   emoji: '✈️' },
+  { key: 'helicopters', label: 'Helicópteros',emoji: '🚁' },
+  { key: 'drones',      label: 'Drones',      emoji: '🤖' },
+  { key: 'missiles',    label: 'Mísseis',     emoji: '🎯' },
+  { key: 'warheads',    label: 'Ogivas',      emoji: '☢️' },
 ]
 
 export default function WarPage() {
-  const { myWars, worldWars, military, combatXP, loading, attack, proposePeace } = useWar()
+  const {
+    myWars,
+    worldWars,
+    military,
+    combatXP,
+    loading,
+    attack,
+    proposePeace,
+    acceptPeace,
+    rejectPeace,
+  } = useWar()
   const { country: myCountry } = useAuthStore()
 
   const [attackWarId, setAttackWarId] = useState('')
@@ -27,6 +36,7 @@ export default function WarPage() {
   const [attackQty, setAttackQty] = useState(1)
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [peaceLoading, setPeaceLoading] = useState<string | null>(null)
 
   if (loading) {
     return (
@@ -40,13 +50,47 @@ export default function WarPage() {
     if (!attackWarId || !attackUnit) return
     setSubmitting(true)
     setFeedback('')
+
     const res = await attack(attackWarId, attackUnit, attackQty)
+
     if (res.success) {
-      setFeedback(`✅ Ataque realizado! Dano: ${res.damage_dealt}`)
+      setFeedback(
+        `✅ Ataque realizado! Dano: ${formatNumber(res.damage_dealt)} | Perdas: ${formatNumber(res.losses_suffered)}`
+      )
+      setTimeout(() => {
+        setAttackWarId('')
+        setFeedback('')
+        setAttackQty(1)
+        setAttackUnit('')
+      }, 2500)
     } else {
       setFeedback(`❌ ${res.error || 'Erro ao atacar'}`)
     }
     setSubmitting(false)
+  }
+
+  async function handleProposePeace(warId: string) {
+    if (!confirm('Tem certeza que deseja propor paz? O inimigo poderá aceitar ou recusar.')) return
+    setPeaceLoading(warId)
+    const res = await proposePeace(warId)
+    alert(res.success ? '🕊️ Proposta de paz enviada!' : `❌ ${res.error}`)
+    setPeaceLoading(null)
+  }
+
+  async function handleAcceptPeace(warId: string) {
+    if (!confirm('Aceitar a paz encerrará a guerra permanentemente. Confirmar?')) return
+    setPeaceLoading(warId)
+    const res = await acceptPeace(warId)
+    alert(res.success ? '🕊️ Paz aceita! Guerra encerrada.' : `❌ ${res.error}`)
+    setPeaceLoading(null)
+  }
+
+  async function handleRejectPeace(warId: string) {
+    if (!confirm('Recusar a paz fará a guerra continuar. Confirmar?')) return
+    setPeaceLoading(warId)
+    const res = await rejectPeace(warId)
+    alert(res.success ? '❌ Paz recusada. A guerra continua.' : `❌ ${res.error}`)
+    setPeaceLoading(null)
   }
 
   return (
@@ -80,10 +124,59 @@ export default function WarPage() {
               const isAttacker = war.attacker_id === Number(myCountry?.id)
               const myDamage = isAttacker ? war.damage_to_attacker : war.damage_to_defender
               const enemyDamage = isAttacker ? war.damage_to_defender : war.damage_to_attacker
-              const enemy = isAttacker ? war.defender : war.attacker
+
+              const enemyProposedPeace =
+                war.pending_peace_from !== null &&
+                war.pending_peace_from !== Number(myCountry?.id)
+
+              const iProposedPeace =
+                war.pending_peace_from !== null &&
+                war.pending_peace_from === Number(myCountry?.id)
 
               return (
                 <div key={war.id} className="bg-surface-card rounded-xl p-4 border border-white/5">
+
+                  {/* BANNER: PROPOSTA DE PAZ RECEBIDA */}
+                  {enemyProposedPeace && (
+                    <div className="mb-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                      <p className="text-yellow-400 font-bold text-sm mb-2 text-center">
+                        🕊️ O inimigo propôs PAZ!
+                      </p>
+                      <p className="text-white/60 text-xs mb-3 text-center">
+                        Aceitar encerra a guerra. Recusar continua o combate.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleAcceptPeace(war.id)}
+                          disabled={peaceLoading === war.id}
+                          className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-1"
+                        >
+                          <Check size={16} /> ACEITAR PAZ
+                        </button>
+                        <button
+                          onClick={() => handleRejectPeace(war.id)}
+                          disabled={peaceLoading === war.id}
+                          className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-1"
+                        >
+                          <X size={16} /> RECUSAR
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* BANNER: EU PROPUS PAZ */}
+                  {iProposedPeace && (
+                    <div className="mb-4 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-center">
+                      <p className="text-blue-400 font-bold text-sm flex items-center justify-center gap-2">
+                        <Clock size={16} /> Aguardando resposta do inimigo...
+                      </p>
+                      <p className="text-white/40 text-xs mt-1">
+                        Você propôs paz. O inimigo precisa aceitar ou recusar.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* CONFRONTO */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">{war.attacker?.flag_emoji}</span>
@@ -102,17 +195,19 @@ export default function WarPage() {
                     </div>
                   </div>
 
+                  {/* DANO */}
                   <div className="grid grid-cols-2 gap-2 text-sm mb-3">
                     <div className="bg-black/20 rounded-lg p-2 text-center">
-                      <span className="text-white/40 text-xs">Seu dano</span>
-                      <p className="text-white font-bold text-base">{formatNumber(myDamage || 0)}</p>
+                      <span className="text-white/40 text-xs">Seu dano causado</span>
+                      <p className="text-green-400 font-bold text-base">{formatNumber(myDamage || 0)}</p>
                     </div>
                     <div className="bg-black/20 rounded-lg p-2 text-center">
-                      <span className="text-white/40 text-xs">Dano inimigo</span>
-                      <p className="text-white font-bold text-base">{formatNumber(enemyDamage || 0)}</p>
+                      <span className="text-white/40 text-xs">Dano recebido</span>
+                      <p className="text-red-400 font-bold text-base">{formatNumber(enemyDamage || 0)}</p>
                     </div>
                   </div>
 
+                  {/* AÇÕES */}
                   <div className="flex gap-2">
                     <button
                       onClick={() => setAttackWarId(war.id)}
@@ -121,10 +216,15 @@ export default function WarPage() {
                       <Swords size={16} /> Atacar
                     </button>
                     <button
-                      onClick={() => proposePeace(war.id)}
-                      className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-2 rounded-lg transition-colors text-sm"
+                      onClick={() => handleProposePeace(war.id)}
+                      disabled={iProposedPeace || enemyProposedPeace || peaceLoading === war.id}
+                      className="flex-1 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg transition-colors text-sm"
                     >
-                      🕊️ Propor Paz
+                      {iProposedPeace
+                        ? '⏳ Proposta Enviada'
+                        : enemyProposedPeace
+                        ? '⚠️ Responder Paz'
+                        : '🕊️ Propor Paz'}
                     </button>
                   </div>
                 </div>
@@ -186,7 +286,7 @@ export default function WarPage() {
               <h3 className="text-white font-bold text-lg flex items-center gap-2">
                 <Swords size={20} className="text-red-500" /> Enviar Ataque
               </h3>
-              <button onClick={() => setAttackWarId('')} className="text-white/40 hover:text-white text-xl">
+              <button onClick={() => { setAttackWarId(''); setFeedback('') }} className="text-white/40 hover:text-white text-xl">
                 ✕
               </button>
             </div>
@@ -194,7 +294,7 @@ export default function WarPage() {
             <select
               value={attackUnit}
               onChange={(e) => setAttackUnit(e.target.value)}
-              className="input-field mb-3"
+              className="input-field mb-3 w-full"
             >
               <option value="">Selecionar unidade...</option>
               {UNITS.map((u) => (
@@ -208,6 +308,7 @@ export default function WarPage() {
               <input
                 type="number"
                 min={1}
+                max={military?.[attackUnit] ?? 1}
                 value={attackQty}
                 onChange={(e) => setAttackQty(Number(e.target.value))}
                 className="input-field flex-1"
@@ -223,7 +324,13 @@ export default function WarPage() {
             </div>
 
             {feedback && (
-              <p className={`text-sm text-center p-2 rounded-lg ${feedback.startsWith('✅') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+              <p
+                className={`text-sm text-center p-3 rounded-lg ${
+                  feedback.startsWith('✅')
+                    ? 'bg-green-500/20 text-green-400'
+                    : 'bg-red-500/20 text-red-400'
+                }`}
+              >
                 {feedback}
               </p>
             )}
