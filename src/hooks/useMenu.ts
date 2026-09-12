@@ -142,7 +142,6 @@ export function useBriefing() {
         (payload) => {
           console.log('🆕 [useBriefing] Nova notificação INSERT:', payload.new.id)
           if (payload.new.country_id === country.id) {
-            // ✅ Adiciona a nova notificação no topo (mesmo que já esteja lida)
             setNotifications(prev => [payload.new, ...prev])
           }
         }
@@ -153,7 +152,6 @@ export function useBriefing() {
         (payload) => {
           console.log('🔄 [useBriefing] Notificação UPDATE:', payload.new.id, 'is_read:', payload.new.is_read)
           if (payload.new.country_id === country.id) {
-            // ✅ Atualiza o item na lista (não remove)
             setNotifications(prev =>
               prev.map(n => (n.id === payload.new.id ? payload.new : n))
             )
@@ -172,12 +170,10 @@ export function useBriefing() {
   const markRead = useCallback(async (id: string) => {
     console.log('📍 [useBriefing] markRead() chamado para:', id)
 
-    // Atualiza o item para is_read: true sem removê-lo
     setNotifications(prev =>
       prev.map(n => (n.id === id ? { ...n, is_read: true } : n))
     )
 
-    // Atualiza no banco
     const { error } = await supabase
       .from('notifications')
       .update({ is_read: true })
@@ -197,12 +193,10 @@ export function useBriefing() {
 
     console.log('📋 [useBriefing] markAllRead() chamado. Notificações:', notifications.length)
 
-    // Atualiza todas para is_read: true
     setNotifications(prev =>
       prev.map(n => ({ ...n, is_read: true }))
     )
 
-    // ✅ QUERY DIRETA (sem RPC) - atualiza todas não-lidas para lidas
     const { error } = await supabase
       .from('notifications')
       .update({ is_read: true })
@@ -528,6 +522,7 @@ export function useTaxes() {
     }
   }, [country?.id, fetchTaxes])
 
+  // ✅ CORRIGIDO: apenas 3 impostos existem no banco
   async function saveTaxes(updated: any) {
     setSaving(true)
 
@@ -536,13 +531,11 @@ export function useTaxes() {
       return { success: false, error: 'País não encontrado' }
     }
 
+    // ✅ Somente colunas que existem na tabela `taxes`
     const updateData = {
       income_tax: Number(updated.income_tax) || 0,
-      corporate_tax: Number(updated.corporate_tax) || 0,
       property_tax: Number(updated.property_tax) || 0,
       manufacturing_tax: Number(updated.manufacturing_tax) || 0,
-      vat: Number(updated.vat) || 0,
-      customs: Number(updated.customs) || 0,
     }
 
     const { error: taxError } = await supabase
@@ -556,7 +549,8 @@ export function useTaxes() {
       return { success: false, error: taxError.message }
     }
 
-    const taxFields = ['income_tax', 'corporate_tax', 'property_tax', 'manufacturing_tax', 'vat', 'customs']
+    // ✅ Apenas 3 impostos para cálculo de penalidade
+    const taxFields = ['income_tax', 'property_tax', 'manufacturing_tax']
     const totalTax = taxFields.reduce((sum, key) => sum + (Number(updated[key] ?? 0)), 0)
     const avgTax = totalTax / taxFields.length
     const trustPenalty = avgTax > 40 ? (avgTax - 40) * 0.5 : 0
