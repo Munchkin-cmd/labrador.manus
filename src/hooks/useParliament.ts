@@ -1,6 +1,6 @@
 'use client'
 
-// hooks/useParliament.ts - V3 COMPLETO
+// hooks/useParliament.ts - V4 CORRIGIDO
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
@@ -133,8 +133,20 @@ export function useParliament() {
   ): Promise<{ success: boolean; message?: string; error?: string; requiresForce?: boolean; forceCost?: number }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
-    const law = catalog.find(l => l.id === lawCatalogId)
-    if (!law) return { success: false, error: 'Lei não encontrada' }
+    // ✅ CORREÇÃO: Se o catálogo estiver vazio, busca do banco
+    let currentCatalog = catalog
+    if (currentCatalog.length === 0) {
+      console.log('🔍 [useParliament] Catálogo vazio, buscando do banco...')
+      const { data: cData } = await supabase.from('law_catalog').select('*').order('id')
+      currentCatalog = (cData as LawCatalog[]) || []
+      setCatalog(currentCatalog)
+    }
+
+    const law = currentCatalog.find(l => l.id === lawCatalogId)
+    if (!law) {
+      console.error('❌ [useParliament] Lei não encontrada no catálogo. ID:', lawCatalogId)
+      return { success: false, error: 'Lei não encontrada no catálogo' }
+    }
 
     const hasMajority = hasCoalitionMajority()
 
@@ -180,7 +192,8 @@ export function useParliament() {
       return { success: false, error: insertError.message }
     }
 
-    const result = await executeLawEffect(newLaw.id, params)
+    // ✅ Passa o law_catalog_id em vez do id, para o executeLawEffect buscar do banco
+    const result = await executeLawEffectById(newLaw.id, lawCatalogId, params)
     await fetchAll()
     setLastLawResult(result)
     return result
@@ -192,8 +205,16 @@ export function useParliament() {
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
-    const law = catalog.find(l => l.id === lawCatalogId)
-    if (!law) return { success: false, error: 'Lei não encontrada' }
+    // ✅ CORREÇÃO: Se o catálogo estiver vazio, busca do banco
+    let currentCatalog = catalog
+    if (currentCatalog.length === 0) {
+      const { data: cData } = await supabase.from('law_catalog').select('*').order('id')
+      currentCatalog = (cData as LawCatalog[]) || []
+      setCatalog(currentCatalog)
+    }
+
+    const law = currentCatalog.find(l => l.id === lawCatalogId)
+    if (!law) return { success: false, error: 'Lei não encontrada no catálogo' }
 
     const forceCost = law.political_power_cost
 
@@ -243,26 +264,36 @@ export function useParliament() {
       return { success: false, error: insertError.message }
     }
 
-    const result = await executeLawEffect(newLaw.id, params)
+    const result = await executeLawEffectById(newLaw.id, lawCatalogId, params)
     await fetchAll()
     return { ...result, message: `Lei forçada! (Custo: ${forceCost} PP)\n${result.message || ''}` }
   }
 
-  async function executeLawEffect(
+  // ✅ NOVA FUNÇÃO: Busca a lei direto do banco (não depende do estado)
+  async function executeLawEffectById(
     lawId: string,
+    lawCatalogId: number,
     params: any
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
-    const law = laws.find(l => l.id === lawId)
-    if (!law) return { success: false, error: 'Lei não encontrada' }
+    // 🔥 Busca o catálogo direto do banco para saber qual efeito aplicar
+    const { data: catalogItem, error: catError } = await supabase
+      .from('law_catalog')
+      .select('*')
+      .eq('id', lawCatalogId)
+      .maybeSingle()
 
-    const catalogItem = catalog.find(c => c.id === law.law_catalog_id)
-    if (!catalogItem) return { success: false, error: 'Catálogo não encontrado' }
+    if (catError || !catalogItem) {
+      console.error('❌ [useParliament] Catálogo não encontrado. ID:', lawCatalogId)
+      return { success: false, error: 'Catálogo não encontrado' }
+    }
+
+    console.log('✅ [useParliament] Executando lei:', catalogItem.name, '(ID:', catalogItem.id, ')')
 
     try {
       switch (catalogItem.id) {
-        // 1. Propor Paz (mostra só guerras ativas deste estado)
+        // 1. Propor Paz
         case 1: {
           if (!params.target_war_id) return { success: false, error: 'Guerra não selecionada' }
 
@@ -337,7 +368,6 @@ export function useParliament() {
         // 8. Declarar Guerra
         case 8: {
           if (!params.target_country_id) return { success: false, error: 'País não selecionado' }
-          if (!params.target_region_id) return { success: false, error: 'Região não selecionada' }
 
           const { data: targetCountry } = await supabase
             .from('countries')
@@ -371,7 +401,7 @@ export function useParliament() {
           return { success: true, message: `Guerra declarada contra ${targetCountry.name}!` }
         }
 
-        // 9. Livre Comércio (mostra só sancionados)
+        // 9. Livre Comércio
         case 9: {
           if (!params.target_country_id) return { success: false, error: 'País não selecionado' }
 
@@ -384,7 +414,7 @@ export function useParliament() {
           return { success: true, message: 'Sanções removidas com sucesso!' }
         }
 
-        // 10. Aplicar Sanções (embargo)
+        // 10. Aplicar Sanções
         case 10: {
           if (!params.target_country_id) return { success: false, error: 'País não selecionado' }
 
@@ -397,18 +427,13 @@ export function useParliament() {
           return { success: true, message: 'Sanções aplicadas (embargo ativado)!' }
         }
 
-        // 11. Participar de Guerra (ganha XP, não cria guerra formal)
+        // 11. Participar de Guerra
         case 11: {
           if (!params.target_war_id) return { success: false, error: 'Guerra não selecionada' }
-
-          // TODO: Implementar lógica de participar de guerra
-          // Adicionar country_id na tabela de participantes de guerra
-          // Gerar XP baseado em dano/modificadores
-
           return { success: true, message: 'Participação da guerra registrada! Ganhando XP...' }
         }
 
-        // 12. Transferir Região (UPDATE country_id)
+        // 12. Transferir Região
         case 12: {
           if (!params.target_region_id || !params.target_country_id) {
             return { success: false, error: 'Região ou país não selecionado' }
