@@ -1,401 +1,538 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useEco } from '@/hooks/useEco'
-import { useWar } from '@/hooks/useWar'
-import { formatMoney, formatNumber, formatTime } from '@/utils/format'
-import { Hammer, Package, AlertTriangle, RefreshCw } from 'lucide-react'
-import { BuildingsOverview } from '@/components/BuildingsOverview'
+import { formatMoney, formatNumber } from '@/utils/format'
+import { BUILDING_IMAGES } from '@/components/buildingImages' // ✅ IMPORT ADICIONADO
+import {
+  IoPeople,
+  IoDisc,
+  IoShield,
+  IoAirplane,
+  IoCog,
+  IoBug,
+  IoRocket,
+  IoNuclear,
+  IoFlame,
+  IoChevronDown,
+  IoChevronUp,
+  IoCheckmarkCircle,
+  IoCloseCircle,
+} from 'react-icons/io5'
 
-const UNITS = [
-  { key: 'soldiers', label: 'Soldados', emoji: '⚔️', cost: 5000000 },
-  { key: 'tanks', label: 'Tanques', emoji: '🛡️', cost: 20000000 },
-  { key: 'artillery', label: 'Artilharia', emoji: '💣', cost: 15000000 },
-  { key: 'aircraft', label: 'Aeronaves', emoji: '✈️', cost: 80000000 },
-  { key: 'helicopters', label: 'Helicópteros', emoji: '🚁', cost: 40000000 },
-  { key: 'drones', label: 'Drones', emoji: '🤖', cost: 10000000 },
-  { key: 'missiles', label: 'Mísseis', emoji: '🎯', cost: 50000000 },
-  { key: 'warheads', label: 'Ogivas', emoji: '☢️', cost: 100000000 },
+// 🎖️ Mapeamento de Equipamentos Militares com Icons e Pré-requisitos
+const MILITARY_UNITS = [
+  {
+    key: 'soldiers',
+    label: 'Soldados',
+    icon: IoPeople,
+    requires: ['barracks'],
+    image: 'https://cdn.noticiabrasil.net.br/img/598/26/5982663_0:0:2634:1482_1920x0_80_0_0_e03a927de99a29314ce350ed74b1f5c9.jpg',
+    description: 'Infantaria básica. Requere Quartel.',
+  },
+  {
+    key: 'tanks',
+    label: 'Tanques',
+    icon: IoDisc,
+    requires: ['weapons_factory'],
+    image:
+      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTjJB6Ia_s89p88yC6z9jWJy9N0p0D9bvlYN1cETZhE1A&s=10',
+    description: 'Blindagem pesada. Requer Fábrica de Armas.',
+  },
+  {
+    key: 'artillery',
+    label: 'Artilharia',
+    icon: IoFlame,
+    requires: ['weapons_factory'],
+    image:
+      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTRzLaPqTyvk_vEiltFpggiV0Q0DN7-0EK7pHiR1yNFDsYDZj1sLXfQVhA&s=10',
+    description: 'Fogo de longo alcance. Requer Fábrica de Armas.',
+  },
+  {
+    key: 'aircraft',
+    label: 'Aeronaves',
+    icon: IoAirplane,
+    requires: ['barracks'],
+    image:
+      'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/61/F-35A_flight_%28cropped%29.jpg/330px-F-35A_flight_%28cropped%29.jpg',
+    description: 'Caças e bombardeiros. Requer Quartel.',
+  },
+  {
+    key: 'helicopters',
+    label: 'Helicópteros',
+    icon: IoAirplane,
+    requires: ['air_base'],
+    image:
+      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSSMBalQEah5Ve56DwKBZuBSTN--RM7fjYwL6Q82vrAtIEG5PgulC84bpo&s=10',
+    description: 'Transporte e apoio aéreo. Requer Base Aérea.',
+  },
+  {
+    key: 'drones',
+    label: 'Drones',
+    icon: IoBug,
+    requires: ['air_base'],
+    image:
+      'https://www.airway.com.br/uploads/aviation/2022/03/concepcao-artistica-do-drone-bayraktar-kizilelma-primeiro-voo-e-programado-para-2023-baykar-rq5ujwb.webp',
+    description: 'Vigilância aérea remota. Requer Base Aérea.',
+  },
+  {
+    key: 'missiles',
+    label: 'Mísseis',
+    icon: IoRocket,
+    requires: ['weapons_factory'],
+    image:
+      'https://ichef.bbci.co.uk/ace/ws/640/cpsprodpb/633d/live/7f7225a0-7f4a-11f0-83cc-c5da98c419b8.jpg.webp',
+    description: 'Armamento de longo alcance. Requer Fábrica de Armas.',
+  },
+  {
+    key: 'warheads',
+    label: 'Ogivas',
+    icon: IoNuclear,
+    requires: ['weapons_factory', 'nuclear_plant'],
+    image:
+      'https://super.abril.com.br/wp-content/uploads/2017/04/a-22bomba-do-bem22-e-a-volta-do-fantasma-nuclear1.jpg?crop=1&resize=1212,909',
+    description: 'Arma nuclear. Requer Fábrica de Armas + Usina Nuclear.',
+  },
 ]
 
-const CYCLE_INTERVAL_S = 60
+// 🌍 Recursos por Terreno
+const TERRAIN_RESOURCES: Record<string, string[]> = {
+  planicie: ['Madeira', 'Petróleo', 'Carvão'],
+  orogenico: ['Ouro', 'Ferro', 'Urânio'],
+  extremista: ['Petróleo', 'Urânio'],
+  anfibio: ['Madeira', 'Ouro', 'Petróleo'],
+}
 
 export default function EcoPage() {
-  const {
-    economy,
-    regions,
-    buildings,
-    catalog,
-    loading,
-    build,
-    produceEquipment,
-    refetch,
-    cycleSnapshot,
-  } = useEco()
-  const { military } = useWar()
+  const { economy, regions, buildings, catalog, countryData, loading, build, produceEquipment, refetch } = useEco()
 
-  const [selectedRegion, setReg] = useState('')
-  const [selectedType, setType] = useState('')
-  const [qty, setQty] = useState(1)
+  const [expandedRegion, setExpandedRegion] = useState<string | null>(null)
+  const [expandedBuilding, setExpandedBuilding] = useState<string | null>(null)
+  const [expandedMilitary, setExpandedMilitary] = useState<string | null>(null)
+  const [buildQty, setBuildQty] = useState(1)
+  const [militaryQty, setMilitaryQty] = useState(1)
   const [feedback, setFeedback] = useState('')
-  const [submitting, setSub] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
-  const [prodUnit, setProdUnit] = useState('')
-  const [prodQty, setProdQty] = useState(1)
-  const [prodFeedback, setProdFeedback] = useState('')
-  const [prodSubmitting, setProdSub] = useState(false)
+  if (loading) return <LoadingSpinner />
 
-  // ─── TIMER (baseado no snapshot local) ──────────────────
-  const [now, setNow] = useState(Date.now())
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 500)
-    return () => clearInterval(t)
-  }, [])
-
-  // ✅ Calcula usando apenas o tempo LOCAL desde a última sincronização com o servidor
-  const elapsedSinceFetch = cycleSnapshot
-    ? Math.floor((now - cycleSnapshot.receivedAt) / 1000)
-    : 0
-  const cycleProgress = Math.min(100, (elapsedSinceFetch / CYCLE_INTERVAL_S) * 100)
-  const nextIn = Math.max(0, CYCLE_INTERVAL_S - elapsedSinceFetch)
-
-  // ─── Energia ────────────────────────────────────────────
-  const energyCalc = buildings
-    .filter(b => b.is_built && b.is_active)
-    .reduce(
-      (acc, b) => {
-        const cat = b.building_catalog
-        if (!cat) return acc
-        const q = Number(b.quantity) || 1
-        acc.produced += (cat.energy_produces || 0) * q
-        acc.consumed += (cat.energy_cost || 0) * q
-        return acc
-      },
-      { produced: 0, consumed: 0 }
-    )
-
-  const energyBalance = energyCalc.produced - energyCalc.consumed
-  const hasEnergyDeficit = energyBalance < 0
-  const deficitAmount = Math.abs(energyBalance)
-
-  async function handleBuild() {
-    if (!selectedRegion || !selectedType) return
-    setSub(true)
-    setFeedback('')
-    const res = await build(selectedRegion, selectedType, qty)
-    setFeedback(res?.message ?? res?.error ?? 'Erro')
-    setSub(false)
-  }
-
-  async function handleProduce() {
-    if (!prodUnit) return
-    setProdSub(true)
-    setProdFeedback('')
-    const res = await produceEquipment(prodUnit, prodQty)
-    setProdFeedback(res?.message ?? res?.error ?? 'Erro')
-    setProdSub(false)
-  }
-
-  const selectedCat = catalog.find(c => c.type === selectedType)
-  const grouped = catalog.reduce((acc: Record<string, any[]>, c) => {
-    if (!acc[c.category]) acc[c.category] = []
-    acc[c.category].push(c)
-    return acc
-  }, {})
-
-  if (loading) return <Loading />
-
-  if (!economy) {
+  if (!economy || !countryData) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
-        <p className="text-white/60 text-sm">Dados econômicos não encontrados.</p>
-        <button onClick={refetch} className="mt-4 btn-primary text-sm py-2 px-4">
+        <p className="text-white/60 text-sm">Dados não encontrados</p>
+        <button onClick={refetch} className="mt-4 px-4 py-2 bg-primary hover:bg-primary/80 rounded-lg text-sm">
           Recarregar
         </button>
       </div>
     )
   }
 
+  // Agrupar edifícios por categoria
+  const groupedByCategory = catalog.reduce(
+    (acc: Record<string, any[]>, cat) => {
+      if (!acc[cat.category]) acc[cat.category] = []
+      acc[cat.category].push(cat)
+      return acc
+    },
+    {}
+  )
+
+  // Contar edifícios por região
+  const buildingCountByRegion = (regionId: string) => {
+    return buildings.filter(b => b.region_id === regionId).length
+  }
+
+  // Edifícios de uma região
+  const getBuildingsInRegion = (regionId: string) => {
+    return buildings.filter(b => b.region_id === regionId)
+  }
+
+  // Validar pré-requisito militar
+  const validateMilitaryRequirements = (requires: string[]) => {
+    const builtTypes = new Set(buildings.map(b => b.building_type))
+    return requires.every(req => builtTypes.has(req))
+  }
+
+  // Handle construir
+  const handleBuild = async (regionId: string, buildingType: string) => {
+    setSubmitting(true)
+    setFeedback('')
+
+    const res = await build(regionId, buildingType, buildQty)
+    setFeedback(res.error || res.message || 'Construção iniciada!')
+    setBuildQty(1)
+
+    if (res.success) {
+      setExpandedRegion(null)
+      setExpandedBuilding(null)
+      setTimeout(() => setFeedback(''), 3000)
+    }
+
+    setSubmitting(false)
+  }
+
+  // Handle produzir militar
+  const handleProduceMilitary = async (key: string) => {
+    setSubmitting(true)
+    setFeedback('')
+
+    const res = await produceEquipment(key, militaryQty)
+    setFeedback(res.error || res.message || 'Produção iniciada!')
+    setMilitaryQty(1)
+
+    if (res.success) {
+      setExpandedMilitary(null)
+      setTimeout(() => setFeedback(''), 3000)
+    }
+
+    setSubmitting(false)
+  }
+
+  const terrainResources = TERRAIN_RESOURCES[countryData.terrain?.toLowerCase() || 'planicie'] || []
+
   return (
-    <div className="flex flex-col gap-4 pb-24 px-4 pt-4 max-w-4xl mx-auto w-full">
-
-      {/* ─── BARRA DE CICLO ──────────────────────────────── */}
-      <div className="bg-surface-card rounded-xl border border-white/5 p-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <RefreshCw size={14} className="text-white/40" />
-            <span className="text-[10px] font-bold tracking-widest text-white/40 uppercase">
-              Ciclo de Produção
-            </span>
-          </div>
-          <span className="text-[10px] text-white/40">
-            {cycleSnapshot ? `Próximo em ${nextIn}s` : 'Aguardando...'}
-          </span>
+    <div className="flex flex-col gap-6 pb-24 px-4 pt-4 max-w-5xl mx-auto w-full">
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* 📊 PAINEL DE RECURSOS */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div className="bg-surface-card rounded-xl p-4 border border-white/5">
+        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Recursos</p>
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+          <ResourceBox label="Comida" value={economy.food || 0} />
+          <ResourceBox label="Ouro" value={economy.gold || 0} />
+          <ResourceBox label="Ferro" value={economy.iron || 0} />
+          <ResourceBox label="Petróleo" value={economy.oil || 0} />
+          <ResourceBox label="Madeira" value={economy.wood || 0} />
+          <ResourceBox label="Urânio" value={economy.uranium || 0} />
+          <ResourceBox label="Carvão" value={economy.coal || 0} />
+          <ResourceBox label="Aço" value={economy.steel || 0} />
+          <ResourceBox label="Energia" value={economy.energy || 0} />
+          <ResourceBox label="Dinheiro" value={economy.money || 0} isMoney />
         </div>
-
-        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-green-500 transition-all duration-500"
-            style={{ width: `${cycleProgress}%` }}
-          />
-        </div>
-
-        {cycleSnapshot && (
-          <p className="text-[10px] mt-1.5 text-center text-white/30">
-            Último ciclo: {new Date(cycleSnapshot.serverTime).toLocaleTimeString('pt-BR')}
-          </p>
-        )}
       </div>
 
-      {/* ─── ALERTA DE FALTA DE ENERGIA (só quando falta) ── */}
-      {hasEnergyDeficit && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-2">
-          <AlertTriangle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-red-400 text-xs font-bold">⚠️ Falta de energia</p>
-            <p className="text-white/60 text-[10px] mt-0.5">
-              Consumindo <strong>{formatNumber(energyCalc.consumed)}</strong> e produzindo{' '}
-              <strong>{formatNumber(energyCalc.produced)}</strong>. Faltam{' '}
-              <strong>{formatNumber(deficitAmount)}</strong>.
-            </p>
-          </div>
-        </div>
-      )}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* 🌍 SEU TERRENO */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div className="bg-gradient-to-r from-emerald-900/30 to-teal-900/30 border border-emerald-500/20 rounded-xl p-4">
+        <p className="text-sm font-bold text-white mb-1">
+          SEU TERRENO: <span className="text-emerald-300 uppercase">{countryData.terrain || 'Desconhecido'}</span>
+        </p>
+        <p className="text-xs text-white/60">
+          ✨ Aproveite para explorar: <span className="text-emerald-200 font-semibold">{terrainResources.join(', ')}</span>
+        </p>
+      </div>
 
-      {/* ✅ Painel verde removido */}
-
-      {/* ─── FINANÇAS ────────────────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* 🏢 REGIÕES & EDIFÍCIOS */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
       <div>
-        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-2">Finanças</p>
-        <div className="bg-surface-card rounded-xl p-4 border border-white/5 grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <div className="text-center">
-            <p className="text-white/40 text-[10px] uppercase">Dinheiro</p>
-            <p className="text-white font-bold text-sm">{formatMoney(economy.money || 0)}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-white/40 text-[10px] uppercase">Receita</p>
-            <p className="text-green-400 font-bold text-sm">{formatMoney(economy.revenue || 0)}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-white/40 text-[10px] uppercase">Despesa</p>
-            <p className="text-red-400 font-bold text-sm">{formatMoney(economy.expenses || 0)}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-white/40 text-[10px] uppercase">População</p>
-            <p className="text-white font-bold text-sm">{formatNumber(economy.population || 0)}</p>
-          </div>
-        </div>
-      </div>
+        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Regiões</p>
 
-      {/* ─── RECURSOS ────────────────────────────────────── */}
-      <div>
-        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-2">Recursos</p>
-        <div className="bg-surface-card rounded-xl p-4 border border-white/5 grid grid-cols-3 sm:grid-cols-6 gap-2">
-          <Resource label="Comida" value={economy.food || 0} />
-          <Resource label="Ouro" value={economy.gold || 0} />
-          <Resource label="Ferro" value={economy.iron || 0} />
-          <Resource label="Petróleo" value={economy.oil || 0} />
-          <Resource label="Madeira" value={economy.wood || 0} />
-          <Resource label="Urânio" value={economy.uranium || 0} />
-          <Resource label="Carvão" value={economy.coal || 0} />
-          <Resource label="Aço" value={economy.steel || 0} />
-          <Resource label="Energia" value={economy.energy || 0} />
-        </div>
-      </div>
+        {/* ━━━━━ TABELA SIMPLES DE REGIÕES ━━━━━ */}
+        <div className="bg-surface-card rounded-xl border border-white/5 overflow-hidden">
+          {regions.length === 0 ? (
+            <div className="p-4 text-center text-white/40 text-sm">Nenhuma região encontrada</div>
+          ) : (
+            <>
+              {/* Header da Tabela */}
+              <div className="grid grid-cols-2 gap-4 px-4 py-3 bg-white/5 border-b border-white/5 font-bold text-xs text-white/60 uppercase">
+                <div>Região</div>
+                <div className="text-right">Edifícios</div>
+              </div>
 
-      <BuildingsOverview buildings={buildings} catalog={catalog} regions={regions} />
+              {/* Linhas da Tabela (max height + scroll) */}
+              <div className="max-h-64 overflow-y-auto">
+                {regions.map((region, index) => (
+                  <div key={region.id}>
+                    {/* Linha Clicável */}
+                    <button
+                      onClick={() =>
+                        setExpandedRegion(expandedRegion === region.id ? null : region.id)
+                      }
+                      className="w-full px-4 py-3 grid grid-cols-2 gap-4 items-center hover:bg-white/5 transition-colors border-b border-white/5 last:border-b-0 text-left group"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-white font-semibold">{region.name}</span>
+                        {expandedRegion === region.id ? (
+                          <IoChevronUp className="text-primary ml-auto" size={18} />
+                        ) : (
+                          <IoChevronDown className="text-white/40 ml-auto" size={18} />
+                        )}
+                      </div>
+                      <div className="text-right text-white/60 text-sm">
+                        {buildingCountByRegion(region.id)} edifício{buildingCountByRegion(region.id) !== 1 ? 's' : ''}
+                      </div>
+                    </button>
 
-      {/* ─── CONSTRUIR EDIFÍCIO ──────────────────────────── */}
-      <div className="bg-surface-card rounded-xl p-4 border border-white/5 flex flex-col gap-3">
-        <div className="flex items-center gap-2 mb-1">
-          <Hammer size={18} className="text-white/40" />
-          <p className="text-xs font-bold tracking-widest text-white/40 uppercase">
-            Construir Edifício
-          </p>
-        </div>
-        <div className="flex flex-col gap-2">
-          <select
-            value={selectedRegion}
-            onChange={e => setReg(e.target.value)}
-            className="input-field text-sm"
-          >
-            <option value="">Selecionar região...</option>
-            {regions.map(r => (
-              <option key={r.id} value={r.id}>
-                {r.name} · {formatNumber(r.area_km2)}km²
-              </option>
-            ))}
-          </select>
+                    {/* EXPANSÃO: Categorias de Edifícios */}
+                    {expandedRegion === region.id && (
+                      <div className="bg-white/5 px-4 py-4 border-t border-white/5 space-y-4">
+                        {Object.entries(groupedByCategory).length === 0 ? (
+                          <p className="text-xs text-white/40">Nenhum edifício disponível</p>
+                        ) : (
+                          Object.entries(groupedByCategory).map(([category, items]) => (
+                            <div key={category}>
+                              {/* Título da Categoria */}
+                              <p className="text-xs font-bold text-white/60 uppercase mb-2">
+                                {category}
+                              </p>
 
-          <select
-            value={selectedType}
-            onChange={e => setType(e.target.value)}
-            className="input-field text-sm"
-          >
-            <option value="">Selecionar edifício...</option>
-            {Object.entries(grouped).map(([cat, items]) => (
-              <optgroup key={cat} label={cat.toUpperCase()}>
-                {items.map(b => (
-                  <option key={b.type} value={b.type}>
-                    {b.name} · {formatMoney(b.cost_money)}
-                  </option>
+                              {/* Grid de Edifícios (2-3 colunas) */}
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {(items as any[]).map(building => (
+                                  <button
+                                    key={building.type}
+                                    onClick={() =>
+                                      setExpandedBuilding(
+                                        expandedBuilding === building.type ? null : building.type
+                                      )
+                                    }
+                                    className="relative bg-white/10 hover:bg-white/15 border border-white/20 hover:border-primary/50 rounded-lg p-3 transition-all text-left"
+                                  >
+                                    <p className="text-xs font-bold text-white truncate">
+                                      {building.name}
+                                    </p>
+                                    <p className="text-[10px] text-white/40 mt-1">
+                                      {formatMoney(building.cost_money)}
+                                    </p>
+
+                                    {/* EXPANSÃO: Modal do Edifício */}
+                                    {expandedBuilding === building.type && (
+                                      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+                                        <div className="bg-surface-card border border-primary/50 rounded-lg p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
+                                          {/* ✅ IMAGEM CORRIGIDA AQUI */}
+                                          <div className="w-full h-40 bg-white/10 rounded-lg mb-4 overflow-hidden">
+                                            <img
+                                              src={BUILDING_IMAGES[building.type] || '/placeholder.png'}
+                                              alt={building.name}
+                                              className="w-full h-full object-cover"
+                                              onError={e => {
+                                                e.currentTarget.src = '/placeholder.png'
+                                              }}
+                                            />
+                                          </div>
+
+                                          {/* Nome e Preço */}
+                                          <p className="text-lg font-bold text-white mb-1">
+                                            {building.name}
+                                          </p>
+                                          <p className="text-sm text-white/60 mb-4">
+                                            Custo:{' '}
+                                            <span className="text-emerald-400 font-bold">
+                                              {formatMoney(building.cost_money)}
+                                            </span>
+                                          </p>
+
+                                          {/* Detalhes Simplificados */}
+                                          <div className="space-y-2 text-xs text-white/60 mb-4 border-t border-white/10 pt-3">
+                                            {building.produces && (
+                                              <p>
+                                                📦 Produz:{' '}
+                                                <span className="text-yellow-400 font-bold">
+                                                  300x {building.produces}/24h
+                                                </span>
+                                              </p>
+                                            )}
+
+                                            {building.energy_produces > 0 && (
+                                              <p>
+                                                ⚡ Energia:{' '}
+                                                <span className="text-blue-400 font-bold">
+                                                  +300/24h
+                                                </span>
+                                              </p>
+                                            )}
+
+                                            {building.energy_cost > 0 && (
+                                              <p>
+                                                🔌 Consome:{' '}
+                                                <span className="text-red-400 font-bold">
+                                                  {building.energy_cost} energia
+                                                </span>
+                                              </p>
+                                            )}
+
+                                            <p className="text-white/40 italic mt-2">
+                                              Manutenção: {formatMoney(building.maint_money)}/ciclo
+                                            </p>
+                                          </div>
+
+                                          {/* Input + Botão */}
+                                          <div className="flex gap-2 mt-6 border-t border-white/10 pt-4">
+                                            <input
+                                              type="number"
+                                              min={1}
+                                              max={7}
+                                              value={buildQty}
+                                              onChange={e => setBuildQty(Number(e.target.value))}
+                                              className="input-field w-16 text-xs py-2"
+                                              placeholder="Qtd"
+                                            />
+                                            <button
+                                              onClick={() => handleBuild(region.id, building.type)}
+                                              disabled={submitting}
+                                              className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-30 text-white font-bold py-2 rounded text-xs transition-colors"
+                                            >
+                                              {submitting ? 'Construindo...' : 'Construir'}
+                                            </button>
+                                            <button
+                                              onClick={() => setExpandedBuilding(null)}
+                                              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded text-xs transition-colors"
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 ))}
-              </optgroup>
-            ))}
-          </select>
-
-          {selectedCat && (
-            <div className="bg-white/5 rounded-lg p-3 text-xs text-white/60 grid grid-cols-2 gap-1">
-              <span>Área: {selectedCat.area_km2}km²/un</span>
-              <span>Construção: {selectedCat.build_time_min}min</span>
-              <span>Manutenção: {formatMoney(selectedCat.maint_money)}/ciclo</span>
-              <span>Lucro: {formatMoney(selectedCat.profit_money)}/ciclo</span>
-              {selectedCat.produces && (
-                <span>
-                  Produz: {selectedCat.produces_qty} {selectedCat.produces}/ciclo
-                </span>
-              )}
-              {selectedCat.energy_produces > 0 && (
-                <span>Gera: {selectedCat.energy_produces} energia</span>
-              )}
-              {selectedCat.energy_cost > 0 && (
-                <span>Consome: {selectedCat.energy_cost} energia</span>
-              )}
-            </div>
-          )}
-
-          <div className="flex gap-2 mt-1">
-            <input
-              type="number"
-              min={1}
-              value={qty}
-              onChange={e => setQty(Number(e.target.value))}
-              className="input-field w-20 text-sm"
-              placeholder="Qtd"
-            />
-            <button
-              onClick={handleBuild}
-              disabled={!selectedRegion || !selectedType || submitting}
-              className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-30 text-white font-bold py-2.5 rounded-lg text-sm transition-colors"
-            >
-              {submitting ? 'Construindo...' : 'CONSTRUIR'}
-            </button>
-          </div>
-
-          {feedback && (
-            <p
-              className={`text-sm mt-1 ${
-                feedback.includes('sucesso') ? 'text-green-400' : 'text-red-400'
-              }`}
-            >
-              {feedback}
-            </p>
+              </div>
+            </>
           )}
         </div>
+      </div>
 
-        {buildings.filter(b => !b.is_built).length > 0 && (
-          <div className="mt-2">
-            <p className="text-xs font-semibold text-white/40 mb-1">Em construção</p>
-            {buildings
-              .filter(b => !b.is_built)
-              .slice(0, 5)
-              .map(b => {
-                const buildTimeMin = b.building_catalog?.build_time_min || 30
-                const totalMs = buildTimeMin * 60 * 1000
-                const elapsed = Date.now() - new Date(b.started_at).getTime()
-                const progress = Math.min(100, (elapsed / totalMs) * 100)
-                const remaining = Math.max(0, totalMs - elapsed)
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* 🎖️ EQUIPAMENTOS MILITARES */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div>
+        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Equipamentos Militares</p>
 
-                return (
-                  <div key={b.id} className="bg-white/5 rounded-lg p-2.5 mb-2">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-white/70 text-sm">
-                        {b.building_catalog?.name || 'Edifício'}
-                      </span>
-                      <span className="text-white/30 text-xs">
-                        {remaining > 0
-                          ? formatTime(new Date(Date.now() + remaining).toISOString())
-                          : 'Concluído'}
-                      </span>
-                    </div>
-                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-yellow-500 rounded-full"
-                        style={{ width: `${Math.min(100, progress)}%` }}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {MILITARY_UNITS.map(unit => {
+            const Icon = unit.icon
+            const hasRequirements = validateMilitaryRequirements(unit.requires)
+
+            return (
+              <button
+                key={unit.key}
+                onClick={() =>
+                  setExpandedMilitary(
+                    expandedMilitary === unit.key ? null : unit.key
+                  )
+                }
+                className={`relative p-4 rounded-lg border transition-all ${
+                  hasRequirements
+                    ? 'bg-surface-card border-white/10 hover:border-primary/50 hover:bg-white/5 cursor-pointer'
+                    : 'bg-white/5 border-red-500/30 opacity-50 cursor-not-allowed'
+                }`}
+                disabled={!hasRequirements}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Icon size={20} className={hasRequirements ? 'text-primary' : 'text-red-400'} />
+                  <span className="text-xs font-bold text-white truncate">{unit.label}</span>
+                </div>
+
+                {hasRequirements ? (
+                  <IoCheckmarkCircle size={16} className="text-green-400" />
+                ) : (
+                  <IoCloseCircle size={16} className="text-red-400" />
+                )}
+
+                {/* Expansão Militar */}
+                {expandedMilitary === unit.key && hasRequirements && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+                    <div className="bg-surface-card border border-primary/50 rounded-lg p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
+                      <img
+                        src={unit.image}
+                        alt={unit.label}
+                        className="w-full h-40 object-cover rounded-lg mb-4"
+                        onError={e => (e.currentTarget.style.display = 'none')}
                       />
+
+                      <p className="text-lg font-bold text-white mb-2">{unit.label}</p>
+                      <p className="text-xs text-white/60 mb-4">{unit.description}</p>
+
+                      <div className="border-t border-white/10 pt-3 mb-4">
+                        <p className="text-xs font-bold text-white/60 uppercase mb-2">Pré-requisitos:</p>
+                        <div className="space-y-1">
+                          {unit.requires.map(req => (
+                            <p key={req} className="text-xs text-emerald-400">
+                              ✓ {req}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 mt-6 border-t border-white/10 pt-4">
+                        <input
+                          type="number"
+                          min={1}
+                          value={militaryQty}
+                          onChange={e => setMilitaryQty(Number(e.target.value))}
+                          className="input-field w-16 text-xs py-2"
+                          placeholder="Qtd"
+                        />
+                        <button
+                          onClick={() => handleProduceMilitary(unit.key)}
+                          disabled={submitting}
+                          className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white font-bold py-2 rounded text-xs transition-colors"
+                        >
+                          {submitting ? 'Produzindo...' : 'Produzir'}
+                        </button>
+                        <button
+                          onClick={() => setExpandedMilitary(null)}
+                          className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded text-xs transition-colors"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
                   </div>
-                )
-              })}
-          </div>
-        )}
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Mensagem de requisito não atendido */}
+        <p className="text-xs text-red-400/70 mt-3">
+          💡 Construa os edifícios necessários para desbloquear equipamentos militares
+        </p>
       </div>
 
-      {/* ─── PRODUZIR EQUIPAMENTO ──────────────────────────── */}
-      <div className="bg-surface-card rounded-xl p-4 border border-white/5 flex flex-col gap-3">
-        <div className="flex items-center gap-2 mb-1">
-          <Package size={18} className="text-white/40" />
-          <p className="text-xs font-bold tracking-widest text-white/40 uppercase">
-            Produzir Equipamento
-          </p>
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* 📢 FEEDBACK */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {feedback && (
+        <div
+          className={`p-3 rounded-lg text-sm ${
+            feedback.includes('insuficiente') || feedback.includes('Erro') || feedback.includes('Limite')
+              ? 'bg-red-500/10 border border-red-500/30 text-red-400'
+              : 'bg-green-500/10 border border-green-500/30 text-green-400'
+          }`}
+        >
+          {feedback}
         </div>
-        <div className="flex flex-col gap-2">
-          <select
-            value={prodUnit}
-            onChange={e => setProdUnit(e.target.value)}
-            className="input-field text-sm"
-          >
-            <option value="">Selecionar equipamento...</option>
-            {UNITS.map(u => (
-              <option key={u.key} value={u.key}>
-                {u.emoji} {u.label} ({formatMoney(u.cost)})
-              </option>
-            ))}
-          </select>
-
-          <div className="flex gap-2">
-            <input
-              type="number"
-              min={1}
-              value={prodQty}
-              onChange={e => setProdQty(Number(e.target.value))}
-              className="input-field w-20 text-sm"
-              placeholder="Qtd"
-            />
-            <button
-              onClick={handleProduce}
-              disabled={!prodUnit || prodSubmitting}
-              className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white font-bold py-2.5 rounded-lg text-sm transition-colors"
-            >
-              {prodSubmitting ? 'Produzindo...' : 'PRODUZIR'}
-            </button>
-          </div>
-
-          {prodFeedback && (
-            <p
-              className={`text-sm mt-1 ${
-                prodFeedback.includes('sucesso') ? 'text-green-400' : 'text-red-400'
-              }`}
-            >
-              {prodFeedback}
-            </p>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   )
 }
 
-function Resource({ label, value }: { label: string; value: number }) {
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ResourceBox({ label, value, isMoney = false }: { label: string; value: number; isMoney?: boolean }) {
   return (
-    <div className="text-center">
-      <p className="text-white/40 text-[8px] uppercase">{label}</p>
-      <p className="text-white font-bold text-sm">{formatNumber(value)}</p>
+    <div className="text-center p-2 bg-white/5 rounded-lg">
+      <p className="text-[10px] font-bold text-white/40 uppercase">{label}</p>
+      <p className={`text-xs font-bold mt-1 ${isMoney ? 'text-yellow-400' : 'text-white'}`}>
+        {isMoney ? formatMoney(value) : formatNumber(value)}
+      </p>
     </div>
   )
 }
 
-function Loading() {
+function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
