@@ -103,8 +103,9 @@ export function useEco() {
 
       // ✅ Snapshot: guarda o tempo do servidor + o momento local
       if (eData?.last_production_at) {
+        const serverTime: string = eData.last_production_at
         setCycleSnapshot({
-          serverTime: eData.last_production_at,
+          serverTime,
           receivedAt: Date.now(),
         })
       }
@@ -173,14 +174,20 @@ export function useEco() {
         .select('*')
         .eq('country_id', currentCountryId)
         .maybeSingle()
+
       if (data) {
         setEconomy(data)
+
         // Atualiza o snapshot sempre que o servidor devolver um novo last_production_at
         if (data.last_production_at) {
+          // ✅ Extraímos para uma constante tipada como string.
+          // Isso evita o erro do TS: dentro do callback, ele não "lembra" do if.
+          const serverTime: string = data.last_production_at
+
           setCycleSnapshot(prev => {
-            if (!prev || prev.serverTime !== data.last_production_at) {
+            if (!prev || prev.serverTime !== serverTime) {
               return {
-                serverTime: data.last_production_at,
+                serverTime,
                 receivedAt: Date.now(),
               }
             }
