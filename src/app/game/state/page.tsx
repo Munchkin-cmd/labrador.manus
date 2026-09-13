@@ -239,6 +239,7 @@ export default function StatePage() {
   const [selectedLawId, setSelectedLawId] = useState<number | ''>('')
   const [targetCountryId, setTargetCountryId] = useState<number | null>(null)
   const [targetRegionId, setTargetRegionId] = useState<string>('')
+  const [targetEnemyRegionId, setTargetEnemyRegionId] = useState<string>('')
   const [targetText, setTargetText] = useState('')
   const [taxType, setTaxType] = useState('')
   const [taxValue, setTaxValue] = useState(0)
@@ -248,9 +249,11 @@ export default function StatePage() {
   const [forcing, setForcing] = useState<string | null>(null)
   const [forceMsg, setForceMsg] = useState('')
 
-  // ─── PAÍSES E GUERRAS ATIVAS (para selects) ──────────
+  // ─── PAÍSES, GUERRAS ATIVAS, REGIÕES DO INIMIGO E SANCIONADOS ──
   const [countries, setCountries] = useState<any[]>([])
   const [activeWars, setActiveWars] = useState<any[]>([])
+  const [enemyRegions, setEnemyRegions] = useState<any[]>([])
+  const [sanctionedCountries, setSanctionedCountries] = useState<any[]>([])
 
   useEffect(() => {
     if (!data?.id) return
@@ -258,18 +261,17 @@ export default function StatePage() {
 
     async function fetchAuxData() {
       try {
-        // Todos os países
+        // 1. Todos os países
         const { data: cData } = await supabase
           .from('countries')
           .select('id, name, flag_emoji')
         setCountries(cData || [])
 
-        // Guerras ativas onde EU sou attacker ou defender
+        // 2. TODAS as guerras ativas (não apenas as minhas)
         const { data: wData } = await supabase
           .from('wars')
           .select('id, attacker_id, defender_id, status, attacker:countries!wars_attacker_id_fkey(name), defender:countries!wars_defender_id_fkey(name)')
           .eq('status', 'active')
-          .or(`attacker_id.eq.${currentCountryId},defender_id.eq.${currentCountryId}`)
 
         const formatted = (wData || []).map((w: any) => ({
           id: w.id,
@@ -281,6 +283,23 @@ export default function StatePage() {
         }))
 
         setActiveWars(formatted)
+
+        // 3. Países que EU sancionei
+        const { data: diploData } = await supabase
+          .from('diplomacy')
+          .select('country_a_id, country_b_id')
+          .eq('sanctions_active', true)
+          .or(`country_a_id.eq.${currentCountryId},country_b_id.eq.${currentCountryId}`)
+
+        if (diploData && diploData.length > 0) {
+          const sanctionedIds = diploData.map((d: any) =>
+            d.country_a_id === currentCountryId ? d.country_b_id : d.country_a_id
+          )
+          const filtered = (cData || []).filter((c: any) => sanctionedIds.includes(c.id))
+          setSanctionedCountries(filtered)
+        } else {
+          setSanctionedCountries([])
+        }
       } catch (err) {
         console.error('Erro ao buscar dados auxiliares:', err)
       }
@@ -288,6 +307,30 @@ export default function StatePage() {
 
     fetchAuxData()
   }, [data?.id])
+
+  // ✅ Buscar regiões do país alvo quando ele for selecionado
+  useEffect(() => {
+    if (!targetCountryId) {
+      setEnemyRegions([])
+      setTargetEnemyRegionId('')
+      return
+    }
+
+    // ✅ Captura o valor fora do async (o TS perde o narrowing dentro da async fn)
+    const enemyCountryId = targetCountryId
+
+    async function fetchEnemyRegions() {
+      const { data: rData } = await supabase
+        .from('regions')
+        .select('id, name')
+        .eq('country_id', enemyCountryId)
+
+      setEnemyRegions(rData || [])
+      setTargetEnemyRegionId('')
+    }
+
+    fetchEnemyRegions()
+  }, [targetCountryId])
 
   // ─── ESTADOS DE CARREGAMENTO ─────────────────────────────
   if (loadingC || loadingP) return <PageLoading />
@@ -329,6 +372,7 @@ export default function StatePage() {
     const target = {
       countryId: targetCountryId || undefined,
       regionId: targetRegionId || undefined,
+      enemyRegionId: targetEnemyRegionId || undefined,
       warId: targetRegionId || undefined,
       text: targetText || undefined,
       taxType: taxType || undefined,
@@ -343,6 +387,7 @@ export default function StatePage() {
       setSelectedLawId('')
       setTargetCountryId(null)
       setTargetRegionId('')
+      setTargetEnemyRegionId('')
       setTargetText('')
       setTaxType('')
       setTaxValue(0)
@@ -360,6 +405,7 @@ export default function StatePage() {
     const target = {
       countryId: targetCountryId || undefined,
       regionId: targetRegionId || undefined,
+      enemyRegionId: targetEnemyRegionId || undefined,
       warId: targetRegionId || undefined,
       text: targetText || undefined,
       taxType: taxType || undefined,
@@ -374,6 +420,7 @@ export default function StatePage() {
       setSelectedLawId('')
       setTargetCountryId(null)
       setTargetRegionId('')
+      setTargetEnemyRegionId('')
       setTargetText('')
       setTaxType('')
       setTaxValue(0)
@@ -814,6 +861,7 @@ export default function StatePage() {
                 setSelectedLawId((val as any) || '')
                 setTargetCountryId(null)
                 setTargetRegionId('')
+                setTargetEnemyRegionId('')
                 setTargetText('')
                 setTaxType('')
                 setTaxValue(0)
@@ -842,11 +890,13 @@ export default function StatePage() {
                     className="input-field text-sm w-full"
                   >
                     <option value="">Escolha a guerra...</option>
-                    {activeWars.map(w => (
-                      <option key={w.id} value={w.id}>
-                        vs {w.side === 'attacker' ? w.defender_name : w.attacker_name}
-                      </option>
-                    ))}
+                    {activeWars
+                      .filter(w => w.attacker_id === data.id || w.defender_id === data.id)
+                      .map(w => (
+                        <option key={w.id} value={w.id}>
+                          vs {w.attacker_name} vs {w.defender_name}
+                        </option>
+                      ))}
                   </select>
                 )}
 
@@ -891,6 +941,7 @@ export default function StatePage() {
                 {/* Lei 8: Declarar Guerra */}
                 {selectedLaw.id === 8 && (
                   <>
+                    <label className="text-white/40 text-xs block">País alvo</label>
                     <select
                       value={targetCountryId || ''}
                       onChange={e => setTargetCountryId(Number(e.target.value) || null)}
@@ -905,13 +956,36 @@ export default function StatePage() {
                           </option>
                         ))}
                     </select>
+
+                    <label className="text-white/40 text-xs block mt-2">Minha região (origem do ataque)</label>
                     <select
                       value={targetRegionId}
                       onChange={e => setTargetRegionId(e.target.value)}
                       className="input-field text-sm w-full"
                     >
-                      <option value="">Região de origem...</option>
+                      <option value="">Escolha sua região...</option>
                       {regions.map(r => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label className="text-white/40 text-xs block mt-2">Região do inimigo (alvo)</label>
+                    <select
+                      value={targetEnemyRegionId}
+                      onChange={e => setTargetEnemyRegionId(e.target.value)}
+                      className="input-field text-sm w-full"
+                      disabled={!targetCountryId || enemyRegions.length === 0}
+                    >
+                      <option value="">
+                        {!targetCountryId
+                          ? 'Escolha o país alvo primeiro...'
+                          : enemyRegions.length === 0
+                          ? 'Sem regiões disponíveis'
+                          : 'Escolha a região alvo...'}
+                      </option>
+                      {enemyRegions.map(r => (
                         <option key={r.id} value={r.id}>
                           {r.name}
                         </option>
@@ -922,20 +996,32 @@ export default function StatePage() {
 
                 {/* Lei 9: Livre Comércio */}
                 {selectedLaw.id === 9 && (
-                  <select
-                    value={targetCountryId || ''}
-                    onChange={e => setTargetCountryId(Number(e.target.value) || null)}
-                    className="input-field text-sm w-full"
-                  >
-                    <option value="">Escolha o país...</option>
-                    {countries
-                      .filter(c => c.id !== data.id)
-                      .map(c => (
+                  <>
+                    <p className="text-white/40 text-xs">
+                      Escolha um país que você sancionou para propor livre comércio.
+                    </p>
+                    <select
+                      value={targetCountryId || ''}
+                      onChange={e => setTargetCountryId(Number(e.target.value) || null)}
+                      className="input-field text-sm w-full"
+                    >
+                      <option value="">
+                        {sanctionedCountries.length === 0
+                          ? 'Você não sancionou nenhum país'
+                          : 'Escolha um país sancionado...'}
+                      </option>
+                      {sanctionedCountries.map(c => (
                         <option key={c.id} value={c.id}>
                           {c.name}
                         </option>
                       ))}
-                  </select>
+                    </select>
+                    {sanctionedCountries.length === 0 && (
+                      <p className="text-yellow-400/60 text-[10px] mt-1">
+                        ⚠️ Só é possível propor Livre Comércio para países que você sancionou.
+                      </p>
+                    )}
+                  </>
                 )}
 
                 {/* Lei 10: Aplicar Sanções */}
@@ -959,17 +1045,26 @@ export default function StatePage() {
                 {/* Lei 11: Participar de Guerra */}
                 {selectedLaw.id === 11 && (
                   <>
+                    <p className="text-white/40 text-xs">
+                      Escolha qualquer guerra ativa e o lado que você quer apoiar.
+                    </p>
                     <select
                       value={targetRegionId}
                       onChange={e => setTargetRegionId(e.target.value)}
                       className="input-field text-sm w-full"
                     >
                       <option value="">Escolha a guerra...</option>
-                      {activeWars.map(w => (
-                        <option key={w.id} value={w.id}>
-                          {w.attacker_name} vs {w.defender_name}
+                      {activeWars.length === 0 ? (
+                        <option value="" disabled>
+                          Nenhuma guerra ativa no mundo
                         </option>
-                      ))}
+                      ) : (
+                        activeWars.map(w => (
+                          <option key={w.id} value={w.id}>
+                            {w.attacker_name} vs {w.defender_name}
+                          </option>
+                        ))
+                      )}
                     </select>
                     <select
                       value={targetText}
@@ -977,8 +1072,8 @@ export default function StatePage() {
                       className="input-field text-sm w-full"
                     >
                       <option value="">Escolha o lado...</option>
-                      <option value="attacker">Atacante</option>
-                      <option value="defender">Defensor</option>
+                      <option value="attacker">Apoiar o ATACANTE</option>
+                      <option value="defender">Apoiar o DEFENSOR</option>
                     </select>
                   </>
                 )}

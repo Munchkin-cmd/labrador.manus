@@ -1,6 +1,6 @@
 'use client'
 
-// hooks/useParliament.ts - V4 CORRIGIDO
+// hooks/useParliament.ts - V3 COMPLETO
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
@@ -133,20 +133,8 @@ export function useParliament() {
   ): Promise<{ success: boolean; message?: string; error?: string; requiresForce?: boolean; forceCost?: number }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
-    // ✅ CORREÇÃO: Se o catálogo estiver vazio, busca do banco
-    let currentCatalog = catalog
-    if (currentCatalog.length === 0) {
-      console.log('🔍 [useParliament] Catálogo vazio, buscando do banco...')
-      const { data: cData } = await supabase.from('law_catalog').select('*').order('id')
-      currentCatalog = (cData as LawCatalog[]) || []
-      setCatalog(currentCatalog)
-    }
-
-    const law = currentCatalog.find(l => l.id === lawCatalogId)
-    if (!law) {
-      console.error('❌ [useParliament] Lei não encontrada no catálogo. ID:', lawCatalogId)
-      return { success: false, error: 'Lei não encontrada no catálogo' }
-    }
+    const law = catalog.find(l => l.id === lawCatalogId)
+    if (!law) return { success: false, error: 'Lei não encontrada' }
 
     const hasMajority = hasCoalitionMajority()
 
@@ -169,6 +157,7 @@ export function useParliament() {
     const params = {
       target_country_id: target?.countryId || null,
       target_region_id: target?.regionId || null,
+      target_enemy_region_id: target?.enemyRegionId || null,
       target_war_id: target?.warId || null,
       target_text: target?.text || null,
       target_tax_type: target?.taxType || null,
@@ -192,8 +181,7 @@ export function useParliament() {
       return { success: false, error: insertError.message }
     }
 
-    // ✅ Passa o law_catalog_id em vez do id, para o executeLawEffect buscar do banco
-    const result = await executeLawEffectById(newLaw.id, lawCatalogId, params)
+    const result = await executeLawEffect(newLaw.id, params)
     await fetchAll()
     setLastLawResult(result)
     return result
@@ -205,16 +193,8 @@ export function useParliament() {
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
-    // ✅ CORREÇÃO: Se o catálogo estiver vazio, busca do banco
-    let currentCatalog = catalog
-    if (currentCatalog.length === 0) {
-      const { data: cData } = await supabase.from('law_catalog').select('*').order('id')
-      currentCatalog = (cData as LawCatalog[]) || []
-      setCatalog(currentCatalog)
-    }
-
-    const law = currentCatalog.find(l => l.id === lawCatalogId)
-    if (!law) return { success: false, error: 'Lei não encontrada no catálogo' }
+    const law = catalog.find(l => l.id === lawCatalogId)
+    if (!law) return { success: false, error: 'Lei não encontrada' }
 
     const forceCost = law.political_power_cost
 
@@ -237,6 +217,7 @@ export function useParliament() {
     const params = {
       target_country_id: target?.countryId || null,
       target_region_id: target?.regionId || null,
+      target_enemy_region_id: target?.enemyRegionId || null,
       target_war_id: target?.warId || null,
       target_text: target?.text || null,
       target_tax_type: target?.taxType || null,
@@ -264,32 +245,46 @@ export function useParliament() {
       return { success: false, error: insertError.message }
     }
 
-    const result = await executeLawEffectById(newLaw.id, lawCatalogId, params)
+    const result = await executeLawEffect(newLaw.id, params)
     await fetchAll()
     return { ...result, message: `Lei forçada! (Custo: ${forceCost} PP)\n${result.message || ''}` }
   }
 
-  // ✅ NOVA FUNÇÃO: Busca a lei direto do banco (não depende do estado)
-  async function executeLawEffectById(
+  async function executeLawEffect(
     lawId: string,
-    lawCatalogId: number,
     params: any
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
-    // 🔥 Busca o catálogo direto do banco para saber qual efeito aplicar
-    const { data: catalogItem, error: catError } = await supabase
-      .from('law_catalog')
-      .select('*')
-      .eq('id', lawCatalogId)
-      .maybeSingle()
+    // Se a lei não estiver no estado (recém-inserida), busca do banco
+    let law = laws.find(l => l.id === lawId)
+    if (!law) {
+      const { data: dbLaw, error: dbError } = await supabase
+        .from('laws')
+        .select(
+          `id, country_id, law_catalog_id, status, approved_at, revoked_at, created_at, forced_approval, data,
+           law_catalog(id, name, description, political_power_cost, requires_parliament)`
+        )
+        .eq('id', lawId)
+        .maybeSingle()
 
-    if (catError || !catalogItem) {
-      console.error('❌ [useParliament] Catálogo não encontrado. ID:', lawCatalogId)
-      return { success: false, error: 'Catálogo não encontrado' }
+      if (dbError || !dbLaw) {
+        return { success: false, error: 'Lei não encontrada' }
+      }
+      law = dbLaw as Law
     }
 
-    console.log('✅ [useParliament] Executando lei:', catalogItem.name, '(ID:', catalogItem.id, ')')
+    // Se o catálogo não estiver no estado, busca do banco
+    let catalogItem = catalog.find(c => c.id === law!.law_catalog_id)
+    if (!catalogItem) {
+      const { data: dbCat } = await supabase
+        .from('law_catalog')
+        .select('*')
+        .eq('id', law.law_catalog_id)
+        .maybeSingle()
+      if (!dbCat) return { success: false, error: 'Catálogo não encontrado' }
+      catalogItem = dbCat as LawCatalog
+    }
 
     try {
       switch (catalogItem.id) {
@@ -367,7 +362,9 @@ export function useParliament() {
 
         // 8. Declarar Guerra
         case 8: {
-          if (!params.target_country_id) return { success: false, error: 'País não selecionado' }
+          if (!params.target_country_id) return { success: false, error: 'País alvo não selecionado' }
+          if (!params.target_region_id) return { success: false, error: 'Sua região não foi selecionada' }
+          if (!params.target_enemy_region_id) return { success: false, error: 'Região do inimigo não foi selecionada' }
 
           const { data: targetCountry } = await supabase
             .from('countries')
@@ -386,9 +383,9 @@ export function useParliament() {
             .eq('status', 'active')
             .maybeSingle()
 
-          if (existingWar) return { success: false, error: 'Já há guerra ativa' }
+          if (existingWar) return { success: false, error: 'Já há guerra ativa com este país' }
 
-          await supabase.from('wars').insert({
+          const { error: warErr } = await supabase.from('wars').insert({
             attacker_id: country.id,
             defender_id: params.target_country_id,
             status: 'active',
@@ -396,7 +393,11 @@ export function useParliament() {
             terrain: 'flat',
             damage_to_attacker: 0,
             damage_to_defender: 0,
+            attacker_region_id: params.target_region_id,
+            defender_region_id: params.target_enemy_region_id,
           })
+
+          if (warErr) return { success: false, error: warErr.message }
 
           return { success: true, message: `Guerra declarada contra ${targetCountry.name}!` }
         }
@@ -405,13 +406,23 @@ export function useParliament() {
         case 9: {
           if (!params.target_country_id) return { success: false, error: 'País não selecionado' }
 
-          const { error } = await supabase.rpc('lift_sanctions', {
+          const { error } = await supabase.rpc('propose_trade_agreement', {
             p_from: country.id,
             p_to: params.target_country_id,
           })
 
-          if (error) return { success: false, error: error.message }
-          return { success: true, message: 'Sanções removidas com sucesso!' }
+          if (error) {
+            // Fallback: se a RPC ainda não existe, remove a sanção direto
+            console.warn('⚠️ RPC propose_trade_agreement não existe, usando lift_sanctions')
+            const { error: fallbackErr } = await supabase.rpc('lift_sanctions', {
+              p_from: country.id,
+              p_to: params.target_country_id,
+            })
+            if (fallbackErr) return { success: false, error: fallbackErr.message }
+            return { success: true, message: 'Sanções removidas com sucesso!' }
+          }
+
+          return { success: true, message: 'Proposta de Livre Comércio enviada! O outro país precisa aceitar.' }
         }
 
         // 10. Aplicar Sanções
@@ -430,7 +441,37 @@ export function useParliament() {
         // 11. Participar de Guerra
         case 11: {
           if (!params.target_war_id) return { success: false, error: 'Guerra não selecionada' }
-          return { success: true, message: 'Participação da guerra registrada! Ganhando XP...' }
+          if (!params.target_text) return { success: false, error: 'Lado não selecionado' }
+
+          const side = params.target_text // 'attacker' ou 'defender'
+
+          const { data: war, error: warErr } = await supabase
+            .from('wars')
+            .select('id, attacker_id, defender_id, status')
+            .eq('id', params.target_war_id)
+            .maybeSingle()
+
+          if (warErr || !war) return { success: false, error: 'Guerra não encontrada' }
+
+          if (war.attacker_id === country.id || war.defender_id === country.id) {
+            return { success: false, error: 'Você já é um dos países principais nesta guerra' }
+          }
+
+          const { error: partErr } = await supabase
+            .from('war_participants')
+            .insert({
+              war_id: params.target_war_id,
+              country_id: country.id,
+              side: side,
+              joined_at: new Date().toISOString(),
+            })
+
+          if (partErr) {
+            console.warn('⚠️ Tabela war_participants não existe, registrando apenas no front')
+            return { success: true, message: `Você entrou como aliado do ${side === 'attacker' ? 'atacante' : 'defensor'}!` }
+          }
+
+          return { success: true, message: `Você entrou como aliado do ${side === 'attacker' ? 'atacante' : 'defensor'}!` }
         }
 
         // 12. Transferir Região

@@ -121,10 +121,6 @@ export default function WarPage() {
         ) : (
           <div className="flex flex-col gap-3">
             {myWars.map((war) => {
-              const isAttacker = war.attacker_id === Number(myCountry?.id)
-              const myDamage = isAttacker ? war.damage_to_attacker : war.damage_to_defender
-              const enemyDamage = isAttacker ? war.damage_to_defender : war.damage_to_attacker
-
               const enemyProposedPeace =
                 war.pending_peace_from !== null &&
                 war.pending_peace_from !== Number(myCountry?.id)
@@ -195,15 +191,23 @@ export default function WarPage() {
                     </div>
                   </div>
 
-                  {/* DANO */}
+                  {/* ─── DANO CAUSADO por cada lado ────────────────── */}
                   <div className="grid grid-cols-2 gap-2 text-sm mb-3">
                     <div className="bg-black/20 rounded-lg p-2 text-center">
-                      <span className="text-white/40 text-xs">Seu dano causado</span>
-                      <p className="text-green-400 font-bold text-base">{formatNumber(myDamage || 0)}</p>
+                      <span className="text-white/40 text-xs">
+                        {war.attacker?.name} (Atacante) causou
+                      </span>
+                      <p className="text-green-400 font-bold text-base">
+                        {formatNumber(war.damage_to_defender || 0)}
+                      </p>
                     </div>
                     <div className="bg-black/20 rounded-lg p-2 text-center">
-                      <span className="text-white/40 text-xs">Dano recebido</span>
-                      <p className="text-red-400 font-bold text-base">{formatNumber(enemyDamage || 0)}</p>
+                      <span className="text-white/40 text-xs">
+                        {war.defender?.name} (Defensor) causou
+                      </span>
+                      <p className="text-green-400 font-bold text-base">
+                        {formatNumber(war.damage_to_attacker || 0)}
+                      </p>
                     </div>
                   </div>
 

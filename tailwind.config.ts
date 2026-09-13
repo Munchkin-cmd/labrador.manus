@@ -22,10 +22,13 @@ const config: Config = {
         coalition: '#16A34A',   // verde coalizão
         opposition: '#DC2626',  // vermelho oposição
         gold: '#F59E0B',
+
+        // 🌈 SURFACE agora é VIDRO TRANSPARENTE
+        // para deixar o fundo animado aparecer
         surface: {
-          DEFAULT: '#1A1A2E',
-          card:    '#16213E',
-          input:   '#0F3460',
+          DEFAULT: 'rgba(255, 255, 255, 0.05)',
+          card:    'rgba(255, 255, 255, 0.05)',
+          input:   'rgba(255, 255, 255, 0.06)',
         },
 
         // 🏳️‍🌈 CORES DO ARCO-ÍRIS (EXCLUSIVAS DO ADMIN)
