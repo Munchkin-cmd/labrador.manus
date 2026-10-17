@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useEco } from '@/hooks/useEco'
 import { formatMoney, formatNumber } from '@/utils/format'
-import { BUILDING_IMAGES } from '@/components/buildingImages' // ✅ IMPORT ADICIONADO
+import { BUILDING_IMAGES, MILITARY_IMAGES } from '@/components/buildingImages'
 import {
   IoPeople,
   IoDisc,
@@ -18,84 +18,20 @@ import {
   IoChevronUp,
   IoCheckmarkCircle,
   IoCloseCircle,
+  IoClose,
 } from 'react-icons/io5'
 
-// 🎖️ Mapeamento de Equipamentos Militares com Icons e Pré-requisitos
 const MILITARY_UNITS = [
-  {
-    key: 'soldiers',
-    label: 'Soldados',
-    icon: IoPeople,
-    requires: ['barracks'],
-    image: 'https://cdn.noticiabrasil.net.br/img/598/26/5982663_0:0:2634:1482_1920x0_80_0_0_e03a927de99a29314ce350ed74b1f5c9.jpg',
-    description: 'Infantaria básica. Requere Quartel.',
-  },
-  {
-    key: 'tanks',
-    label: 'Tanques',
-    icon: IoDisc,
-    requires: ['weapons_factory'],
-    image:
-      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTjJB6Ia_s89p88yC6z9jWJy9N0p0D9bvlYN1cETZhE1A&s=10',
-    description: 'Blindagem pesada. Requer Fábrica de Armas.',
-  },
-  {
-    key: 'artillery',
-    label: 'Artilharia',
-    icon: IoFlame,
-    requires: ['weapons_factory'],
-    image:
-      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTRzLaPqTyvk_vEiltFpggiV0Q0DN7-0EK7pHiR1yNFDsYDZj1sLXfQVhA&s=10',
-    description: 'Fogo de longo alcance. Requer Fábrica de Armas.',
-  },
-  {
-    key: 'aircraft',
-    label: 'Aeronaves',
-    icon: IoAirplane,
-    requires: ['barracks'],
-    image:
-      'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/61/F-35A_flight_%28cropped%29.jpg/330px-F-35A_flight_%28cropped%29.jpg',
-    description: 'Caças e bombardeiros. Requer Quartel.',
-  },
-  {
-    key: 'helicopters',
-    label: 'Helicópteros',
-    icon: IoAirplane,
-    requires: ['air_base'],
-    image:
-      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSSMBalQEah5Ve56DwKBZuBSTN--RM7fjYwL6Q82vrAtIEG5PgulC84bpo&s=10',
-    description: 'Transporte e apoio aéreo. Requer Base Aérea.',
-  },
-  {
-    key: 'drones',
-    label: 'Drones',
-    icon: IoBug,
-    requires: ['air_base'],
-    image:
-      'https://www.airway.com.br/uploads/aviation/2022/03/concepcao-artistica-do-drone-bayraktar-kizilelma-primeiro-voo-e-programado-para-2023-baykar-rq5ujwb.webp',
-    description: 'Vigilância aérea remota. Requer Base Aérea.',
-  },
-  {
-    key: 'missiles',
-    label: 'Mísseis',
-    icon: IoRocket,
-    requires: ['weapons_factory'],
-    image:
-      'https://ichef.bbci.co.uk/ace/ws/640/cpsprodpb/633d/live/7f7225a0-7f4a-11f0-83cc-c5da98c419b8.jpg.webp',
-    description: 'Armamento de longo alcance. Requer Fábrica de Armas.',
-  },
-  {
-    key: 'warheads',
-    label: 'Ogivas',
-    icon: IoNuclear,
-    requires: ['weapons_factory', 'nuclear_plant'],
-    image:
-      'https://super.abril.com.br/wp-content/uploads/2017/04/a-22bomba-do-bem22-e-a-volta-do-fantasma-nuclear1.jpg?crop=1&resize=1212,909',
-    description: 'Arma nuclear. Requer Fábrica de Armas + Usina Nuclear.',
-  },
+  { key: 'soldiers', label: 'Soldados', icon: IoPeople, requires: ['barracks'], description: 'Infantaria básica. Requere Quartel.' },
+  { key: 'tanks', label: 'Tanques', icon: IoDisc, requires: ['weapons_factory'], description: 'Blindagem pesada. Requer Fábrica de Armas.' },
+  { key: 'artillery', label: 'Artilharia', icon: IoFlame, requires: ['weapons_factory'], description: 'Fogo de longo alcance. Requer Fábrica de Armas.' },
+  { key: 'aircraft', label: 'Aeronaves', icon: IoAirplane, requires: ['barracks'], description: 'Caças e bombardeiros. Requer Quartel.' },
+  { key: 'helicopters', label: 'Helicópteros', icon: IoAirplane, requires: ['air_base'], description: 'Transporte e apoio aéreo. Requer Base Aérea.' },
+  { key: 'drones', label: 'Drones', icon: IoBug, requires: ['air_base'], description: 'Vigilância aérea remota. Requer Base Aérea.' },
+  { key: 'missiles', label: 'Mísseis', icon: IoRocket, requires: ['weapons_factory'], description: 'Armamento de longo alcance. Requer Fábrica de Armas.' },
+  { key: 'warheads', label: 'Ogivas', icon: IoNuclear, requires: ['weapons_factory', 'nuclear_plant'], description: 'Arma nuclear. Requer Fábrica de Armas + Usina Nuclear.' },
 ]
 
-// 🌍 Recursos por Terreno
 const TERRAIN_RESOURCES: Record<string, string[]> = {
   planicie: ['Madeira', 'Petróleo', 'Carvão'],
   orogenico: ['Ouro', 'Ferro', 'Urânio'],
@@ -107,8 +43,9 @@ export default function EcoPage() {
   const { economy, regions, buildings, catalog, countryData, loading, build, produceEquipment, refetch } = useEco()
 
   const [expandedRegion, setExpandedRegion] = useState<string | null>(null)
-  const [expandedBuilding, setExpandedBuilding] = useState<string | null>(null)
-  const [expandedMilitary, setExpandedMilitary] = useState<string | null>(null)
+  const [selectedBuilding, setSelectedBuilding] = useState<{ regionId: string; building: any } | null>(null)
+  const [selectedMilitary, setSelectedMilitary] = useState<any | null>(null)
+
   const [buildQty, setBuildQty] = useState(1)
   const [militaryQty, setMilitaryQty] = useState(1)
   const [feedback, setFeedback] = useState('')
@@ -127,75 +64,53 @@ export default function EcoPage() {
     )
   }
 
-  // Agrupar edifícios por categoria
-  const groupedByCategory = catalog.reduce(
-    (acc: Record<string, any[]>, cat) => {
-      if (!acc[cat.category]) acc[cat.category] = []
-      acc[cat.category].push(cat)
-      return acc
-    },
-    {}
-  )
+  const groupedByCategory = catalog.reduce((acc: Record<string, any[]>, cat) => {
+    if (!acc[cat.category]) acc[cat.category] = []
+    acc[cat.category].push(cat)
+    return acc
+  }, {})
 
-  // Contar edifícios por região
   const buildingCountByRegion = (regionId: string) => {
     return buildings.filter(b => b.region_id === regionId).length
   }
 
-  // Edifícios de uma região
-  const getBuildingsInRegion = (regionId: string) => {
-    return buildings.filter(b => b.region_id === regionId)
-  }
-
-  // Validar pré-requisito militar
   const validateMilitaryRequirements = (requires: string[]) => {
     const builtTypes = new Set(buildings.map(b => b.building_type))
     return requires.every(req => builtTypes.has(req))
   }
 
-  // Handle construir
   const handleBuild = async (regionId: string, buildingType: string) => {
     setSubmitting(true)
     setFeedback('')
-
     const res = await build(regionId, buildingType, buildQty)
     setFeedback(res.error || res.message || 'Construção iniciada!')
     setBuildQty(1)
-
     if (res.success) {
-      setExpandedRegion(null)
-      setExpandedBuilding(null)
+      setSelectedBuilding(null)
       setTimeout(() => setFeedback(''), 3000)
     }
-
     setSubmitting(false)
   }
 
-  // Handle produzir militar
   const handleProduceMilitary = async (key: string) => {
     setSubmitting(true)
     setFeedback('')
-
     const res = await produceEquipment(key, militaryQty)
     setFeedback(res.error || res.message || 'Produção iniciada!')
     setMilitaryQty(1)
-
     if (res.success) {
-      setExpandedMilitary(null)
+      setSelectedMilitary(null)
       setTimeout(() => setFeedback(''), 3000)
     }
-
     setSubmitting(false)
   }
 
   const terrainResources = TERRAIN_RESOURCES[countryData.terrain?.toLowerCase() || 'planicie'] || []
 
   return (
-    <div className="flex flex-col gap-6 pb-24 px-4 pt-4 max-w-5xl mx-auto w-full">
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* 📊 PAINEL DE RECURSOS */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      <div className="bg-surface-card rounded-xl p-4 border border-white/5">
+    <div className="flex flex-col gap-6 pb-24 px-4 pt-4 max-w-5xl mx-auto w-full relative">
+      {/* PAINEL DE RECURSOS */}
+      <div className="bg-surface-card rounded-xl p-4 border border-white/5 backdrop-blur-md">
         <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Recursos</p>
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
           <ResourceBox label="Comida" value={economy.food || 0} />
@@ -211,10 +126,8 @@ export default function EcoPage() {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* 🌍 SEU TERRENO */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      <div className="bg-gradient-to-r from-emerald-900/30 to-teal-900/30 border border-emerald-500/20 rounded-xl p-4">
+      {/* TERRENO */}
+      <div className="bg-gradient-to-r from-emerald-900/30 to-teal-900/30 border border-emerald-500/20 rounded-xl p-4 backdrop-blur-sm">
         <p className="text-sm font-bold text-white mb-1">
           SEU TERRENO: <span className="text-emerald-300 uppercase">{countryData.terrain || 'Desconhecido'}</span>
         </p>
@@ -223,33 +136,23 @@ export default function EcoPage() {
         </p>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* 🏢 REGIÕES & EDIFÍCIOS */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* REGIÕES */}
       <div>
         <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Regiões</p>
-
-        {/* ━━━━━ TABELA SIMPLES DE REGIÕES ━━━━━ */}
-        <div className="bg-surface-card rounded-xl border border-white/5 overflow-hidden">
+        <div className="bg-surface-card rounded-xl border border-white/5 overflow-hidden backdrop-blur-md">
           {regions.length === 0 ? (
             <div className="p-4 text-center text-white/40 text-sm">Nenhuma região encontrada</div>
           ) : (
             <>
-              {/* Header da Tabela */}
               <div className="grid grid-cols-2 gap-4 px-4 py-3 bg-white/5 border-b border-white/5 font-bold text-xs text-white/60 uppercase">
                 <div>Região</div>
                 <div className="text-right">Edifícios</div>
               </div>
-
-              {/* Linhas da Tabela (max height + scroll) */}
               <div className="max-h-64 overflow-y-auto">
-                {regions.map((region, index) => (
+                {regions.map((region) => (
                   <div key={region.id}>
-                    {/* Linha Clicável */}
                     <button
-                      onClick={() =>
-                        setExpandedRegion(expandedRegion === region.id ? null : region.id)
-                      }
+                      onClick={() => setExpandedRegion(expandedRegion === region.id ? null : region.id)}
                       className="w-full px-4 py-3 grid grid-cols-2 gap-4 items-center hover:bg-white/5 transition-colors border-b border-white/5 last:border-b-0 text-left group"
                     >
                       <div className="flex items-center gap-2">
@@ -265,7 +168,6 @@ export default function EcoPage() {
                       </div>
                     </button>
 
-                    {/* EXPANSÃO: Categorias de Edifícios */}
                     {expandedRegion === region.id && (
                       <div className="bg-white/5 px-4 py-4 border-t border-white/5 space-y-4">
                         {Object.entries(groupedByCategory).length === 0 ? (
@@ -273,119 +175,16 @@ export default function EcoPage() {
                         ) : (
                           Object.entries(groupedByCategory).map(([category, items]) => (
                             <div key={category}>
-                              {/* Título da Categoria */}
-                              <p className="text-xs font-bold text-white/60 uppercase mb-2">
-                                {category}
-                              </p>
-
-                              {/* Grid de Edifícios (2-3 colunas) */}
+                              <p className="text-xs font-bold text-white/60 uppercase mb-2">{category}</p>
                               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                 {(items as any[]).map(building => (
                                   <button
                                     key={building.type}
-                                    onClick={() =>
-                                      setExpandedBuilding(
-                                        expandedBuilding === building.type ? null : building.type
-                                      )
-                                    }
-                                    className="relative bg-white/10 hover:bg-white/15 border border-white/20 hover:border-primary/50 rounded-lg p-3 transition-all text-left"
+                                    onClick={() => setSelectedBuilding({ regionId: region.id, building })}
+                                    className="relative bg-white/10 hover:bg-white/15 border border-white/20 hover:border-primary/50 rounded-lg p-3 transition-all text-left flex flex-col justify-between"
                                   >
-                                    <p className="text-xs font-bold text-white truncate">
-                                      {building.name}
-                                    </p>
-                                    <p className="text-[10px] text-white/40 mt-1">
-                                      {formatMoney(building.cost_money)}
-                                    </p>
-
-                                    {/* EXPANSÃO: Modal do Edifício */}
-                                    {expandedBuilding === building.type && (
-                                      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-                                        <div className="bg-surface-card border border-primary/50 rounded-lg p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
-                                          {/* ✅ IMAGEM CORRIGIDA AQUI */}
-                                          <div className="w-full h-40 bg-white/10 rounded-lg mb-4 overflow-hidden">
-                                            <img
-                                              src={BUILDING_IMAGES[building.type] || '/placeholder.png'}
-                                              alt={building.name}
-                                              className="w-full h-full object-cover"
-                                              onError={e => {
-                                                e.currentTarget.src = '/placeholder.png'
-                                              }}
-                                            />
-                                          </div>
-
-                                          {/* Nome e Preço */}
-                                          <p className="text-lg font-bold text-white mb-1">
-                                            {building.name}
-                                          </p>
-                                          <p className="text-sm text-white/60 mb-4">
-                                            Custo:{' '}
-                                            <span className="text-emerald-400 font-bold">
-                                              {formatMoney(building.cost_money)}
-                                            </span>
-                                          </p>
-
-                                          {/* Detalhes Simplificados */}
-                                          <div className="space-y-2 text-xs text-white/60 mb-4 border-t border-white/10 pt-3">
-                                            {building.produces && (
-                                              <p>
-                                                📦 Produz:{' '}
-                                                <span className="text-yellow-400 font-bold">
-                                                  300x {building.produces}/24h
-                                                </span>
-                                              </p>
-                                            )}
-
-                                            {building.energy_produces > 0 && (
-                                              <p>
-                                                ⚡ Energia:{' '}
-                                                <span className="text-blue-400 font-bold">
-                                                  +300/24h
-                                                </span>
-                                              </p>
-                                            )}
-
-                                            {building.energy_cost > 0 && (
-                                              <p>
-                                                🔌 Consome:{' '}
-                                                <span className="text-red-400 font-bold">
-                                                  {building.energy_cost} energia
-                                                </span>
-                                              </p>
-                                            )}
-
-                                            <p className="text-white/40 italic mt-2">
-                                              Manutenção: {formatMoney(building.maint_money)}/ciclo
-                                            </p>
-                                          </div>
-
-                                          {/* Input + Botão */}
-                                          <div className="flex gap-2 mt-6 border-t border-white/10 pt-4">
-                                            <input
-                                              type="number"
-                                              min={1}
-                                              max={7}
-                                              value={buildQty}
-                                              onChange={e => setBuildQty(Number(e.target.value))}
-                                              className="input-field w-16 text-xs py-2"
-                                              placeholder="Qtd"
-                                            />
-                                            <button
-                                              onClick={() => handleBuild(region.id, building.type)}
-                                              disabled={submitting}
-                                              className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-30 text-white font-bold py-2 rounded text-xs transition-colors"
-                                            >
-                                              {submitting ? 'Construindo...' : 'Construir'}
-                                            </button>
-                                            <button
-                                              onClick={() => setExpandedBuilding(null)}
-                                              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded text-xs transition-colors"
-                                            >
-                                              ✕
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
+                                    <p className="text-xs font-bold text-white truncate">{building.name}</p>
+                                    <p className="text-[10px] text-white/40 mt-1">{formatMoney(building.cost_money)}</p>
                                   </button>
                                 ))}
                               </div>
@@ -402,128 +201,217 @@ export default function EcoPage() {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* 🎖️ EQUIPAMENTOS MILITARES */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* EQUIPAMENTOS MILITARES */}
       <div>
         <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Equipamentos Militares</p>
-
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           {MILITARY_UNITS.map(unit => {
             const Icon = unit.icon
             const hasRequirements = validateMilitaryRequirements(unit.requires)
-
             return (
               <button
                 key={unit.key}
-                onClick={() =>
-                  setExpandedMilitary(
-                    expandedMilitary === unit.key ? null : unit.key
-                  )
-                }
-                className={`relative p-4 rounded-lg border transition-all ${
+                onClick={() => setSelectedMilitary(unit)}
+                className={`relative p-4 rounded-lg border transition-all flex flex-col items-start ${
                   hasRequirements
-                    ? 'bg-surface-card border-white/10 hover:border-primary/50 hover:bg-white/5 cursor-pointer'
+                    ? 'bg-surface-card border-white/10 hover:border-primary/50 hover:bg-white/5 cursor-pointer backdrop-blur-md'
                     : 'bg-white/5 border-red-500/30 opacity-50 cursor-not-allowed'
                 }`}
                 disabled={!hasRequirements}
               >
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-2 w-full">
                   <Icon size={20} className={hasRequirements ? 'text-primary' : 'text-red-400'} />
                   <span className="text-xs font-bold text-white truncate">{unit.label}</span>
                 </div>
-
                 {hasRequirements ? (
                   <IoCheckmarkCircle size={16} className="text-green-400" />
                 ) : (
                   <IoCloseCircle size={16} className="text-red-400" />
                 )}
-
-                {/* Expansão Militar */}
-                {expandedMilitary === unit.key && hasRequirements && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-                    <div className="bg-surface-card border border-primary/50 rounded-lg p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
-                      <img
-                        src={unit.image}
-                        alt={unit.label}
-                        className="w-full h-40 object-cover rounded-lg mb-4"
-                        onError={e => (e.currentTarget.style.display = 'none')}
-                      />
-
-                      <p className="text-lg font-bold text-white mb-2">{unit.label}</p>
-                      <p className="text-xs text-white/60 mb-4">{unit.description}</p>
-
-                      <div className="border-t border-white/10 pt-3 mb-4">
-                        <p className="text-xs font-bold text-white/60 uppercase mb-2">Pré-requisitos:</p>
-                        <div className="space-y-1">
-                          {unit.requires.map(req => (
-                            <p key={req} className="text-xs text-emerald-400">
-                              ✓ {req}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2 mt-6 border-t border-white/10 pt-4">
-                        <input
-                          type="number"
-                          min={1}
-                          value={militaryQty}
-                          onChange={e => setMilitaryQty(Number(e.target.value))}
-                          className="input-field w-16 text-xs py-2"
-                          placeholder="Qtd"
-                        />
-                        <button
-                          onClick={() => handleProduceMilitary(unit.key)}
-                          disabled={submitting}
-                          className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white font-bold py-2 rounded text-xs transition-colors"
-                        >
-                          {submitting ? 'Produzindo...' : 'Produzir'}
-                        </button>
-                        <button
-                          onClick={() => setExpandedMilitary(null)}
-                          className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded text-xs transition-colors"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </button>
             )
           })}
         </div>
-
-        {/* Mensagem de requisito não atendido */}
         <p className="text-xs text-red-400/70 mt-3">
           💡 Construa os edifícios necessários para desbloquear equipamentos militares
         </p>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* 📢 FEEDBACK */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* FEEDBACK */}
       {feedback && (
         <div
-          className={`p-3 rounded-lg text-sm ${
+          className={`p-3 rounded-lg text-sm border ${
             feedback.includes('insuficiente') || feedback.includes('Erro') || feedback.includes('Limite')
-              ? 'bg-red-500/10 border border-red-500/30 text-red-400'
-              : 'bg-green-500/10 border border-green-500/30 text-green-400'
+              ? 'bg-red-500/10 border-red-500/30 text-red-400'
+              : 'bg-green-500/10 border-green-500/30 text-green-400'
           }`}
         >
           {feedback}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* 🏗️ MODAL DE CONSTRUÇÃO */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {selectedBuilding && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity">
+          {/* O Modal inteiro tem tamanho máximo e esconde o que passar das bordas arredondadas */}
+          <div className="bg-[#1a1a2e] border border-primary/50 rounded-xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            
+            {/* Botão X FIXO (Fica flutuando no canto, não rola com o texto) */}
+            <button
+              onClick={() => setSelectedBuilding(null)}
+              className="absolute top-3 right-3 z-50 text-white bg-black/60 hover:bg-red-600 rounded-full p-2 transition-colors cursor-pointer border border-white/10 shadow-lg"
+              aria-label="Fechar"
+            >
+              <IoClose size={20} />
+            </button>
+
+            {/* ÁREA ROLÁVEL: Tudo aqui dentro rola junto de forma natural */}
+            <div className="overflow-y-auto w-full h-full custom-scrollbar rounded-xl">
+              
+              {/* Imagem */}
+              <div className="w-full h-48 sm:h-64 bg-gradient-to-br from-slate-700 to-slate-900 relative flex items-center justify-center">
+                <div className="absolute inset-0 flex flex-col items-center justify-center opacity-40">
+                  <span className="text-6xl mb-1">🏭</span>
+                </div>
+                {BUILDING_IMAGES[selectedBuilding.building.type] && (
+                  <img
+                    src={BUILDING_IMAGES[selectedBuilding.building.type]}
+                    alt={selectedBuilding.building.name}
+                    className="w-full h-full object-cover relative z-10"
+                    onError={(e) => { e.currentTarget.style.display = 'none' }}
+                  />
+                )}
+              </div>
+
+              {/* Conteúdo */}
+              <div className="p-5 sm:p-6 pb-2">
+                <p className="text-xl font-bold text-white mb-1">
+                  {selectedBuilding.building.name}
+                </p>
+                <p className="text-sm text-white/60 mb-5">
+                  Custo:{' '}
+                  <span className="text-emerald-400 font-bold text-base">
+                    {formatMoney(selectedBuilding.building.cost_money)}
+                  </span>
+                </p>
+
+                <div className="space-y-3 text-sm text-white/80 border-t border-white/10 pt-4 mb-6">
+                  {selectedBuilding.building.produces && (
+                    <p>📦 Produz: <span className="text-yellow-400 font-bold">300x {selectedBuilding.building.produces}/24h</span></p>
+                  )}
+                  {selectedBuilding.building.energy_produces > 0 && (
+                    <p>⚡ Energia: <span className="text-blue-400 font-bold">+300/24h</span></p>
+                  )}
+                  {selectedBuilding.building.energy_cost > 0 && (
+                    <p>🔌 Consome: <span className="text-red-400 font-bold">{selectedBuilding.building.energy_cost} energia</span></p>
+                  )}
+                  <p className="text-white/40 italic mt-3 text-xs">Manutenção: {formatMoney(selectedBuilding.building.maint_money)}/ciclo</p>
+                </div>
+              </div>
+
+              {/* Rodapé de Ação */}
+              <div className="p-4 sm:p-5 bg-[#151526] border-t border-white/10 flex gap-3">
+                <input
+                  type="number"
+                  min={1}
+                  max={7}
+                  value={buildQty}
+                  onChange={e => setBuildQty(Number(e.target.value))}
+                  className="input-field w-20 text-sm py-2 text-center"
+                  placeholder="Qtd"
+                />
+                <button
+                  onClick={() => handleBuild(selectedBuilding.regionId, selectedBuilding.building.type)}
+                  disabled={submitting}
+                  className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-30 text-white font-bold py-2.5 rounded-lg text-sm transition-colors shadow-lg"
+                >
+                  {submitting ? 'Construindo...' : 'Construir'}
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* 🪖 MODAL MILITAR */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {selectedMilitary && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity">
+          <div className="bg-[#1a1a2e] border border-primary/50 rounded-xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            
+            <button
+              onClick={() => setSelectedMilitary(null)}
+              className="absolute top-3 right-3 z-50 text-white bg-black/60 hover:bg-red-600 rounded-full p-2 transition-colors cursor-pointer border border-white/10 shadow-lg"
+              aria-label="Fechar"
+            >
+              <IoClose size={20} />
+            </button>
+
+            <div className="overflow-y-auto w-full h-full custom-scrollbar rounded-xl">
+              
+              <div className="w-full h-48 sm:h-64 bg-gradient-to-br from-slate-700 to-slate-900 relative flex items-center justify-center">
+                <div className="absolute inset-0 flex flex-col items-center justify-center opacity-40">
+                  <span className="text-6xl mb-1">🎖️</span>
+                </div>
+                {MILITARY_IMAGES[selectedMilitary.key] && (
+                  <img
+                    src={MILITARY_IMAGES[selectedMilitary.key]}
+                    alt={selectedMilitary.label}
+                    className="w-full h-full object-cover relative z-10"
+                    onError={e => (e.currentTarget.style.display = 'none')}
+                  />
+                )}
+              </div>
+
+              <div className="p-5 sm:p-6 pb-2">
+                <p className="text-xl font-bold text-white mb-2">{selectedMilitary.label}</p>
+                <p className="text-sm text-white/70 mb-5">{selectedMilitary.description}</p>
+
+                <div className="border-t border-white/10 pt-4 mb-6">
+                  <p className="text-xs font-bold text-white/60 uppercase mb-3">Pré-requisitos:</p>
+                  <div className="space-y-1">
+                    {selectedMilitary.requires.map((req: string) => (
+                      <p key={req} className="text-sm text-emerald-400">
+                        ✓ {req}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 sm:p-5 bg-[#151526] border-t border-white/10 flex gap-3">
+                <input
+                  type="number"
+                  min={1}
+                  value={militaryQty}
+                  onChange={e => setMilitaryQty(Number(e.target.value))}
+                  className="input-field w-20 text-sm py-2 text-center"
+                  placeholder="Qtd"
+                />
+                <button
+                  onClick={() => handleProduceMilitary(selectedMilitary.key)}
+                  disabled={submitting}
+                  className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white font-bold py-2.5 rounded-lg text-sm transition-colors shadow-lg"
+                >
+                  {submitting ? 'Produzindo...' : 'Produzir'}
+                </button>
+              </div>
+
+            </div>
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-
 function ResourceBox({ label, value, isMoney = false }: { label: string; value: number; isMoney?: boolean }) {
   return (
-    <div className="text-center p-2 bg-white/5 rounded-lg">
+    <div className="text-center p-2 bg-white/5 rounded-lg border border-white/5 hover:border-white/20 transition-colors">
       <p className="text-[10px] font-bold text-white/40 uppercase">{label}</p>
       <p className={`text-xs font-bold mt-1 ${isMoney ? 'text-yellow-400' : 'text-white'}`}>
         {isMoney ? formatMoney(value) : formatNumber(value)}

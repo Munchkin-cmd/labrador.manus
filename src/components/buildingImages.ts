@@ -1,135 +1,70 @@
 // 🖼️ Mapeamento de Imagens para Edifícios e Equipamentos
-// Cole este arquivo em: src/components/buildingImages.ts
 
 export const BUILDING_IMAGES: Record<string, string> = {
   // ⚡ ENERGIA
-  coal_power_plant:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcCYPL25nrKexUlRRfdfeLsqfngOJF9pQu6xyEvjKYZfch9zML7knu7Lyq&s=10',
-  oil_power_plant:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSySg3KdwiQrw2J3vw7OpioAprG32I-KRiijei396xSyA&s=10',
-  nuclear_power_plant:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSm9wZ510UhjtYW53T34N4fETnvovpVZA9C-y1c8atQ_A&s=10',
-  hydro_power_plant:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSNWXc4IS79kDnTxvGHFdbDJbRmNi_bTAD0tKBr2JBAZw&s=10',
-  wind_power_plant:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRKD0yTpZYnXIdcpNgPA2AAVVHkD9KQPC4kV5EibzCTd9oWglXeKliDynE&s=10',
+  coal_power_plant: 'https://ciclovivo.com.br/wp-content/uploads/2016/11/carvao_canada.jpg',
+  oil_power_plant: 'https://static.brasilenergia.com.br/upload/sites/3/2018/02/65a17e0924499-770x0.jpg',
+  nuclear_power_plant: 'https://www.minasjr.com.br/wp-content/uploads/2020/09/pexels-pixabay-459728-1200x588.jpg',
+  hydroelectric_plant: 'https://armac.com.br/wordpress/wp-content/uploads/2024/04/armac-usinas-hidreletricas-blog-1024x557.jpg',
+  wind_farm: 'https://images.unsplash.com/photo-1782679226951-2e916ce69988?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=NHwxMjA3fDA%3D',
 
   // 🌾 RECURSOS
-  farm: 'https://thumbs.dreamstime.com/b/explora%C3%A7%C3%A3o-agr%C3%ADcola-americana-tradicional-31079246.jpg',
-  oil_well:
-    'https://upload.wikimedia.org/wikipedia/commons/5/50/Mars_Tension-leg_Platform.jpg?utm_source=pt.wikipedia.org&utm_campaign=index&utm_content=original',
-  gold_mine:
-    'https://ichef.bbci.co.uk/ace/ws/640/cpsprodpb/17C9F/production/_114593479_barrickgold.jpg.webp',
-  iron_mine:
-    'https://s2-umsoplaneta.glbimg.com/iQp_3Tbt1MvNcTXRTOo1gX8slhQ=/0x0:2000x1498/888x0/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_7d5b9b5029304d27b7ef8a7f28b4d70f/internal_photos/bs/2024/3/C/lrx4bYSXKnvA1X8NSaAw/gettyimages-1443660378.jpg',
-  uranium_mine:
-    'https://ichef.bbci.co.uk/ace/ws/640/cpsprodpb/17C9F/production/_114593479_barrickgold.jpg.webp',
-  sawmill:
-    'https://www.marrari.com.br/wp-content/uploads/2023/08/madeira-8-dicas-de-como-aumentar-a-eficiencia-da-serraria.jpg',
+  farm: 'https://st.depositphotos.com/1086305/1656/i/450/depositphotos_16563735-stock-photo-american-countryside-red-farm-with.jpg',
+  oil_well: 'https://www.infomoney.com.br/wp-content/uploads/2019/06/cavalos-de-petroleo-na-russia-bloomberg.jpg?fit=900%2C602&quality=50&strip=all',
+  gold_mine: 'https://ichef.bbci.co.uk/ace/ws/800/cpsprodpb/17C9F/production/_114593479_barrickgold.jpg.webp',
+  iron_mine: 'https://chitra-api.kreatio.com/api/v1/wps/10a5ff6/2f716cc6-150e-4a48-922d-ed54d3b7b624/3/Mina-de-min-rio-de-ferro-Bloom-Lake-da-Champion-no-Canad-1074x654.png',
+  uranium_mine: 'https://static6.depositphotos.com/1003492/634/i/450/depositphotos_6347299-stock-photo-old-mine-tunnel.jpg',
+  sawmill: 'http://www.serrariajacare.com.br/images/fotos/intro_produtos.jpg',
+  coal_mine: 'https://www.wirtgen-group.com/media/02_wirtgen/01_bilder/03_news_media/pressemitteilungen_1/sm_vs_alternat__verfahren/w_photo_4200sm_02708_hi_1680x945.jpg',
 
   // 🏗️ MANUFATURA
-  oil_refinery:
-    'https://politicsandwar.com/img/cities/oilwell.png',
-  steel_mill:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSt9VlDhOS3mtznH2P9GZ0aoegFOJU-4Q12M27X32PE1Q0gv-Y6qLV3N4k&s=10',
-  aluminum_factory:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSt9VlDhOS3mtznH2P9GZ0aoegFOJU-4Q12M27X32PE1Q0gv-Y6qLV3N4k&s=10',
-  ammunition_factory:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSpB96-56tjTzzXB-JnXHT0JMnAyyhR0J5gsip6bjkR3BiWXn1qX7Kv2W0&s=10',
-  weapons_factory:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSt9VlDhOS3mtznH2P9GZ0aoegFOJU-4Q12M27X32PE1Q0gv-Y6qLV3N4k&s=10',
-  missiles_silo:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRFCqlDQU21Rc0T2dB6s5TU0IK39SqqhS6JvweYqYB08EDHksRl2ZAOYq8&s=10',
+  oil_refinery: 'https://vermelho.org.br/wp-content/uploads/2019/10/petrobras-anuncia-nova-descoberta-de-pre-sal80242.jpg',
+  steel_mill: 'https://italbronze.com.br/wp-content/uploads/2025/03/bronze-siderurgia-01.jpg',
+  aluminum_factory: 'https://homolog.revistaaluminio.com.br/wp-content/uploads/2018/11/Novelis-1.jpg',
+  ammunition_factory: 'https://static.vecteezy.com/ti/fotos-gratis/p1/67243358-municao-fabricacao-processo-em-uma-producao-linha-dentro-a-industrial-plantar-foto.jpeg',
+  weapons_factory: 'https://www.jornaldocomercio.com/_midias/jpg/2018/05/21/geral___02_empresa_taurus_doa_armamentos_para_uso_da_brigada_militar_e_da_policia_civil_no_estado___luiz_chaves_palacio_piratini-1820888.jpg',
+  missile_silo: 'https://st2.depositphotos.com/1327793/8214/i/450/depositphotos_82148488-stock-photo-a-titan-ii-icbm-in.jpg',
 
-  // 🎖️ MILITAR
-  barracks:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcCYPL25nrKexUlRRfdfeLsqfngOJF9pQu6xyEvjKYZfch9zML7knu7Lyq&s=10',
-  air_base:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ5mtGnWu3ZQz9Cv_FN5B986iTJupounSuKTXBm-qO5ekrMx37z--EvLhy-&s=10',
-  naval_base:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRdoIkoZHzDh2aYK4oRVh_6HK2dHNthm8zkD0nve6CA4c2P4L58Rot4eVWQ&s=10',
+  // 🎖️ MILITAR (CONSTRUÇÕES)
+  barracks: 'https://conteudo.imguol.com.br/66/2015/06/23/midia-indoor-wap-celular-tv-pentagono-eua-estados-unidos-militar-seguranca-internacional-quartel-general-1435097039869_900x506.jpg',
+  air_base: 'https://i.blogs.es/40dd68/original/1200_800.jpeg', 
+  naval_base: 'https://i0.wp.com/jornalgrandebahia.com.br/wp-content/uploads/2026/01/Base-Naval-20260120.jpg?resize=2048%2C1365&quality=100&ssl=1',
 
   // 🏛️ CIVIL
-  police_station:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRN8iCnb9-2Z1aZUlafl2Vv0p6PX8KxGAbCSqqh_l-_lyGQv4LspioYDyCL&s=10',
-  hospital:
-    'https://medboardsacademy.com/wp-content/uploads/2021/07/como_funciona.png',
-  school:
-    'https://highschooljp.com.br/wp-content/uploads/2025/11/faixada_high_school.jpg',
-  university:
-    'https://www.harvard.edu/wp-content/uploads/2021/03/100408_Yard_045-scaled.jpg',
-  office:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS_yS3wliXZT1r62_17--DYF2t8eIV4rQpKZ6nwBc4FAaJOTpZDGoFLOnw&s=10',
+  police_station: 'https://lexipol.brightspotcdn.com/dims4/default/7ded9bc/2147483647/strip/true/crop/1200x676+0+0/resize/1000x563!/format/webp/quality/90/?url=https%3A%2F%2Fk1-prod-lexipol.s3.us-east-2.amazonaws.com%2Fbrightspot%2F51%2F6b%2F766ee515b34b61691a3da3aed25f%2Flpd-8.jpg',
+  hospital: 'https://blog.vumigroup.com/wp-content/uploads/2022/09/5.hospital_1.png',
+  school: 'https://images.adsttc.com/media/images/6493/6a58/cb9c/4612/2432/50f1/medium_jpg/england-elementary-school-modus-studio_3.jpg?1687382632',
+  university: 'https://www.harvard.edu/wp-content/uploads/2021/03/100408_Yard_045-scaled.jpg',
+  office: 'https://img.magnific.com/fotos-gratis/passeio-e-canal-na-marina-de-dubai-com-arranha-ceus-de-luxo-ao-redor-emirados-arabes-unidos_231208-7556.jpg?semt=ais_hybrid&w=740&q=80',
 
   // 🌳 INFRAESTRUTURA
-  park: 'https://cdn.americachip.com/wp-content/uploads/2023/04/tamanho-central-park-nova-york.jpg',
-  highway: 'https://static.poder360.com.br/uploads/2024/11/raposo-tavares-848x477.jpg',
-  train_station:
-    'https://wp.rotadeferias.com.br/wp-content/uploads/2017/12/DB3711.jpg',
-  port: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRdT45uYdfFrlyufCfn47LWevbcBqCjUfM-qMmQT2jT1-rQ2hasiQhb2r8&s=10',
+  park: 'https://images.unsplash.com/photo-1465447142348-e9952c393450?w=600&auto=format&fit=crop&q=60', // ✅ Link consertado
+  highways: 'https://images.unsplash.com/photo-1761897526071-5e29319b4751?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=NHwxMjA3fDA%3D', // ✅ Link de imagem direta em vez de site
+  bridge: 'https://images.unsplash.com/photo-1513326680218-2c8b6d663a1f?q=80&w=800&auto=format&fit=crop', // ✅ Link de imagem direta em vez de site
+  train_station: 'https://www.blogvambora.com.br/wp-content/uploads/2016/06/Trem-na-Alemanha-Berlim-Central-Station-Blog-Vambora.jpg',
+  port: 'https://cdn.gazetasp.com.br/uploads/2026/07/porto-de-santos-cred-agencia-sp-768x480.jpg',
+  subway: 'https://conteudo.imguol.com.br/c/noticias/5e/2021/07/22/novo-trem-bala-chines-chega-a-600-kmh-1626986114582_v2_900x506.jpg.webp',
+  airport: 'https://aeroin.net/wp-content/uploads/2017/03/Frankfurt-1024x538.jpg',
 
-  // 🏘️ HABITACIONAL
-  residential:
-    'https://images.homify.com/v1448129217/p/photo/image/1135013/7.jpg',
+  // 🏘️ HABITACIONAL & 🏢 COMERCIAL
+  residence: 'https://marketplace.canva.com/MADaw2rOZS0/1/thumbnail_large-1/canva-upscale-modern-mansion-with-pool-MADaw2rOZS0.jpg',
+  supermarket: 'https://cdn.comerciariossp.com.br/upload/img1-Walmart-fecha-mais-cinco-lojas-e-demite--12524.jpg',
+  shopping_mall: 'https://forbes.com.br/wp-content/uploads/2018/08/dubai.jpg',
+  bank: 'https://t3.ftcdn.net/jpg/08/08/99/46/240_F_808994683_OUZEZt581lOYP0H2zGRXMZKJ5g87jkjx.jpg',
+  stadium: 'https://cdn2.hubspot.net/hubfs/459815/1-41130215.jpg',
 
-  // 🏢 COMERCIAL
-  supermarket:
-    'https://cdn.noticiabrasil.net.br/img/598/26/5982663_0:0:2634:1482_1920x0_80_0_0_e03a927de99a29314ce350ed74b1f5c9.jpg',
-  shopping_mall:
-    'https://cdn.noticiabrasil.net.br/img/598/26/5982663_0:0:2634:1482_1920x0_80_0_0_e03a927de99a29314ce350ed74b1f5c9.jpg',
-  bank: 'https://cdn.noticiabrasil.net.br/img/598/26/5982663_0:0:2634:1482_1920x0_80_0_0_e03a927de99a29314ce350ed74b1f5c9.jpg',
-  stadium:
-    'https://cdn.noticiabrasil.net.br/img/598/26/5982663_0:0:2634:1482_1920x0_80_0_0_e03a927de99a29314ce350ed74b1f5c9.jpg',
-
-  // 🚔 SEGURANÇA
-  recycling_center:
-    'https://cdn.noticiabrasil.net.br/img/598/26/5982663_0:0:2634:1482_1920x0_80_0_0_e03a927de99a29314ce350ed74b1f5c9.jpg',
-  subway: 'https://cdn.noticiabrasil.net.br/img/598/26/5982663_0:0:2634:1482_1920x0_80_0_0_e03a927de99a29314ce350ed74b1f5c9.jpg',
+  // 🚔 OUTROS
+  recycling_center: 'https://www.reciclasampa.com.br/imgs/conteudos/02_ecourbis_oferece_visita_guiada_cmt_sp_padrao.jpg',
 }
 
 export const MILITARY_IMAGES: Record<string, string> = {
-  soldiers:
-    'https://cdn.noticiabrasil.net.br/img/598/26/5982663_0:0:2634:1482_1920x0_80_0_0_e03a927de99a29314ce350ed74b1f5c9.jpg',
-  tanks:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTjJB6Ia_s89p88yC6z9jWJy9N0p0D9bvlYN1cETZhE1A&s=10',
-  artillery:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTRzLaPqTyvk_vEiltFpggiV0Q0DN7-0EK7pHiR1yNFDsYDZj1sLXfQVhA&s=10',
-  aircraft:
-    'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/61/F-35A_flight_%28cropped%29.jpg/330px-F-35A_flight_%28cropped%29.jpg',
-  helicopters:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSSMBalQEah5Ve56DwKBZuBSTN--RM7fjYwL6Q82vrAtIEG5PgulC84bpo&s=10',
-  drones:
-    'https://www.airway.com.br/uploads/aviation/2022/03/concepcao-artistica-do-drone-bayraktar-kizilelma-primeiro-voo-e-programado-para-2023-baykar-rq5ujwb.webp',
-  missiles:
-    'https://ichef.bbci.co.uk/ace/ws/640/cpsprodpb/633d/live/7f7225a0-7f4a-11f0-83cc-c5da98c419b8.jpg.webp',
-  warheads:
-    'https://super.abril.com.br/wp-content/uploads/2017/04/a-22bomba-do-bem22-e-a-volta-do-fantasma-nuclear1.jpg?crop=1&resize=1212,909',
-  ammunition:
-    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSpB96-56tjTzzXB-JnXHT0JMnAyyhR0J5gsip6bjkR3BiWXn1qX7Kv2W0&s=10',
+  soldiers: 'https://www.moneytimes.com.br/uploads/2021/04/exericto-britanico.jpg',
+  tanks: 'https://f.i.uol.com.br/fotografia/2023/01/24/167456686063cfdccc28a10_1674566860_3x2_xl.jpg',
+  artillery: 'https://www.bbc.co.uk/portuguese/images/00126chech300.jpg',
+  aircraft: 'https://s2-oglobo.glbimg.com/8nCtYZZFw17SxqT4oFfWZhm-hX8=/0x0:1200x675/888x0/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_da025474c0c44edd99332dddb09cabe8/internal_photos/bs/2026/r/l/j2X5l4RWiyA0oAlI46dA/04143732041381.jpg',
+  helicopters: 'https://www.cavok.com.br/wp-content/uploads/2025/03/IMG_20231128_135629-1.jpg',
+  drones: 'https://s2-oglobo.glbimg.com/vp6XqVw7Y1bd1T-6JWseWFzO_8w=/0x98:560x407/888x0/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_da025474c0c44edd99332dddb09cabe8/internal_photos/bs/2026/q/M/CcSDA8SXG0kcNabvflAg/triton-card-230330pmar316027.jpg',
+  missiles: 'https://img.odcdn.com.br/wp-content/uploads/2022/05/missil-destaque.jpg',
+  warheads: 'https://portuguese.xinhuanet.com/2019-10/01/138441167_15699194616161n.jpg',
+  ammunition: 'https://cdn-blog-cj.estrategia.com/portal/wp-content/uploads/2024/08/14150325/image-28.png',
 }
-
-// 🎯 Como usar em eco_page_REBUILD.tsx:
-
-/*
-import { BUILDING_IMAGES, MILITARY_IMAGES } from '@/components/buildingImages'
-
-// Em BuildingCatalog expandido:
-<img
-  src={BUILDING_IMAGES[building.type] || '/placeholder.png'}
-  alt={building.name}
-  className="w-full h-32 object-cover rounded-lg mb-3"
-  onError={(e) => {
-    e.currentTarget.src = '/placeholder.png'
-  }}
-/>
-
-// Em Equipamentos Militares:
-<img
-  src={MILITARY_IMAGES[unit.key] || '/placeholder.png'}
-  alt={unit.label}
-  className="w-full h-32 object-cover rounded-lg mb-3"
-  onError={(e) => {
-    e.currentTarget.src = '/placeholder.png'
-  }}
-/>
-*/

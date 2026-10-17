@@ -1,11 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link' // ✅ Import do Link
+import Link from 'next/link'
 import { useFeed, CATEGORIES, Article } from '@/hooks/useFeed'
 import { formatTime } from '@/utils/format'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 
 export default function FeedPage() {
   const { articles, loading, hasMore, loadMore, voteArticle } = useFeed()
@@ -68,8 +65,11 @@ function ArticleCard({ article, onVote }: {
   article: Article
   onVote: (id: string, v: 1 | -1) => void
 }) {
+  // ✅ Limpa as tags HTML do conteúdo para exibir um texto limpo na prévia do feed
+  const cleanPreview = article.content?.replace(/<[^>]*>?/gm, '') || ''
+
   return (
-    <div className="bg-surface-card rounded-xl p-4 flex flex-col gap-3">
+    <div className="bg-surface-card rounded-xl p-4 flex flex-col gap-3 border border-white/5 hover:border-white/10 transition-colors">
       <div className="flex items-center gap-2">
         <span className="text-xl">{article.countries?.flag_emoji ?? '🌐'}</span>
         <div className="flex-1 min-w-0">
@@ -79,18 +79,17 @@ function ArticleCard({ article, onVote }: {
         <span className="text-xs bg-white/10 text-white/50 rounded-full px-2 py-0.5">{article.category}</span>
       </div>
 
-      <Link href={`/game/feed/${article.id}`} className="text-left">
-        <h3 className="text-white font-bold text-base leading-snug line-clamp-2 hover:text-primary-light transition-colors">
+      {/* ✅ Link sem erros de HTML (só texto puro aqui dentro) */}
+      <Link href={`/game/feed/${article.id}`} className="block text-left group">
+        <h3 className="text-white font-bold text-base leading-snug line-clamp-2 group-hover:text-primary-light transition-colors">
           {article.title}
         </h3>
-        <div className="text-white/40 text-sm mt-1 line-clamp-2 prose prose-invert prose-sm">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {article.content || ''}
-          </ReactMarkdown>
-        </div>
+        <p className="text-white/50 text-sm mt-1 line-clamp-2">
+          {cleanPreview}
+        </p>
       </Link>
 
-      <div className="flex items-center gap-3 pt-1 border-t border-white/5">
+      <div className="flex items-center gap-3 pt-2 border-t border-white/5">
         <button
           onClick={() => onVote(article.id, 1)}
           className={`flex items-center gap-1.5 text-sm font-semibold transition-colors
@@ -118,7 +117,7 @@ function ArticleCard({ article, onVote }: {
 
 function ArticleSkeleton() {
   return (
-    <div className="bg-surface-card rounded-xl p-4 flex flex-col gap-3 animate-pulse">
+    <div className="bg-surface-card rounded-xl p-4 flex flex-col gap-3 animate-pulse border border-white/5">
       <div className="flex gap-2 items-center">
         <div className="w-8 h-8 rounded-full bg-white/10" />
         <div className="h-3 w-24 bg-white/10 rounded" />

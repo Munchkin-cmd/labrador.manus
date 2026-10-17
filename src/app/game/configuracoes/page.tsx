@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useConfiguracoes } from '@/hooks/useMenu'
 import { useAuthStore } from '@/store/authStore'
 import { supabase } from '@/lib/supabase/client'
-import { Loader2, Upload, X } from 'lucide-react'
-
-// ─── REMOVIDOS: LEADER_TITLES, RELIGIONS, LANGUAGES, STATE_STRUCTURES (não são mais usados)
+import { Loader2, Upload, X, Plus } from 'lucide-react' // ✅ Adicionado ícone Plus
 
 export default function ConfiguracoesPage() {
   const router = useRouter()
@@ -35,7 +33,6 @@ export default function ConfiguracoesPage() {
   const [uploadingFlag, setUploadingFlag] = useState(false)
   const [uploadingLeader, setUploadingLeader] = useState(false)
   const [uploadingBanner, setUploadingBanner] = useState(false)
-  const [activeBannerIndex, setActiveBannerIndex] = useState<number | null>(null)
   
   const flagInputRef = useRef<HTMLInputElement>(null)
   const leaderInputRef = useRef<HTMLInputElement>(null)
@@ -92,7 +89,6 @@ export default function ConfiguracoesPage() {
       setFeedback(`❌ Erro no upload: ${err.message}`)
     } finally {
       setUploading(false)
-      setActiveBannerIndex(null)
     }
   }
 
@@ -146,7 +142,6 @@ export default function ConfiguracoesPage() {
           <input value={leaderName} onChange={e => setLeaderName(e.target.value)} className="input-field" placeholder="Nome do líder" />
         </Field>
         <Field label="Título">
-          {/* ✅ Substituído select por input de texto */}
           <input value={leaderTitle} onChange={e => setLeaderTitle(e.target.value)} className="input-field" placeholder="Ex: Presidente, Rei, etc." />
         </Field>
 
@@ -174,10 +169,7 @@ export default function ConfiguracoesPage() {
             {leaderUrl && (
               <div className="relative w-12 h-12 rounded-full overflow-hidden border border-white/10 flex-shrink-0 bg-black">
                 <img src={leaderUrl} alt="Líder" className="w-full h-full object-cover" />
-                <button
-                  onClick={() => setLeaderUrl('')}
-                  className="absolute top-0 right-0 bg-black/60 text-white rounded-full p-0.5"
-                >
+                <button onClick={() => setLeaderUrl('')} className="absolute top-0 right-0 bg-black/60 text-white rounded-full p-0.5">
                   <X size={12} />
                 </button>
               </div>
@@ -216,10 +208,7 @@ export default function ConfiguracoesPage() {
             {flagUrl && (
               <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-white/10 flex-shrink-0 bg-black">
                 <img src={flagUrl} alt="Bandeira" className="w-full h-full object-cover" />
-                <button
-                  onClick={() => setFlagUrl('')}
-                  className="absolute top-0 right-0 bg-black/60 text-white rounded-full p-0.5"
-                >
+                <button onClick={() => setFlagUrl('')} className="absolute top-0 right-0 bg-black/60 text-white rounded-full p-0.5">
                   <X size={12} />
                 </button>
               </div>
@@ -231,60 +220,64 @@ export default function ConfiguracoesPage() {
           <input value={currency} onChange={e => setCurrency(e.target.value)} className="input-field" placeholder="Ex: Real (R$)" />
         </Field>
         <Field label="Estrutura de Estado">
-          {/* ✅ Substituído select por input de texto */}
           <input value={stateStructure} onChange={e => setStructure(e.target.value)} className="input-field" placeholder="Ex: Democracia, Monarquia, etc." />
         </Field>
         <Field label="Religião Oficial">
-          {/* ✅ Substituído select por input de texto */}
           <input value={religion} onChange={e => setReligion(e.target.value)} className="input-field" placeholder="Ex: Cristianismo, Sem religião, etc." />
         </Field>
         <Field label="Idioma">
-          {/* ✅ Substituído select por input de texto */}
           <input value={language} onChange={e => setLanguage(e.target.value)} className="input-field" placeholder="Ex: Português, Inglês, etc." />
         </Field>
       </Section>
 
-      {/* ─── 13 BANNERS (COM BOTÃO SALVAR BANNERS) ────────────── */}
-      <Section title="🎨 BANNERS DO PAÍS (13 FOTOS)">
+      {/* ─── BANNERS DINÂMICOS ────────────── */}
+      <Section title="🎨 BANNERS DO PAÍS">
         <p className="text-white/40 text-xs mb-2">
-          Clique em um quadrado para enviar uma foto para aquela posição.
+          Adicione quantas fotos quiser para o banner. Clique em "+" para adicionar ou no "X" para remover.
         </p>
         
-        <div className="grid grid-cols-3 gap-2 mt-2">
-          {Array.from({ length: 13 }).map((_, i) => {
-            const imgUrl = bannerUrls[i] || null
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-2">
+          
+          {/* ✅ Renderiza APENAS os banners que o usuário enviou */}
+          {bannerUrls.map((imgUrl, i) => {
+            if (!imgUrl) return null // Pula se por algum motivo houver um slot vazio
             return (
               <div 
                 key={i} 
-                className="relative aspect-square bg-black/40 border border-white/10 rounded-lg overflow-hidden flex items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => {
-                  if (!imgUrl) {
-                    setActiveBannerIndex(i)
-                    bannerInputRef.current?.click()
-                  }
-                }}
+                className="relative aspect-square bg-black/40 border border-white/10 rounded-lg overflow-hidden group"
               >
-                {imgUrl ? (
-                  <>
-                    <img src={imgUrl} alt={`Banner ${i+1}`} className="w-full h-full object-cover" />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        const newArr = [...bannerUrls]
-                        newArr[i] = ''
-                        setBannerUrls(newArr)
-                      }}
-                      className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5"
-                    >
-                      <X size={12} />
-                    </button>
-                  </>
-                ) : (
-                  <span className="text-white/20 text-xs">#{i+1}</span>
-                )}
+                <img src={imgUrl} alt={`Banner ${i+1}`} className="w-full h-full object-cover" />
+                <button
+                  onClick={() => {
+                    // Remove o item da lista
+                    const newArr = bannerUrls.filter((_, index) => index !== i)
+                    setBannerUrls(newArr)
+                  }}
+                  className="absolute top-1 right-1 bg-black/60 hover:bg-red-600 text-white rounded-full p-1 opacity-100 transition-colors shadow-lg z-10"
+                  title="Remover banner"
+                >
+                  <X size={14} />
+                </button>
               </div>
             )
           })}
+
+          {/* ✅ BOTÃO DE ADICIONAR NOVO BANNER (Sempre visível no final) */}
+          <div 
+            onClick={() => {
+              if (!uploadingBanner) bannerInputRef.current?.click()
+            }}
+            className="relative aspect-square bg-white/5 border border-white/10 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-white/10 transition-colors"
+          >
+            {uploadingBanner ? (
+              <Loader2 className="animate-spin text-primary-light" size={24} />
+            ) : (
+              <>
+                <Plus className="text-white/40 mb-1" size={24} />
+                <span className="text-[10px] font-semibold text-white/40 uppercase">Adicionar</span>
+              </>
+            )}
+          </div>
         </div>
 
         <input
@@ -294,26 +287,27 @@ export default function ConfiguracoesPage() {
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0]
-            if (file && activeBannerIndex !== null) {
+            if (file) {
+              // ✅ A MÁGICA ACONTECE AQUI: Adiciona o novo link no final da lista
               handleUpload(
                 file, 
                 'banners', 
                 (url) => {
-                  const newArr = [...bannerUrls]
-                  newArr[activeBannerIndex] = url
-                  setBannerUrls(newArr)
+                  setBannerUrls(prev => [...prev, url])
                 },
                 setUploadingBanner
               )
             }
+            // Limpa o input para permitir selecionar a mesma foto novamente se quiser
+            if (e.target) e.target.value = ''
           }}
         />
 
-        <div className="flex gap-3 mt-3">
+        <div className="flex gap-3 mt-4">
           <button
             onClick={handleSaveBanners}
             disabled={saving}
-            className="flex-1 bg-primary hover:bg-primary-light text-white font-semibold py-2 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="flex-1 bg-primary hover:bg-primary-light text-white font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
           >
             💾 SALVAR BANNERS
           </button>
@@ -321,11 +315,11 @@ export default function ConfiguracoesPage() {
       </Section>
 
       {feedback && (
-        <p className={`text-sm text-center ${feedback.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>{feedback}</p>
+        <p className={`text-sm text-center font-semibold ${feedback.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>{feedback}</p>
       )}
 
-      <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
-        {saving ? 'Salvando...' : 'SALVAR ALTERAÇÕES'}
+      <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50 mt-2">
+        {saving ? 'Salvando...' : 'SALVAR ALTERAÇÕES GERAIS'}
       </button>
 
       {/* Senha */}
@@ -358,7 +352,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <div>
       <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-2">{title}</p>
-      <div className="bg-surface-card rounded-xl p-4 flex flex-col gap-4">{children}</div>
+      <div className="bg-surface-card rounded-xl p-4 flex flex-col gap-4 border border-white/5">{children}</div>
     </div>
   )
 }
