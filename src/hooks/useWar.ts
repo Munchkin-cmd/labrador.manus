@@ -30,7 +30,7 @@ export interface War {
   }
   attacker_region?: { name: string } | null
   defender_region?: { name: string } | null
-  participants?: any[] // Usando 'any' para evitar conflito de tipagem com a coluna damage_dealt
+  participants?: any[] 
 }
 
 type CombatXPRow = Database['public']['Tables']['combat_xp']['Row']
@@ -83,7 +83,7 @@ export function useWar() {
     setError(null)
 
     try {
-      // ✅ Query buscando as relações completas
+      // ✅ CORREÇÃO: Adicionado o 'country_id' dentro de participants
       const selectQuery = `
         *,
         attacker:countries!wars_attacker_id_fkey(id, name, flag_emoji, users(flag_url)),
@@ -91,13 +91,13 @@ export function useWar() {
         attacker_region:regions!wars_attacker_region_id_fkey(name),
         defender_region:regions!wars_defender_region_id_fkey(name),
         participants:war_participants(
+          country_id,
           side,
           damage_dealt,
           country:countries(id, name, flag_emoji, users(flag_url))
         )
       `;
 
-      // 1. Busca TODAS as guerras ativas/pausadas
       const [allWarsData, militaryData, combatXPData] = await Promise.all([
         supabase
           .from('wars')
@@ -115,7 +115,7 @@ export function useWar() {
       const myWarsFiltered = allWars.filter(w => 
         w.attacker_id === country.id || 
         w.defender_id === country.id || 
-        w.participants?.some((p: any) => p.country_id === country.id)
+        w.participants?.some((p: any) => Number(p.country_id) === Number(country.id))
       )
 
       // 3. Filtra as guerras onde EU NÃO ESTOU ENVOLVIDO (Para intervenção)
@@ -123,8 +123,8 @@ export function useWar() {
         w.status === 'active' &&
         w.attacker_id !== country.id && 
         w.defender_id !== country.id && 
-        !w.participants?.some((p: any) => p.country_id === country.id)
-      ).slice(0, 20) // Limita a 20 para não pesar a tela
+        !w.participants?.some((p: any) => Number(p.country_id) === Number(country.id))
+      ).slice(0, 20)
 
       setMyWars(myWarsFiltered)
       setWorldWars(worldWarsFiltered)
@@ -201,6 +201,18 @@ export function useWar() {
 
   async function proposeJoinWar(warId: string, side: 'attacker' | 'defender', targetCountryId: number): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
+
+    // ✅ Verifica se já está na guerra para não spammar leis
+    const { data: existingParticipant } = await supabase
+      .from('war_participants')
+      .select('id')
+      .eq('war_id', warId)
+      .eq('country_id', country.id)
+      .maybeSingle()
+
+    if (existingParticipant) {
+      return { success: false, error: 'Você já é um participante desta guerra.' }
+    }
     
     // Envia a lei (11) para o parlamento aprovar
     const { error } = await supabase.from('laws').insert({
@@ -220,11 +232,9 @@ export function useWar() {
     return { success: true, message: `Proposta enviada ao parlamento para lutar pelo lado ${side === 'attacker' ? 'Atacante' : 'Defensor'}!` }
   }
 
-  // ✅ NOVA FUNÇÃO: Sair da Guerra (Para Aliados)
   async function leaveWar(warId: string): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
     
-    // Remove o jogador da tabela de participantes
     const { error } = await supabase
       .from('war_participants')
       .delete()
@@ -233,7 +243,6 @@ export function useWar() {
 
     if (error) return { success: false, error: error.message }
     
-    // Recarrega os dados para a guerra voltar para a aba "Guerras no Mundo"
     lastLoadedIdRef.current = null
     await fetchAll() 
     
@@ -243,7 +252,7 @@ export function useWar() {
   return {
     myWars, worldWars, military, combatXP, loading, error,
     declareWar, attack, proposePeace, acceptPeace, rejectPeace,
-    proposeJoinWar, leaveWar, // ✅ Exportado
+    proposeJoinWar, leaveWar,
     refetch: fetchAll,
   }
 }
