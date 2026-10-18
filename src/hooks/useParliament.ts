@@ -256,7 +256,6 @@ export function useParliament() {
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
-    // Se a lei não estiver no estado (recém-inserida), busca do banco
     let law = laws.find(l => l.id === lawId)
     if (!law) {
       const { data: dbLaw, error: dbError } = await supabase
@@ -274,7 +273,6 @@ export function useParliament() {
       law = dbLaw as Law
     }
 
-    // Se o catálogo não estiver no estado, busca do banco
     let catalogItem = catalog.find(c => c.id === law!.law_catalog_id)
     if (!catalogItem) {
       const { data: dbCat } = await supabase
@@ -331,9 +329,7 @@ export function useParliament() {
             country_id: country.id,
             name: params.target_text,
             terrain: countryData?.terrain || 'planicie',
-            area_km2: 300000,
             is_coastal: false,
-            used_area: 0,
           })
 
           return { success: true, message: `Região "${params.target_text}" criada!` }
@@ -412,7 +408,6 @@ export function useParliament() {
           })
 
           if (error) {
-            // Fallback: se a RPC ainda não existe, remove a sanção direto
             console.warn('⚠️ RPC propose_trade_agreement não existe, usando lift_sanctions')
             const { error: fallbackErr } = await supabase.rpc('lift_sanctions', {
               p_from: country.id,
@@ -519,23 +514,23 @@ export function useParliament() {
 
         // 16. Imprimir Dinheiro
         case 16: {
+          // ✅ CORREÇÃO: Removemos a busca e atualização da coluna 'inflation'
           const { data: ecoData } = await supabase
             .from('economy')
-            .select('money, inflation')
+            .select('money')
             .eq('country_id', country.id)
             .single()
 
           if (!ecoData) return { success: false, error: 'Economia não encontrada' }
 
-          const newMoney = ecoData.money + 1_000_000_000
-          const newInflation = ecoData.inflation + 1
+          const newMoney = (ecoData.money || 0) + 1_000_000_000
 
           await supabase
             .from('economy')
-            .update({ money: newMoney, inflation: newInflation })
+            .update({ money: newMoney })
             .eq('country_id', country.id)
 
-          return { success: true, message: `+1B adicionados! Inflação: +1%` }
+          return { success: true, message: `+1B adicionados ao tesouro!` }
         }
 
         // 17. Alterar Impostos
