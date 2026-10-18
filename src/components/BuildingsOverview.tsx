@@ -19,7 +19,6 @@ interface BuildingSummary {
   total: number
   built: number
   building: number
-  area_used: number
 }
 
 interface RegionBuildings {
@@ -28,7 +27,6 @@ interface RegionBuildings {
   total: number
   built: number
   building: number
-  area_used: number
   buildings: Building[]
 }
 
@@ -49,10 +47,6 @@ export function BuildingsOverview({
       const built = typeBuildings.filter(b => b.is_built).length
       const building = typeBuildings.filter(b => !b.is_built).length
       const total = typeBuildings.reduce((sum, b) => sum + (b.quantity || 1), 0)
-      const area_used = typeBuildings.reduce(
-        (sum, b) => sum + cat.area_km2 * (b.quantity || 1),
-        0
-      )
 
       acc.push({
         type: cat.type,
@@ -60,7 +54,6 @@ export function BuildingsOverview({
         total,
         built,
         building,
-        area_used,
       })
     }
 
@@ -73,10 +66,6 @@ export function BuildingsOverview({
     const built = regionBuildings.filter(b => b.is_built).length
     const building = regionBuildings.filter(b => !b.is_built).length
     const total = regionBuildings.reduce((sum, b) => sum + (b.quantity || 1), 0)
-    const area_used = regionBuildings.reduce((sum, b) => {
-      const cat = catalog.find(c => c.type === b.building_type)
-      return sum + (cat ? cat.area_km2 * (b.quantity || 1) : 0)
-    }, 0)
 
     return {
       region_id: region.id,
@@ -84,7 +73,6 @@ export function BuildingsOverview({
       total,
       built,
       building,
-      area_used,
       buildings: regionBuildings,
     } as RegionBuildings
   })
@@ -144,7 +132,7 @@ export function BuildingsOverview({
                       </p>
                     </div>
 
-                    <div className="flex gap-1 mb-1.5">
+                    <div className="flex gap-1">
                       {summary.built > 0 && (
                         <div className="flex-1 flex items-center gap-1">
                           <div className="flex-1 h-1 bg-green-500/30 rounded-full overflow-hidden">
@@ -177,10 +165,6 @@ export function BuildingsOverview({
                         </div>
                       )}
                     </div>
-
-                    <p className="text-white/30 text-[10px]">
-                      Área: {formatNumber(summary.area_used)} km²
-                    </p>
                   </div>
                 ))}
               </div>
@@ -264,8 +248,7 @@ export function BuildingsOverview({
                   </div>
 
                   {/* Details */}
-                  <div className="grid grid-cols-2 gap-2 text-[10px] text-white/40">
-                    <span>Área: {formatNumber(region.area_used)} km²</span>
+                  <div className="flex justify-between text-[10px] text-white/40">
                     <span>Total: {formatNumber(region.total)}</span>
                   </div>
 
