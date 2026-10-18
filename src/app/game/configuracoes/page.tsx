@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation'
 import { useConfiguracoes } from '@/hooks/useMenu'
 import { useAuthStore } from '@/store/authStore'
 import { supabase } from '@/lib/supabase/client'
-import { Loader2, Upload, X, Plus } from 'lucide-react' // ✅ Adicionado ícone Plus
+import { Loader2, Upload, X, Plus, AlertTriangle } from 'lucide-react' // ✅ Adicionado AlertTriangle
 
 export default function ConfiguracoesPage() {
   const router = useRouter()
   const { user, country } = useAuthStore()
-  const { data, profile, loading, saving, saveCountry, saveProfile } = useConfiguracoes()
+  
+  // ✅ Adicionado abandonCountry no hook
+  const { data, profile, loading, saving, saveCountry, saveProfile, abandonCountry } = useConfiguracoes()
 
   // ─── ESTADOS DOS CAMPOS ──────────────────────────────────────
   const [motto, setMotto]               = useState('')
@@ -37,6 +39,10 @@ export default function ConfiguracoesPage() {
   const flagInputRef = useRef<HTMLInputElement>(null)
   const leaderInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
+
+  // ✅ Estados para o modal de exclusão
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (data) {
@@ -128,6 +134,21 @@ export default function ConfiguracoesPage() {
     setPwMsg(error ? '❌ ' + error.message : '✅ Senha alterada com sucesso!')
     setPwCurrent(''); setPwNew('')
     setTimeout(() => setPwMsg(''), 4000)
+  }
+
+  // ✅ FUNÇÃO QUE EXECUTA A EXCLUSÃO
+  async function handleDeleteCountry() {
+    setDeleting(true)
+    const res = await abandonCountry()
+    
+    if (res.success) {
+      // Desloga o usuário e manda para a tela de login
+      await supabase.auth.signOut()
+      window.location.href = '/auth/login'
+    } else {
+      alert(res.error || 'Erro ao excluir o país')
+      setDeleting(false)
+    }
   }
 
   if (loading) return <Loading />
@@ -238,9 +259,8 @@ export default function ConfiguracoesPage() {
         
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-2">
           
-          {/* ✅ Renderiza APENAS os banners que o usuário enviou */}
           {bannerUrls.map((imgUrl, i) => {
-            if (!imgUrl) return null // Pula se por algum motivo houver um slot vazio
+            if (!imgUrl) return null 
             return (
               <div 
                 key={i} 
@@ -249,7 +269,6 @@ export default function ConfiguracoesPage() {
                 <img src={imgUrl} alt={`Banner ${i+1}`} className="w-full h-full object-cover" />
                 <button
                   onClick={() => {
-                    // Remove o item da lista
                     const newArr = bannerUrls.filter((_, index) => index !== i)
                     setBannerUrls(newArr)
                   }}
@@ -262,7 +281,6 @@ export default function ConfiguracoesPage() {
             )
           })}
 
-          {/* ✅ BOTÃO DE ADICIONAR NOVO BANNER (Sempre visível no final) */}
           <div 
             onClick={() => {
               if (!uploadingBanner) bannerInputRef.current?.click()
@@ -288,7 +306,6 @@ export default function ConfiguracoesPage() {
           onChange={(e) => {
             const file = e.target.files?.[0]
             if (file) {
-              // ✅ A MÁGICA ACONTECE AQUI: Adiciona o novo link no final da lista
               handleUpload(
                 file, 
                 'banners', 
@@ -298,7 +315,6 @@ export default function ConfiguracoesPage() {
                 setUploadingBanner
               )
             }
-            // Limpa o input para permitir selecionar a mesma foto novamente se quiser
             if (e.target) e.target.value = ''
           }}
         />
@@ -343,6 +359,49 @@ export default function ConfiguracoesPage() {
           <span className="text-white/70 text-sm">{user?.email}</span>
         </div>
       </Section>
+
+      {/* ✅ ZONA DE PERIGO (EXCLUIR PAÍS) */}
+      <Section title="⚠️ ZONA DE PERIGO">
+        <p className="text-white/60 text-xs mb-3">
+          Ao excluir seu país, todos os seus edifícios, economia, leis e histórico serão apagados permanentemente. O país ficará disponível para outro jogador.
+        </p>
+        <button 
+          onClick={() => setShowDeleteModal(true)}
+          className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+        >
+          <AlertTriangle size={18} />
+          EXCLUIR PAÍS E SAIR
+        </button>
+      </Section>
+
+      {/* ✅ MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#1a1a2e] border border-red-500/50 rounded-xl p-6 max-w-sm w-full text-center shadow-2xl">
+            <h3 className="text-white font-bold text-lg mb-2">Tem certeza absoluta?</h3>
+            <p className="text-white/60 text-sm mb-6">
+              Essa ação não pode ser desfeita. Você perderá todo o progresso do seu país no jogo.
+            </p>
+            
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-2.5 rounded-lg text-sm transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleDeleteCountry}
+                disabled={deleting}
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-lg text-sm transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Excluindo...' : 'Sim, Excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

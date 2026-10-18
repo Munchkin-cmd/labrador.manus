@@ -35,7 +35,6 @@ export function useEconomy() {
     setLoading(true)
 
     try {
-      // ✅ Puxa tudo que precisamos para calcular o orçamento
       const [e, m, b, t] = await Promise.all([
         supabase.from('economy').select('*').eq('country_id', country.id).maybeSingle(),
         supabase.from('military').select('*').eq('country_id', country.id).maybeSingle(),
@@ -68,13 +67,11 @@ export function useEconomy() {
     }
   }, [country?.id, fetchData])
 
-  // ✅ CÁLCULO DO ORÇAMENTO (Lógica de Lucro vs Despesa)
   let totalIncome = 0
   let totalExpenses = 0
   const resourceProduction: Record<string, number> = {}
 
   if (taxes) {
-    // Regra: Cada 1% de imposto = 100 Milhões de lucro. A soma dos 3 impostos é a renda bruta.
     const taxSum = (taxes.income_tax || 0) + (taxes.property_tax || 0) + (taxes.manufacturing_tax || 0)
     totalIncome = taxSum * 100_000_000
   }
@@ -83,22 +80,12 @@ export function useEconomy() {
     buildings.forEach(b => {
       const cat = b.building_catalog
       if (!cat) return
-      
       const qty = b.quantity || 1
-      
-      // Despesas com manutenção de prédios
       totalExpenses += (Number(cat.maint_money) || 0) * qty
-
-      // Produção de recursos (Ex: 300 por prédio)
       if (cat.produces) {
         resourceProduction[cat.produces] = (resourceProduction[cat.produces] || 0) + (300 * qty)
       }
     })
-  }
-
-  // Adicione manutenção militar aqui se você tiver o custo (ex: cada soldado custa 10)
-  if (military) {
-    // Exemplo: totalExpenses += (military.soldiers || 0) * 10
   }
 
   const budget = {
@@ -380,7 +367,24 @@ export function useConfiguracoes() {
     return { success: !error }
   }
 
-  return { data, profile, loading, saving, saveCountry, saveProfile }
+  // ✅ TIPAGEM CORRIGIDA AQUI
+  async function abandonCountry(): Promise<{ success: boolean; error?: string; message?: string }> {
+    if (!country?.id) return { success: false, error: 'País não encontrado' }
+
+    try {
+      const { data, error } = await supabase.rpc('abandon_country', {
+        p_country_id: country.id
+      })
+
+      if (error) throw error
+      return data as { success: boolean; error?: string; message?: string }
+    } catch (err: any) {
+      console.error('❌ Erro ao abandonar país:', err)
+      return { success: false, error: err.message }
+    }
+  }
+
+  return { data, profile, loading, saving, saveCountry, saveProfile, abandonCountry }
 }
 
 // ─── IMPOSTOS ───────────────────────────────────────────────
@@ -420,7 +424,6 @@ export function useTaxes() {
     setSaving(true)
     if (!country) return { success: false, error: 'País não encontrado' }
 
-    // ✅ TRAVA DE SEGURANÇA: Mínimo 1%, Máximo 60%
     const limitTax = (val: any) => Math.min(60, Math.max(1, Number(val) || 1))
 
     const updateData = {
@@ -429,7 +432,6 @@ export function useTaxes() {
       manufacturing_tax: limitTax(updated.manufacturing_tax),
     }
 
-    // O banco vai atualizar (lembre-se de ter rodado o SQL que adiciona a coluna updated_at)
     const { error: taxError } = await supabase
       .from('taxes')
       .update(updateData)
@@ -441,7 +443,6 @@ export function useTaxes() {
       return { success: false, error: taxError.message }
     }
 
-    // Cálculo de penalidade na confiança
     const totalTax = updateData.income_tax + updateData.property_tax + updateData.manufacturing_tax
     const avgTax = totalTax / 3
     const trustPenalty = avgTax > 40 ? (avgTax - 40) * 0.5 : 0
@@ -454,6 +455,7 @@ export function useTaxes() {
       .maybeSingle()
 
     if (!fetchError && currentCountry) {
+      // ✅ CORRIGIDO: currentCountry.trust em vez de currentTrust
       const newTrust = Math.max(0, (currentCountry.trust || 50) - trustPenalty)
       const newApproval = Math.max(0, (currentCountry.intl_approval || 50) - approvalPenalty)
 
