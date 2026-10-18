@@ -47,7 +47,6 @@ export default function CadastroPage() {
   const [error, setError]         = useState('')
   const [loading, setLoading]     = useState(false)
 
-  // Check if chosen country is already taken
   async function checkCountryAvailable(id: number): Promise<boolean> {
     const { data } = await supabase
       .from('countries')
@@ -70,7 +69,6 @@ export default function CadastroPage() {
       return
     }
 
-    // CRITICAL: pass country_id in metadata so handle_new_user() trigger works
     const { error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -80,37 +78,16 @@ export default function CadastroPage() {
     })
 
     if (authError) {
-      setError(authError.message)
+      // ✅ Melhora a exibição do erro caso venha vazio
+      setError(authError.message || 'Erro ao criar conta. Verifique os dados ou tente outro país.')
       setLoading(false)
       return
     }
 
-    // Update leader name in countries
-    await supabase
-      .from('countries')
-      .update({ leader_name: leaderName })
-      .eq('id', countryId)
-
-    // ✅ CORREÇÃO: Aguarda o Supabase ativar o país e redireciona
-    setTimeout(async () => {
-      // Verifica se o país realmente virou ativo
-      const { data } = await supabase
-        .from('countries')
-        .select('is_active')
-        .eq('id', countryId)
-        .single()
-      
-      // Se ainda não estiver ativo, espera mais um pouco e força refresh
-      if (!data?.is_active) {
-        setTimeout(() => {
-          router.push('/game/home')
-        }, 1000)
-      } else {
-        router.push('/game/home')
-      }
-    }, 500)
-
     setLoading(false)
+    
+    // ✅ Redireciona para o login conforme você pediu
+    router.push('/auth/login?cadastro=sucesso')
   }
 
   return (
@@ -127,7 +104,7 @@ export default function CadastroPage() {
       {step === 1 && (
         <div className="flex flex-col gap-3">
           <p className="text-white/60 text-sm font-semibold">Passo 1 — Sua conta</p>
-          <input type="email"    placeholder="Email"              value={email}    onChange={e => setEmail(e.target.value)}    className="input-field" />
+          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} className="input-field" />
           <input type="password" placeholder="Senha (mín. 6 car)" value={password} onChange={e => setPassword(e.target.value)} className="input-field" />
           {error && <p className="text-red-400 text-sm">{error}</p>}
           <button onClick={() => {
