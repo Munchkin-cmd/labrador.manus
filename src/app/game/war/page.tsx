@@ -20,7 +20,7 @@ const UNITS = [
 export default function WarPage() {
   const {
     myWars, worldWars, military, combatXP, loading,
-    attack, proposePeace, acceptPeace, rejectPeace, proposeJoinWar,
+    attack, proposePeace, acceptPeace, rejectPeace, proposeJoinWar, leaveWar,
   } = useWar()
   const { country: myCountry } = useAuthStore()
 
@@ -56,12 +56,44 @@ export default function WarPage() {
     setSubmitting(false)
   }
 
-  // ✅ Lida com a proposta de entrar na guerra
+  async function handleProposePeace(warId: string) {
+    if (!confirm('Tem certeza que deseja propor paz? O inimigo poderá aceitar ou recusar.')) return
+    setPeaceLoading(warId)
+    const res = await proposePeace(warId)
+    alert(res.success ? '🕊️ Proposta de paz enviada!' : `❌ ${res.error}`)
+    setPeaceLoading(null)
+  }
+
+  async function handleAcceptPeace(warId: string) {
+    if (!confirm('Aceitar a paz encerrará a guerra permanentemente. Confirmar?')) return
+    setPeaceLoading(warId)
+    const res = await acceptPeace(warId)
+    alert(res.success ? '🕊️ Paz aceita! Guerra encerrada.' : `❌ ${res.error}`)
+    setPeaceLoading(null)
+  }
+
+  async function handleRejectPeace(warId: string) {
+    if (!confirm('Recusar a paz fará a guerra continuar. Confirmar?')) return
+    setPeaceLoading(warId)
+    const res = await rejectPeace(warId)
+    alert(res.success ? '❌ Paz recusada. A guerra continua.' : `❌ ${res.error}`)
+    setPeaceLoading(null)
+  }
+
   async function handleJoinWar(warId: string, side: 'attacker' | 'defender', targetId: number) {
     setJoining(warId)
     const res = await proposeJoinWar(warId, side, targetId)
     alert(res.success ? res.message : `❌ ${res.error}`)
     setJoining(null)
+  }
+
+  // ✅ NOVA FUNÇÃO: Sair da Guerra (Para Aliados)
+  async function handleLeaveWar(warId: string) {
+    if (!confirm('Tem certeza que deseja sair desta guerra? Seu dano já causado continuará contabilizado no placar geral.')) return
+    setPeaceLoading(warId)
+    const res = await leaveWar(warId)
+    alert(res.success ? res.message : `❌ ${res.error}`)
+    setPeaceLoading(null)
   }
 
   return (
@@ -95,9 +127,10 @@ export default function WarPage() {
               <WarCard 
                 key={war.id} war={war} myCountryId={Number(myCountry?.id)}
                 onAttack={() => setAttackWarId(war.id)}
-                onProposePeace={() => { /* chame sua função de paz */ }}
-                onAcceptPeace={() => { /* chame sua função de paz */ }}
-                onRejectPeace={() => { /* chame sua função de paz */ }}
+                onProposePeace={() => handleProposePeace(war.id)}
+                onAcceptPeace={() => handleAcceptPeace(war.id)}
+                onRejectPeace={() => handleRejectPeace(war.id)}
+                onLeaveWar={() => handleLeaveWar(war.id)} // ✅ Passando a função de sair
                 enemyProposedPeace={war.pending_peace_from !== null && war.pending_peace_from !== Number(myCountry?.id)}
                 iProposedPeace={war.pending_peace_from !== null && war.pending_peace_from === Number(myCountry?.id)}
                 peaceLoading={peaceLoading === war.id}
@@ -172,11 +205,23 @@ export default function WarPage() {
 // ═══════════════════════════════════════════════════════════════
 
 function WarCard({ 
-  war, myCountryId, onAttack, onProposePeace, onAcceptPeace, onRejectPeace,
+  war, myCountryId, onAttack, onProposePeace, onAcceptPeace, onRejectPeace, onLeaveWar,
   enemyProposedPeace, iProposedPeace, peaceLoading, isWorldWar, onJoinAttacker, onJoinDefender, joining
 }: any) {
   
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // ✅ Lógica para saber qual é o SEU papel na guerra
+  const isAttacker = war.attacker_id === myCountryId;
+  const isDefender = war.defender_id === myCountryId;
+  const isAllyAttacker = war.participants?.some((p: any) => p.country_id === myCountryId && p.side === 'attacker');
+  const isAllyDefender = war.participants?.some((p: any) => p.country_id === myCountryId && p.side === 'defender');
+  
+  // Se você for qualquer um desses, você pode atacar!
+  const canAttack = isAttacker || isDefender || isAllyAttacker || isAllyDefender;
+  
+  // Se você for o país principal (Atacante ou Defensor), pode propor paz.
+  const canProposePeace = isAttacker || isDefender;
 
   const attDmg = war.damage_to_defender || 0; 
   const defDmg = war.damage_to_attacker || 0; 
@@ -184,7 +229,6 @@ function WarCard({
   const attPct = totalDmg === 0 ? 50 : Math.round((attDmg / totalDmg) * 100);
   const defPct = totalDmg === 0 ? 50 : 100 - attPct;
 
-  // Tratando o flag_url (o Supabase pode retornar como objeto ou array dependendo da FK)
   const getFlag = (countryData: any) => {
     if (!countryData?.users) return null;
     if (Array.isArray(countryData.users)) return countryData.users[0]?.flag_url;
@@ -221,8 +265,10 @@ function WarCard({
         {/* Topo: Local e Timer */}
         <div className="flex justify-between items-start mb-4">
           <div>
-            <span className="bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded inline-block mb-2">
-              {war.status === 'active' ? 'Guerra Ativa' : 'Golpe de Estado'}
+            <span className={`${canAttack ? 'bg-green-500/20 border-green-500/30 text-green-400' : 'bg-red-500/20 border-red-500/30 text-red-400'} border text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded inline-block mb-2`}>
+              {!isWorldWar 
+                ? (isAttacker || isAllyAttacker ? 'Lutando pelo Atacante' : 'Lutando pelo Defensor') 
+                : (war.status === 'active' ? 'Guerra Ativa' : 'Golpe de Estado')}
             </span>
             <h3 className="text-lg font-black text-white flex items-center gap-2 drop-shadow-md">
               <MapPin size={18} className="text-emerald-400 shrink-0" />
@@ -257,7 +303,7 @@ function WarCard({
           </div>
         </div>
 
-        {/* Bandeiras */}
+        {/* Bandeiras Principais */}
         <div className="flex justify-between items-center bg-black/20 rounded-xl p-4 border border-white/5 mb-4">
           <div className="flex flex-col items-center gap-2 flex-1">
             <FlagAvatar country={war.attacker} borderColor="border-red-500/50" />
@@ -342,13 +388,22 @@ function WarCard({
                 </div>
               </div>
             )}
+            
             <div className="flex gap-3 mt-2">
               <button onClick={onAttack} className="flex-1 bg-gradient-to-r from-red-700 to-red-500 text-white font-black py-3 rounded-xl shadow-lg flex items-center justify-center gap-2">
                 <Swords size={18} /> Atacar
               </button>
-              <button onClick={onProposePeace} disabled={iProposedPeace || enemyProposedPeace || peaceLoading} className="flex-1 bg-white/5 border border-white/10 disabled:opacity-30 text-white font-bold py-3 rounded-xl">
-                {iProposedPeace ? '⏳ Enviado' : enemyProposedPeace ? '⚠️ Responder' : '🕊️ Propor Paz'}
-              </button>
+              
+              {/* ✅ Lógica: Líderes propõem paz, Aliados saem da guerra */}
+              {canProposePeace ? (
+                <button onClick={onProposePeace} disabled={iProposedPeace || enemyProposedPeace || peaceLoading} className="flex-1 bg-white/5 border border-white/10 disabled:opacity-30 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+                  <Check size={18} /> {iProposedPeace ? '⏳ Enviado' : enemyProposedPeace ? '⚠️ Responder' : '🕊️ Propor Paz'}
+                </button>
+              ) : (
+                <button onClick={onLeaveWar} disabled={peaceLoading} className="flex-1 bg-red-900/30 hover:bg-red-900/50 border border-red-500/30 text-red-200 font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
+                  <X size={18} /> Sair da Guerra
+                </button>
+              )}
             </div>
           </>
         ) : (

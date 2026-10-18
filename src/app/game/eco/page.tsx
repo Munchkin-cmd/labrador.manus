@@ -302,17 +302,41 @@ export default function EcoPage() {
                   </span>
                 </p>
 
+                {/* ✅ CORREÇÃO: Exibe o valor real do banco de dados sem duplicar energia */}
                 <div className="space-y-3 text-sm text-white/80 border-t border-white/10 pt-4 mb-6">
-                  {selectedBuilding.building.produces && (
-                    <p>📦 Produz: <span className="text-yellow-400 font-bold">300x {selectedBuilding.building.produces}/15min</span></p>
+                  {/* Produção normal (Comida, Ferro, etc.) */}
+                  {selectedBuilding.building.produces && selectedBuilding.building.produces !== 'energy' && (
+                    <p>
+                      📦 Produz:{' '}
+                      <span className="text-yellow-400 font-bold">
+                        {selectedBuilding.building.produces_qty || 0}x {selectedBuilding.building.produces}/15min
+                      </span>
+                    </p>
                   )}
-                  {selectedBuilding.building.energy_produces > 0 && (
-                    <p>⚡ Energia: <span className="text-blue-400 font-bold">+300/15min</span></p>
+
+                  {/* Produção de Energia (Unificada na coluna produces) */}
+                  {selectedBuilding.building.produces === 'energy' && (
+                    <p>
+                      ⚡ Energia:{' '}
+                      <span className="text-blue-400 font-bold">
+                        +{selectedBuilding.building.produces_qty || 0}/15min
+                      </span>
+                    </p>
                   )}
+
+                  {/* Consumo de Energia */}
                   {selectedBuilding.building.energy_cost > 0 && (
-                    <p>🔌 Consome: <span className="text-red-400 font-bold">{selectedBuilding.building.energy_cost} energia</span></p>
+                    <p>
+                      🔌 Consome:{' '}
+                      <span className="text-red-400 font-bold">
+                        {selectedBuilding.building.energy_cost} energia
+                      </span>
+                    </p>
                   )}
-                  <p className="text-white/40 italic mt-3 text-xs">Manutenção: {formatMoney(selectedBuilding.building.maint_money)}/ciclo</p>
+
+                  <p className="text-white/40 italic mt-3 text-xs">
+                    Manutenção: {formatMoney(selectedBuilding.building.maint_money)}/ciclo
+                  </p>
                 </div>
               </div>
 

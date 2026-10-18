@@ -1,4 +1,4 @@
-// hooks/useWar.ts - VERSÃO FINAL COM VITÓRIA E RELAÇÕES
+// hooks/useWar.ts - VERSÃO FINAL COM ALIADOS, VITÓRIA E SAÍDA
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
@@ -30,7 +30,7 @@ export interface War {
   }
   attacker_region?: { name: string } | null
   defender_region?: { name: string } | null
-  participants?: any[] // ✅ Usando 'any' para ignorar o erro da coluna damage_dealt
+  participants?: any[] // Usando 'any' para evitar conflito de tipagem com a coluna damage_dealt
 }
 
 type CombatXPRow = Database['public']['Tables']['combat_xp']['Row']
@@ -83,7 +83,7 @@ export function useWar() {
     setError(null)
 
     try {
-      // ✅ Query ajustada com as relações corretas
+      // ✅ Query buscando as relações completas
       const selectQuery = `
         *,
         attacker:countries!wars_attacker_id_fkey(id, name, flag_emoji, users(flag_url)),
@@ -97,26 +97,37 @@ export function useWar() {
         )
       `;
 
-      const [myWarsData, worldWarsData, militaryData, combatXPData] = await Promise.all([
+      // 1. Busca TODAS as guerras ativas/pausadas
+      const [allWarsData, militaryData, combatXPData] = await Promise.all([
         supabase
           .from('wars')
           .select(selectQuery)
-          .or(`attacker_id.eq.${country.id},defender_id.eq.${country.id}`)
-          .in('status', ['active', 'paused']),
-
-        supabase
-          .from('wars')
-          .select(selectQuery)
-          .eq('status', 'active')
-          .order('started_at', { ascending: false })
-          .limit(20),
+          .in('status', ['active', 'paused'])
+          .order('started_at', { ascending: false }),
 
         supabase.from('military').select('*').eq('country_id', country.id).maybeSingle(),
         supabase.from('combat_xp').select('*').eq('country_id', country.id).maybeSingle(),
       ])
 
-      setMyWars(myWarsData?.data as any || [])
-      setWorldWars(worldWarsData?.data as any || [])
+      const allWars = (allWarsData?.data as any[]) || []
+
+      // 2. Filtra as guerras onde EU SOU O ATACANTE, DEFENSOR OU ALIADO
+      const myWarsFiltered = allWars.filter(w => 
+        w.attacker_id === country.id || 
+        w.defender_id === country.id || 
+        w.participants?.some((p: any) => p.country_id === country.id)
+      )
+
+      // 3. Filtra as guerras onde EU NÃO ESTOU ENVOLVIDO (Para intervenção)
+      const worldWarsFiltered = allWars.filter(w => 
+        w.status === 'active' &&
+        w.attacker_id !== country.id && 
+        w.defender_id !== country.id && 
+        !w.participants?.some((p: any) => p.country_id === country.id)
+      ).slice(0, 20) // Limita a 20 para não pesar a tela
+
+      setMyWars(myWarsFiltered)
+      setWorldWars(worldWarsFiltered)
       setMilitary(militaryData?.data ?? null)
       setCombatXP(combatXPData?.data ? (combatXPData.data as CombatXP) : null)
 
@@ -191,6 +202,7 @@ export function useWar() {
   async function proposeJoinWar(warId: string, side: 'attacker' | 'defender', targetCountryId: number): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
     
+    // Envia a lei (11) para o parlamento aprovar
     const { error } = await supabase.from('laws').insert({
       country_id: country.id,
       law_catalog_id: 11,
@@ -208,10 +220,30 @@ export function useWar() {
     return { success: true, message: `Proposta enviada ao parlamento para lutar pelo lado ${side === 'attacker' ? 'Atacante' : 'Defensor'}!` }
   }
 
+  // ✅ NOVA FUNÇÃO: Sair da Guerra (Para Aliados)
+  async function leaveWar(warId: string): Promise<RpcSimpleResult> {
+    if (!country?.id) return { success: false, error: 'País não encontrado' }
+    
+    // Remove o jogador da tabela de participantes
+    const { error } = await supabase
+      .from('war_participants')
+      .delete()
+      .eq('war_id', warId)
+      .eq('country_id', country.id)
+
+    if (error) return { success: false, error: error.message }
+    
+    // Recarrega os dados para a guerra voltar para a aba "Guerras no Mundo"
+    lastLoadedIdRef.current = null
+    await fetchAll() 
+    
+    return { success: true, message: 'Você se retirou da guerra. Seu dano anterior foi mantido no placar.' }
+  }
+
   return {
     myWars, worldWars, military, combatXP, loading, error,
     declareWar, attack, proposePeace, acceptPeace, rejectPeace,
-    proposeJoinWar,
+    proposeJoinWar, leaveWar, // ✅ Exportado
     refetch: fetchAll,
   }
 }
