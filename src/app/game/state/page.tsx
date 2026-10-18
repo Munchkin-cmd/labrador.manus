@@ -762,11 +762,6 @@ export default function StatePage() {
             icon={<Coins size={20} />}
           />
           <StatCard
-            label="Inflação"
-            value={`${(Number(economy.inflation || 0) * 100).toFixed(1)}%`}
-            icon={<TrendingUp size={20} />}
-          />
-          <StatCard
             label="Exportação"
             value={formatMoney(Number(economy.exports || 0))}
             icon={<TrendingUp size={20} />}

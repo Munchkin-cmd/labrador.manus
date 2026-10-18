@@ -1,70 +1,52 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
+import { Database } from '@/types/database'
 
-export interface CountryFull {
-  id: number
-  name: string
-  flag_emoji: string
-  capital: string
-  terrain: string
-  motto: string | null
-  leader_name: string | null
-  leader_title: string
-  state_structure: string
-  religion: string
-  currency: string
-  language: string
-  trust: number
-  intl_approval: number
-  political_power: number
-  total_regions: number
-  flag_url?: string | null
-  is_active: boolean
-}
+// ─── TIPOS ──────────────────────────────────────────────────
+type CountryRow = Database['public']['Tables']['countries']['Row']
 
+// ✅ Interface da Economia sem a inflação
 export interface Economy {
+  id: string
+  country_id: number
   money: number
   food: number
-  gold: number
-  iron: number
-  oil: number
   wood: number
-  uranium: number
+  iron: number
   coal: number
+  oil: number
   steel: number
+  gold: number
+  uranium: number
   energy: number
   population: number
   pollution: number
-  inflation: number
-  exports: number
-  imports: number
-  revenue?: number
-  expenses?: number
+  revenue: number | null
+  expenses: number | null
+  imports: number | null
+  exports: number | null
+  last_production_at: string | null
+  updated_at: string | null
+  created_at: string
 }
 
-export interface UserProfile {
-  flag_url: string | null
-  leader_url: string | null
-  banner_urls: string[]
+export interface CountryFull extends CountryRow {
+  // Adicione aqui se houver campos extras na view/função
 }
 
 export function useCountry() {
-  // 🔥 Melhor prática: selecionar apenas o ID para evitar loops de renderização
-  const countryId = useAuthStore(state => state.country?.id)
-  
+  const { country: authCountry } = useAuthStore()
   const [data, setData] = useState<CountryFull | null>(null)
   const [economy, setEconomy] = useState<Economy | null>(null)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
+  
   const fetchingRef = useRef(false)
   const lastLoadedIdRef = useRef<number | null>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const fetchAll = useCallback(async () => {
-    if (!countryId) {
+  const fetchCountry = useCallback(async () => {
+    if (!authCountry?.id) {
       setData(null)
       setEconomy(null)
       setProfile(null)
@@ -72,88 +54,55 @@ export function useCountry() {
       return
     }
 
-    if (fetchingRef.current) {
+    if (fetchingRef.current || lastLoadedIdRef.current === authCountry.id) {
       return
     }
 
     fetchingRef.current = true
     setLoading(true)
-    setError(null)
-
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    timeoutRef.current = setTimeout(() => {
-      if (fetchingRef.current) {
-        setLoading(false)
-        fetchingRef.current = false
-      }
-    }, 5000)
 
     try {
-      const { data: result, error: err } = await supabase
-        .from('countries')
-        .select(`
-          *,
-          economy(*),
-          users(flag_url, leader_url, banner_urls)
-        `)
-        .eq('id', countryId)
-        .maybeSingle()
+      // ✅ Puxa os dados de todas as tabelas necessárias
+      const [c, e, u] = await Promise.all([
+        supabase.from('countries').select('*').eq('id', authCountry.id).maybeSingle(),
+        supabase.from('economy').select('*').eq('country_id', authCountry.id).maybeSingle(),
+        supabase.from('users').select('flag_url, leader_url, banner_urls').eq('country_id', authCountry.id).maybeSingle(),
+      ])
 
-      if (err) throw err
+      if (c.error) throw c.error
+      if (e.error) throw e.error
+      if (u.error) throw u.error
 
-      if (result) {
-        setData(result)
-        setEconomy(result.economy || null)
-
-        const user = result.users && Array.isArray(result.users) && result.users.length > 0
-          ? result.users[0]
-          : null
-
-        setProfile(user ? {
-          flag_url: user.flag_url ?? null,
-          leader_url: user.leader_url ?? null,
-          banner_urls: user.banner_urls ?? [],
-        } : null)
-
-        lastLoadedIdRef.current = countryId
-      } else {
-        setData(null)
-        setEconomy(null)
-        setProfile(null)
-      }
-    } catch (err: any) {
-      console.error('❌ [useCountry] Erro:', err)
-      setError(err.message || 'Erro ao carregar dados')
+      setData(c.data)
+      
+      // ✅ CORREÇÃO: Agora o economy bate perfeitamente com a interface
+      setEconomy(e.data as Economy || null)
+      
+      setProfile(u.data)
+      lastLoadedIdRef.current = authCountry.id
+    } catch (err) {
+      console.error('Erro ao buscar dados do país:', err)
     } finally {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
       setLoading(false)
       fetchingRef.current = false
     }
-  }, [countryId])
+  }, [authCountry?.id])
 
   useEffect(() => {
-    // 🔥 Não resetamos lastLoadedIdRef aqui! Isso é feito apenas dentro do fetchAll.
-    if (countryId && lastLoadedIdRef.current !== countryId) {
-      fetchAll()
-    } else if (!countryId) {
+    if (authCountry?.id && lastLoadedIdRef.current !== authCountry.id) {
+      fetchCountry()
+    } else if (!authCountry?.id) {
       setData(null)
       setEconomy(null)
       setProfile(null)
       setLoading(false)
     }
-  }, [countryId, fetchAll])
+  }, [authCountry?.id, fetchCountry])
 
   const refetch = useCallback(() => {
     lastLoadedIdRef.current = null
-    fetchAll()
-  }, [fetchAll])
+    fetchCountry()
+  }, [fetchCountry])
 
-  return {
-    data,
-    economy,
-    profile,
-    loading,
-    error,
-    refetch,
-  }
+  return { data, economy, profile, loading, refetch }
 }
