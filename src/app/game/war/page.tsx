@@ -87,7 +87,6 @@ export default function WarPage() {
     setJoining(null)
   }
 
-  // ✅ NOVA FUNÇÃO: Sair da Guerra (Para Aliados)
   async function handleLeaveWar(warId: string) {
     if (!confirm('Tem certeza que deseja sair desta guerra? Seu dano já causado continuará contabilizado no placar geral.')) return
     setPeaceLoading(warId)
@@ -130,9 +129,9 @@ export default function WarPage() {
                 onProposePeace={() => handleProposePeace(war.id)}
                 onAcceptPeace={() => handleAcceptPeace(war.id)}
                 onRejectPeace={() => handleRejectPeace(war.id)}
-                onLeaveWar={() => handleLeaveWar(war.id)} // ✅ Passando a função de sair
-                enemyProposedPeace={war.pending_peace_from !== null && war.pending_peace_from !== Number(myCountry?.id)}
-                iProposedPeace={war.pending_peace_from !== null && war.pending_peace_from === Number(myCountry?.id)}
+                onLeaveWar={() => handleLeaveWar(war.id)}
+                enemyProposedPeace={war.pending_peace_from !== null && Number(war.pending_peace_from) !== Number(myCountry?.id)}
+                iProposedPeace={war.pending_peace_from !== null && Number(war.pending_peace_from) === Number(myCountry?.id)}
                 peaceLoading={peaceLoading === war.id}
                 isWorldWar={false}
               />
@@ -211,16 +210,13 @@ function WarCard({
   
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // ✅ Lógica para saber qual é o SEU papel na guerra
-  const isAttacker = war.attacker_id === myCountryId;
-  const isDefender = war.defender_id === myCountryId;
-  const isAllyAttacker = war.participants?.some((p: any) => p.country_id === myCountryId && p.side === 'attacker');
-  const isAllyDefender = war.participants?.some((p: any) => p.country_id === myCountryId && p.side === 'defender');
+  // ✅ Forçando comparação como Number() em tudo para evitar bug de string vs number
+  const isAttacker = Number(war.attacker_id) === Number(myCountryId);
+  const isDefender = Number(war.defender_id) === Number(myCountryId);
+  const isAllyAttacker = war.participants?.some((p: any) => Number(p.country_id) === Number(myCountryId) && p.side === 'attacker');
+  const isAllyDefender = war.participants?.some((p: any) => Number(p.country_id) === Number(myCountryId) && p.side === 'defender');
   
-  // Se você for qualquer um desses, você pode atacar!
   const canAttack = isAttacker || isDefender || isAllyAttacker || isAllyDefender;
-  
-  // Se você for o país principal (Atacante ou Defensor), pode propor paz.
   const canProposePeace = isAttacker || isDefender;
 
   const attDmg = war.damage_to_defender || 0; 
@@ -394,7 +390,6 @@ function WarCard({
                 <Swords size={18} /> Atacar
               </button>
               
-              {/* ✅ Lógica: Líderes propõem paz, Aliados saem da guerra */}
               {canProposePeace ? (
                 <button onClick={onProposePeace} disabled={iProposedPeace || enemyProposedPeace || peaceLoading} className="flex-1 bg-white/5 border border-white/10 disabled:opacity-30 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
                   <Check size={18} /> {iProposedPeace ? '⏳ Enviado' : enemyProposedPeace ? '⚠️ Responder' : '🕊️ Propor Paz'}

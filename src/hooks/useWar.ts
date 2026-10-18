@@ -4,8 +4,6 @@ import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
 import { Database } from '@/types/database'
 
-// ─── TIPOS ──────────────────────────────────────────────
-
 export interface War {
   id: string
   attacker_id: number
@@ -52,8 +50,6 @@ type RpcSimpleResult = {
   error?: string
 }
 
-// ─── HOOK ────────────────────────────────────────────────
-
 export function useWar() {
   const { country } = useAuthStore()
   const [myWars, setMyWars] = useState<War[]>([])
@@ -83,7 +79,6 @@ export function useWar() {
     setError(null)
 
     try {
-      // ✅ CORREÇÃO: Adicionado o 'country_id' dentro de participants
       const selectQuery = `
         *,
         attacker:countries!wars_attacker_id_fkey(id, name, flag_emoji, users(flag_url)),
@@ -91,7 +86,7 @@ export function useWar() {
         attacker_region:regions!wars_attacker_region_id_fkey(name),
         defender_region:regions!wars_defender_region_id_fkey(name),
         participants:war_participants(
-          country_id,
+          country_id, 
           side,
           damage_dealt,
           country:countries(id, name, flag_emoji, users(flag_url))
@@ -111,20 +106,24 @@ export function useWar() {
 
       const allWars = (allWarsData?.data as any[]) || []
 
-      // 2. Filtra as guerras onde EU SOU O ATACANTE, DEFENSOR OU ALIADO
+      // Filtrando "Minhas Guerras" (Atacante, Defensor ou Aliado)
       const myWarsFiltered = allWars.filter(w => 
-        w.attacker_id === country.id || 
-        w.defender_id === country.id || 
+        Number(w.attacker_id) === Number(country.id) || 
+        Number(w.defender_id) === Number(country.id) || 
         w.participants?.some((p: any) => Number(p.country_id) === Number(country.id))
       )
 
-      // 3. Filtra as guerras onde EU NÃO ESTOU ENVOLVIDO (Para intervenção)
+      // Filtrando "Guerras do Mundo"
       const worldWarsFiltered = allWars.filter(w => 
         w.status === 'active' &&
-        w.attacker_id !== country.id && 
-        w.defender_id !== country.id && 
+        Number(w.attacker_id) !== Number(country.id) && 
+        Number(w.defender_id) !== Number(country.id) && 
         !w.participants?.some((p: any) => Number(p.country_id) === Number(country.id))
       ).slice(0, 20)
+
+      // Debug no console F12:
+      console.log('Minhas Guerras:', myWarsFiltered)
+      console.log('Guerras do Mundo:', worldWarsFiltered)
 
       setMyWars(myWarsFiltered)
       setWorldWars(worldWarsFiltered)
@@ -202,7 +201,6 @@ export function useWar() {
   async function proposeJoinWar(warId: string, side: 'attacker' | 'defender', targetCountryId: number): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
-    // ✅ Verifica se já está na guerra para não spammar leis
     const { data: existingParticipant } = await supabase
       .from('war_participants')
       .select('id')
@@ -214,7 +212,6 @@ export function useWar() {
       return { success: false, error: 'Você já é um participante desta guerra.' }
     }
     
-    // Envia a lei (11) para o parlamento aprovar
     const { error } = await supabase.from('laws').insert({
       country_id: country.id,
       law_catalog_id: 11,
