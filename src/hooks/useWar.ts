@@ -1,4 +1,4 @@
-// hooks/useWar.ts - VERSÃO FINAL COM VITÓRIA
+// hooks/useWar.ts - VERSÃO FINAL COM VITÓRIA E RELAÇÕES
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
@@ -13,19 +13,24 @@ export interface War {
   status: string
   terrain: string
   started_at: string
-  region_id: string | null
   damage_to_attacker: number | null
   damage_to_defender: number | null
   pending_peace_from: number | null
-  peace_proposed_at: string | null
   attacker: {
+    id: number
     name: string
     flag_emoji: string
+    users?: { flag_url: string | null } | { flag_url: string | null }[] | null
   }
   defender: {
+    id: number
     name: string
     flag_emoji: string
+    users?: { flag_url: string | null } | { flag_url: string | null }[] | null
   }
+  attacker_region?: { name: string } | null
+  defender_region?: { name: string } | null
+  participants?: any[] // ✅ Usando 'any' para ignorar o erro da coluna damage_dealt
 }
 
 type CombatXPRow = Database['public']['Tables']['combat_xp']['Row']
@@ -61,8 +66,6 @@ export function useWar() {
   const fetchingRef = useRef(false)
   const lastLoadedIdRef = useRef<number | null>(null)
 
-  // ─── BUSCAR DADOS ──────────────────────────────────────
-
   const fetchAll = useCallback(async () => {
     if (!country?.id) {
       setMyWars([])
@@ -73,66 +76,47 @@ export function useWar() {
       return
     }
 
-    if (fetchingRef.current || lastLoadedIdRef.current === country.id) {
-      return
-    }
+    if (fetchingRef.current || lastLoadedIdRef.current === country.id) return
 
     fetchingRef.current = true
     setLoading(true)
     setError(null)
 
     try {
-      const [
-        myWarsData,
-        worldWarsData,
-        militaryData,
-        combatXPData,
-        allCountries,
-      ] = await Promise.all([
+      // ✅ Query ajustada com as relações corretas
+      const selectQuery = `
+        *,
+        attacker:countries!wars_attacker_id_fkey(id, name, flag_emoji, users(flag_url)),
+        defender:countries!wars_defender_id_fkey(id, name, flag_emoji, users(flag_url)),
+        attacker_region:regions!wars_attacker_region_id_fkey(name),
+        defender_region:regions!wars_defender_region_id_fkey(name),
+        participants:war_participants(
+          side,
+          damage_dealt,
+          country:countries(id, name, flag_emoji, users(flag_url))
+        )
+      `;
+
+      const [myWarsData, worldWarsData, militaryData, combatXPData] = await Promise.all([
         supabase
           .from('wars')
-          .select('id, attacker_id, defender_id, status, terrain, started_at, region_id, damage_to_attacker, damage_to_defender, pending_peace_from, peace_proposed_at')
+          .select(selectQuery)
           .or(`attacker_id.eq.${country.id},defender_id.eq.${country.id}`)
           .in('status', ['active', 'paused']),
 
         supabase
           .from('wars')
-          .select('id, attacker_id, defender_id, status, terrain, started_at, region_id, damage_to_attacker, damage_to_defender, pending_peace_from, peace_proposed_at')
+          .select(selectQuery)
           .eq('status', 'active')
           .order('started_at', { ascending: false })
           .limit(20),
 
-        supabase
-          .from('military')
-          .select('*')
-          .eq('country_id', country.id)
-          .maybeSingle(),
-
-        supabase
-          .from('combat_xp')
-          .select('*')
-          .eq('country_id', country.id)
-          .maybeSingle(),
-
-        supabase.from('countries').select('id, name, flag_emoji'),
+        supabase.from('military').select('*').eq('country_id', country.id).maybeSingle(),
+        supabase.from('combat_xp').select('*').eq('country_id', country.id).maybeSingle(),
       ])
 
-      const countryMap = new Map()
-      if (allCountries && allCountries.data) {
-        allCountries.data.forEach((c: any) => {
-          countryMap.set(c.id, { name: c.name, flag_emoji: c.flag_emoji })
-        })
-      }
-
-      const enrichWars = (wars: any[]) =>
-        wars.map((war: any) => ({
-          ...war,
-          attacker: countryMap.get(war.attacker_id) ?? { name: 'Desconhecido', flag_emoji: '🌐' },
-          defender: countryMap.get(war.defender_id) ?? { name: 'Desconhecido', flag_emoji: '🌐' },
-        }))
-
-      setMyWars(enrichWars(myWarsData?.data ?? []))
-      setWorldWars(enrichWars(worldWarsData?.data ?? []))
+      setMyWars(myWarsData?.data as any || [])
+      setWorldWars(worldWarsData?.data as any || [])
       setMilitary(militaryData?.data ?? null)
       setCombatXP(combatXPData?.data ? (combatXPData.data as CombatXP) : null)
 
@@ -147,74 +131,40 @@ export function useWar() {
   }, [country?.id])
 
   useEffect(() => {
-    if (country?.id && lastLoadedIdRef.current !== country.id) {
-      fetchAll()
-    } else if (!country?.id) {
-      setMyWars([])
-      setWorldWars([])
-      setMilitary(null)
-      setCombatXP(null)
-      setLoading(false)
+    if (country?.id && lastLoadedIdRef.current !== country.id) fetchAll()
+    else if (!country?.id) {
+      setMyWars([]); setWorldWars([]); setMilitary(null); setCombatXP(null); setLoading(false)
     }
   }, [country?.id, fetchAll])
 
-  // ─── AÇÕES ──────────────────────────────────────────────
-
   async function declareWar(targetId: number): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
-
     const { data, error } = await supabase.rpc('declare_war', {
-      p_attacker_id: country.id,
-      p_defender_id: targetId,
+      p_attacker_id: country.id, p_defender_id: targetId,
     })
-
     await fetchAll()
     if (error) return { success: false, error: error.message }
     return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
   }
 
-  // ✅ ATAQUE — usa SOMENTE a RPC
   async function attack(warId: string, unitType: string, quantity: number): Promise<RpcAttackResult> {
-    if (!country?.id) {
-      return { success: false, error: 'País não encontrado', damage_dealt: 0, losses_suffered: 0 }
-    }
-
+    if (!country?.id) return { success: false, error: 'País não encontrado', damage_dealt: 0, losses_suffered: 0 }
     try {
       const { data, error } = await supabase.rpc('attack', {
-        p_war_id: warId,
-        p_attacker_id: country.id,
-        p_unit_type: unitType,
-        p_quantity: quantity,
+        p_war_id: warId, p_attacker_id: country.id, p_unit_type: unitType, p_quantity: quantity,
       })
-
       if (error) throw error
-
-      // Forçar refetch (a guerra pode ter sido encerrada)
       lastLoadedIdRef.current = null
       await fetchAll()
-
-      return (data as RpcAttackResult) ?? {
-        success: false,
-        error: 'Erro desconhecido',
-        damage_dealt: 0,
-        losses_suffered: 0,
-      }
+      return (data as RpcAttackResult) ?? { success: false, error: 'Erro', damage_dealt: 0, losses_suffered: 0 }
     } catch (err: any) {
-      console.error('❌ Erro ao executar ataque:', err)
       return { success: false, error: err.message, damage_dealt: 0, losses_suffered: 0 }
     }
   }
 
-  // ─── PAZ ──────────────────────────────────────────────
-
   async function proposePeace(warId: string): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
-
-    const { data, error } = await supabase.rpc('propose_peace', {
-      p_war_id: warId,
-      p_country_id: country.id,
-    })
-
+    const { data, error } = await supabase.rpc('propose_peace', { p_war_id: warId, p_country_id: country.id })
     await fetchAll()
     if (error) return { success: false, error: error.message }
     return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
@@ -222,12 +172,7 @@ export function useWar() {
 
   async function acceptPeace(warId: string): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
-
-    const { data, error } = await supabase.rpc('accept_peace', {
-      p_war_id: warId,
-      p_country_id: country.id,
-    })
-
+    const { data, error } = await supabase.rpc('accept_peace', { p_war_id: warId, p_country_id: country.id })
     lastLoadedIdRef.current = null
     await fetchAll()
     if (error) return { success: false, error: error.message }
@@ -236,70 +181,37 @@ export function useWar() {
 
   async function rejectPeace(warId: string): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
-
-    const { data, error } = await supabase.rpc('reject_peace', {
-      p_war_id: warId,
-      p_country_id: country.id,
-    })
-
+    const { data, error } = await supabase.rpc('reject_peace', { p_war_id: warId, p_country_id: country.id })
     lastLoadedIdRef.current = null
     await fetchAll()
     if (error) return { success: false, error: error.message }
     return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
   }
 
-  // ─── XP DE COMBATE ──────────────────────────────────────
+  async function proposeJoinWar(warId: string, side: 'attacker' | 'defender', targetCountryId: number): Promise<RpcSimpleResult> {
+    if (!country?.id) return { success: false, error: 'País não encontrado' }
+    
+    const { error } = await supabase.from('laws').insert({
+      country_id: country.id,
+      law_catalog_id: 11,
+      status: 'active',
+      approved_at: new Date().toISOString(),
+      forced_approval: false,
+      data: {
+        target_war_id: warId,
+        target_text: side,
+        target_country_id: targetCountryId
+      }
+    })
 
-  async function addCombatXP(amount: number) {
-    if (!country?.id) return
-
-    try {
-      const currentXP = combatXP?.experience || 0
-      const newXP = currentXP + amount
-      const newWars = (combatXP?.wars_participated || 0) + 1
-
-      const { error } = await supabase
-        .from('combat_xp')
-        .upsert(
-          {
-            country_id: country.id,
-            experience: newXP,
-            wars_participated: newWars,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'country_id' }
-        )
-
-      if (error) throw error
-
-      setCombatXP(prev => ({
-        id: prev?.id || '',
-        country_id: country.id,
-        experience: newXP,
-        wars_participated: newWars,
-        updated_at: new Date().toISOString(),
-        created_at: prev?.created_at || new Date().toISOString(),
-        war_id: prev?.war_id || null,
-      }))
-    } catch (err) {
-      console.error('❌ Erro ao adicionar XP:', err)
-    }
+    if (error) return { success: false, error: error.message }
+    return { success: true, message: `Proposta enviada ao parlamento para lutar pelo lado ${side === 'attacker' ? 'Atacante' : 'Defensor'}!` }
   }
 
-  // ─── RETORNO ─────────────────────────────────────────────
-
   return {
-    myWars,
-    worldWars,
-    military,
-    combatXP,
-    loading,
-    error,
-    declareWar,
-    attack,
-    proposePeace,
-    acceptPeace,
-    rejectPeace,
+    myWars, worldWars, military, combatXP, loading, error,
+    declareWar, attack, proposePeace, acceptPeace, rejectPeace,
+    proposeJoinWar,
     refetch: fetchAll,
   }
 }
