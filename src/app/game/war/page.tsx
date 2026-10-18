@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useWar } from '@/hooks/useWar'
+import { useWar, War } from '@/hooks/useWar' // ✅ Importando o tipo War
 import { useAuthStore } from '@/store/authStore'
 import { formatNumber } from '@/utils/format'
-import { Swords, Shield, Check, X, Clock, MapPin, Users, ChevronDown, ChevronUp, Landmark } from 'lucide-react'
+import { Swords, Check, X, Clock, MapPin, Users, ChevronDown, ChevronUp, Landmark, History, Trophy } from 'lucide-react'
 
 const UNITS = [
   { key: 'soldiers',    label: 'Soldados',    emoji: '⚔️' },
@@ -19,7 +19,7 @@ const UNITS = [
 
 export default function WarPage() {
   const {
-    myWars, worldWars, military, combatXP, loading,
+    myWars, worldWars, endedWars, military, combatXP, loading,
     attack, proposePeace, acceptPeace, rejectPeace, proposeJoinWar, leaveWar,
   } = useWar()
   const { country: myCountry } = useAuthStore()
@@ -31,6 +31,8 @@ export default function WarPage() {
   const [submitting, setSubmitting] = useState(false)
   const [peaceLoading, setPeaceLoading] = useState<string | null>(null)
   const [joining, setJoining] = useState<string | null>(null)
+  
+  const [showHistory, setShowHistory] = useState(false)
 
   if (loading) {
     return (
@@ -42,14 +44,11 @@ export default function WarPage() {
 
   async function handleAttack() {
     if (!attackWarId || !attackUnit) return
-    setSubmitting(true)
-    setFeedback('')
+    setSubmitting(true); setFeedback('')
     const res = await attack(attackWarId, attackUnit, attackQty)
     if (res.success) {
       setFeedback(`✅ Ataque realizado! Dano: ${formatNumber(res.damage_dealt)} | Perdas: ${formatNumber(res.losses_suffered)}`)
-      setTimeout(() => {
-        setAttackWarId(''); setFeedback(''); setAttackQty(1); setAttackUnit('')
-      }, 2500)
+      setTimeout(() => { setAttackWarId(''); setFeedback(''); setAttackQty(1); setAttackUnit('') }, 2500)
     } else {
       setFeedback(`❌ ${res.error || 'Erro ao atacar'}`)
     }
@@ -122,7 +121,7 @@ export default function WarPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-6">
-            {myWars.map((war) => (
+            {myWars.map((war: War) => (
               <WarCard 
                 key={war.id} war={war} myCountryId={Number(myCountry?.id)}
                 onAttack={() => setAttackWarId(war.id)}
@@ -140,7 +139,7 @@ export default function WarPage() {
         )}
       </div>
 
-      {/* ─── GUERRAS DO MUNDO (INTERVENÇÃO) ────────────────────── */}
+      {/* ─── GUERRAS DO MUNDO ────────────────────────────────────── */}
       <div>
         <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Guerras no Mundo ({worldWars.length})</p>
         {worldWars.length === 0 ? (
@@ -149,9 +148,17 @@ export default function WarPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {worldWars.map((war) => (
+            {worldWars.map((war: War) => (
               <WarCard 
                 key={war.id} war={war} myCountryId={Number(myCountry?.id)} isWorldWar={true}
+                onAttack={() => setAttackWarId(war.id)}
+                onProposePeace={() => handleProposePeace(war.id)}
+                onAcceptPeace={() => handleAcceptPeace(war.id)}
+                onRejectPeace={() => handleRejectPeace(war.id)}
+                onLeaveWar={() => handleLeaveWar(war.id)}
+                enemyProposedPeace={war.pending_peace_from !== null && Number(war.pending_peace_from) !== Number(myCountry?.id)}
+                iProposedPeace={war.pending_peace_from !== null && Number(war.pending_peace_from) === Number(myCountry?.id)}
+                peaceLoading={peaceLoading === war.id}
                 onJoinAttacker={() => handleJoinWar(war.id, 'attacker', war.attacker_id)}
                 onJoinDefender={() => handleJoinWar(war.id, 'defender', war.defender_id)}
                 joining={joining === war.id}
@@ -160,6 +167,76 @@ export default function WarPage() {
           </div>
         )}
       </div>
+
+      {/* ✅ BOTÃO DE HISTÓRICO NO FINAL DA PÁGINA */}
+      <button 
+        onClick={() => setShowHistory(true)}
+        className="mt-4 flex items-center justify-center gap-2 w-full py-4 bg-surface-card hover:bg-white/5 border border-white/10 rounded-xl transition-colors text-white font-bold text-sm"
+      >
+        <History size={18} className="text-white/60" />
+        HISTÓRICO DE GUERRA
+      </button>
+
+      {/* ✅ MODAL DE HISTÓRICO */}
+      {showHistory && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl p-5 sm:p-6 w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl relative">
+            
+            <button onClick={() => setShowHistory(false)} className="absolute top-4 right-4 text-white/40 hover:text-white bg-black/20 p-2 rounded-full">
+              <X size={20} />
+            </button>
+
+            <h2 className="text-xl font-black text-white flex items-center gap-2 mb-6">
+              <History className="text-primary" /> Histórico de Guerras
+            </h2>
+
+            <div className="overflow-y-auto flex-1 pr-2 space-y-3">
+              {endedWars.length === 0 ? (
+                <p className="text-white/40 text-center py-8">Nenhuma guerra encerrada ainda.</p>
+              ) : (
+                endedWars.map((war: War) => { // ✅ Tipo War aqui resolve o erro
+                  const isAttackerWinner = Number(war.winner_id) === Number(war.attacker_id);
+                  const isDefenderWinner = Number(war.winner_id) === Number(war.defender_id);
+                  
+                  return (
+                    <div key={war.id} className="bg-black/30 border border-white/5 rounded-xl p-4 flex flex-col gap-3">
+                      <div className="flex justify-between items-center text-[10px] text-white/40 uppercase font-bold border-b border-white/5 pb-2">
+                        <span>{new Date(war.started_at).toLocaleDateString('pt-BR')}</span>
+                        <span className="text-green-400 bg-green-500/10 px-2 py-0.5 rounded">Encerrada</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className={`flex flex-col items-center flex-1 ${isAttackerWinner ? 'opacity-100' : 'opacity-50'}`}>
+                          <span className="text-2xl mb-1">{war.attacker?.flag_emoji}</span>
+                          <p className="text-white text-xs font-bold text-center">{war.attacker?.name}</p>
+                          {isAttackerWinner && <span className="text-[10px] text-yellow-400 font-bold mt-1 flex items-center gap-1"><Trophy size={10}/> Vencedor</span>}
+                        </div>
+
+                        <div className="px-4 text-white/20 font-black italic text-sm">VS</div>
+
+                        <div className={`flex flex-col items-center flex-1 ${isDefenderWinner ? 'opacity-100' : 'opacity-50'}`}>
+                          <span className="text-2xl mb-1">{war.defender?.flag_emoji}</span>
+                          <p className="text-white text-xs font-bold text-center">{war.defender?.name}</p>
+                          {isDefenderWinner && <span className="text-[10px] text-yellow-400 font-bold mt-1 flex items-center gap-1"><Trophy size={10}/> Vencedor</span>}
+                        </div>
+                      </div>
+
+                      {!war.winner_id && (
+                        <p className="text-center text-xs text-blue-400 font-bold mt-1">🕊️ Acordo de Paz</p>
+                      )}
+
+                      <div className="flex justify-between text-[10px] text-white/50 bg-white/5 p-2 rounded mt-1">
+                        <span>Dano Atacante: <strong className="text-white">{formatNumber(war.damage_to_defender || 0)}</strong></span>
+                        <span>Dano Defensor: <strong className="text-white">{formatNumber(war.damage_to_attacker || 0)}</strong></span>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE ATAQUE */}
       {attackWarId && (
@@ -210,7 +287,6 @@ function WarCard({
   
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // ✅ Forçando comparação como Number() em tudo para evitar bug de string vs number
   const isAttacker = Number(war.attacker_id) === Number(myCountryId);
   const isDefender = Number(war.defender_id) === Number(myCountryId);
   const isAllyAttacker = war.participants?.some((p: any) => Number(p.country_id) === Number(myCountryId) && p.side === 'attacker');
@@ -258,11 +334,10 @@ function WarCard({
 
       <div className="relative z-10 p-5">
         
-        {/* Topo: Local e Timer */}
         <div className="flex justify-between items-start mb-4">
           <div>
             <span className={`${canAttack ? 'bg-green-500/20 border-green-500/30 text-green-400' : 'bg-red-500/20 border-red-500/30 text-red-400'} border text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded inline-block mb-2`}>
-              {!isWorldWar 
+              {canAttack 
                 ? (isAttacker || isAllyAttacker ? 'Lutando pelo Atacante' : 'Lutando pelo Defensor') 
                 : (war.status === 'active' ? 'Guerra Ativa' : 'Golpe de Estado')}
             </span>
@@ -279,7 +354,6 @@ function WarCard({
           </div>
         </div>
 
-        {/* Barra de Progresso e Dano */}
         <div className="mb-5">
           <div className="w-full h-3 bg-black/50 rounded-full overflow-hidden flex shadow-inner mb-2">
             <div style={{ width: `${attPct}%` }} className="h-full bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)]" />
@@ -299,7 +373,6 @@ function WarCard({
           </div>
         </div>
 
-        {/* Bandeiras Principais */}
         <div className="flex justify-between items-center bg-black/20 rounded-xl p-4 border border-white/5 mb-4">
           <div className="flex flex-col items-center gap-2 flex-1">
             <FlagAvatar country={war.attacker} borderColor="border-red-500/50" />
@@ -323,7 +396,6 @@ function WarCard({
           </div>
         </div>
 
-        {/* Botão de Expandir Participantes */}
         <button 
           onClick={() => setIsExpanded(!isExpanded)}
           className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold text-white/50 hover:text-white/80 transition-colors bg-white/5 hover:bg-white/10 rounded-lg mb-4"
@@ -333,7 +405,6 @@ function WarCard({
           {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
 
-        {/* Lista Expandida de Participantes */}
         {isExpanded && (
           <div className="bg-black/40 rounded-xl p-3 border border-white/5 mb-4 animate-in slide-in-from-top-2 duration-200">
             <div className="grid grid-cols-2 gap-3">
@@ -372,8 +443,7 @@ function WarCard({
           </div>
         )}
 
-        {/* Banners de Paz e Botões de Ação */}
-        {!isWorldWar ? (
+        {canAttack ? (
           <>
             {enemyProposedPeace && (
               <div className="mb-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-center">
