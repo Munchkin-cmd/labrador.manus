@@ -367,7 +367,6 @@ export function useConfiguracoes() {
     return { success: !error }
   }
 
-  // ✅ TIPAGEM CORRIGIDA AQUI
   async function abandonCountry(): Promise<{ success: boolean; error?: string; message?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
@@ -426,16 +425,18 @@ export function useTaxes() {
 
     const limitTax = (val: any) => Math.min(60, Math.max(1, Number(val) || 1))
 
+    // ✅ INCLUINDO O COUNTRY_ID (necessário para o upsert)
     const updateData = {
+      country_id: country.id,
       income_tax: limitTax(updated.income_tax),
       property_tax: limitTax(updated.property_tax),
       manufacturing_tax: limitTax(updated.manufacturing_tax),
     }
 
+    // ✅ USANDO UPSERT (Cria se não existir, atualiza se existir)
     const { error: taxError } = await supabase
       .from('taxes')
-      .update(updateData)
-      .eq('country_id', country.id)
+      .upsert(updateData, { onConflict: 'country_id' })
 
     if (taxError) {
       console.error('❌ Erro ao atualizar impostos:', taxError)
@@ -455,7 +456,6 @@ export function useTaxes() {
       .maybeSingle()
 
     if (!fetchError && currentCountry) {
-      // ✅ CORRIGIDO: currentCountry.trust em vez de currentTrust
       const newTrust = Math.max(0, (currentCountry.trust || 50) - trustPenalty)
       const newApproval = Math.max(0, (currentCountry.intl_approval || 50) - approvalPenalty)
 

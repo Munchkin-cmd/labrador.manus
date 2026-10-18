@@ -1,66 +1,74 @@
 // src/app/(auth)/layout.tsx
 'use client'
 
+// 1. Definimos a lista de bandeiras (menos repetição, mais variedade)
+const FLAGS = [
+  '🇺🇸', '🇧🇷', '🇷🇺', '🇨🇳', '🇩🇪', '🇬🇧', '🇯🇵', '🇨🇦', '🇦🇺', '🇿🇦',
+  '🇫🇷', '🇮🇳', '🇮🇹', '🇪🇸', '🇲🇽', '🇦🇷', '🇰🇷', '🇸🇦', '🇹🇷', '🇮🇩',
+  '🇳🇬', '🇪🇬', '🇮🇷', '🇵🇰', '🇳🇱', '🇨🇭', '🇸🇪', '🇳🇴', '🇵🇱', '🇺🇦'
+]
+
+// 2. Geramos as posições FORA do componente. 
+// Assim, as bandeiras não mudam de lugar quando você digita na tela.
+const BACKGROUND_ELEMENTS = FLAGS.map((flag, i) => ({
+  id: i,
+  flag,
+  top: `${Math.random() * 100}%`,
+  left: `${Math.random() * 100}%`,
+  size: `${1.5 + Math.random() * 2.5}rem`, // Tamanhos mais equilibrados
+  delay: `${Math.random() * 5}s`,
+  animation: Math.random() > 0.8 ? 'bounce-fast' : 'float-fast' // Apenas 20% quica
+}))
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
-  // ✅ Lista de bandeiras para o fundo (com repetição de 2x cada)
-  const baseFlags = [
-    '🇺🇸', '🇨🇦', '🇬🇧', '🇮🇪', '🇦🇺', '🇳🇿',
-    '🇨🇱', '🇺🇾', '🇪🇸', '🇩🇪', '🇨🇭', '🇦🇹',
-    '🇳🇱', '🇧🇪', '🇩🇰', '🇫🇮', '🇸🇪', '🇳🇴',
-    '🇱🇺', '🇲🇨', '🇮🇹', '🇰🇷', '🇯🇵',
-    '🇺🇳', '🇦🇶',
-    '🇨🇳', '🇵🇹', '🇬🇷', '🇨🇿', '🇮🇸', '🇸🇮', '🇲🇪', '🇭🇷', '🇪🇪', '🇧🇷'
-  ]
-
-  const flags = [...baseFlags, ...baseFlags]
-
-  const bounceIndices = new Set<number>()
-  while (bounceIndices.size < 4) {
-    bounceIndices.add(Math.floor(Math.random() * flags.length))
-  }
-
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[#0a0a0a] relative overflow-hidden">
+    // 3. ✅ FUNDO ALTERADO: Azul na esquerda, Preto no meio, Vermelho na direita
+    <main 
+      className="min-h-screen flex items-center justify-center relative overflow-hidden"
+      style={{
+        background: 'linear-gradient(to right, #1e3a8a 0%, #000000 50%, #991b1b 100%)'
+      }}
+    >
+      
       {/* CSS ANIMATIONS */}
       <style>{`
         @keyframes float-fast {
-          0%, 100% { transform: translateY(0px); opacity: 0.3; }
-          50% { transform: translateY(-20px); opacity: 0.8; }
+          0%, 100% { transform: translateY(0px); opacity: 0.4; }
+          50% { transform: translateY(-15px); opacity: 0.8; }
         }
         @keyframes bounce-fast {
           0%, 100% { transform: translateY(0px); opacity: 0.6; }
-          25% { transform: translateY(-40px); opacity: 1; }
-          50% { transform: translateY(0px); opacity: 0.6; }
-          75% { transform: translateY(-20px); opacity: 0.8; }
+          50% { transform: translateY(-25px); opacity: 1; }
         }
-        .animate-float-fast { animation: float-fast 3s ease-in-out infinite; }
-        .animate-bounce-fast { animation: bounce-fast 0.8s ease-in-out infinite; }
+        .animate-float-fast { animation: float-fast 4s ease-in-out infinite; }
+        .animate-bounce-fast { animation: bounce-fast 2s ease-in-out infinite; }
       `}</style>
 
-      {/* Bandeiras de fundo */}
-      <div className="absolute inset-0 z-0">
-        {flags.map((flag, i) => {
-          const hasBounce = bounceIndices.has(i)
-          return (
-            <div
-              key={i}
-              className={hasBounce ? 'animate-bounce-fast' : 'animate-float-fast'}
-              style={{
-                position: 'absolute',
-                top: `${Math.random() * 100}%`,
-                left: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 5}s`,
-                fontSize: `${2 + Math.random() * 4}rem`,
-              }}
-            >
-              {flag}
-            </div>
-          )
-        })}
+      {/* 4. Bandeiras de fundo (Agora com brilho e sem pular) */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        {BACKGROUND_ELEMENTS.map((el) => (
+          <div
+            key={el.id}
+            className={el.animation === 'bounce-fast' ? 'animate-bounce-fast' : 'animate-float-fast'}
+            style={{
+              position: 'absolute',
+              top: el.top,
+              left: el.left,
+              fontSize: el.size,
+              animationDelay: el.delay,
+              filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.8))' // Sombra mais forte para destacar no fundo colorido
+            }}
+          >
+            {el.flag}
+          </div>
+        ))}
       </div>
 
-      {/* Conteúdo centralizado (forms, login, etc) */}
-      <div className="relative z-10 w-full max-w-md px-4">
+      {/* 5. ✅ MÁSCARA ALTERADA: Um escurecimento radial mais sutil que já é coberto pelo gradiente principal */}
+      <div className="absolute inset-0 z-0 bg-black/20 pointer-events-none" />
+
+      {/* Conteúdo centralizado (Login, Cadastro, etc) */}
+      <div className="relative z-10 w-full max-w-md px-4 py-8">
         {children}
       </div>
     </main>

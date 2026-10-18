@@ -25,7 +25,6 @@ export function WorldStatsCarousel({ stats }: WorldProps) {
 }
 
 // ── Country Stats ────────────────────────────────────────────
-// ✅ Adicionado regionsCount na interface
 interface CountryProps { 
   country: CountryFull; 
   economy: Economy; 
@@ -41,7 +40,6 @@ export function CountryStatsCarousel({ country, economy, regionsCount }: Country
     ],
     [
       { label: 'Poder Pol.',  value: `${country.political_power}` },
-      // ✅ AQUI ESTÁ A CORREÇÃO: Agora usa o regionsCount em vez de country.total_regions
       { label: 'Regiões',     value: formatNumber(regionsCount) }, 
       { label: 'Energia',     value: formatNumber(Number(economy.energy)) },
     ],
@@ -61,7 +59,7 @@ export function CountryStatsCarousel({ country, economy, regionsCount }: Country
       { label: 'Urânio',      value: formatNumber(Number(economy.uranium)) },
     ],
   ]
-  return <StatsCarousel label={`🌍 ${country.name.toUpperCase()}`} slides={slides} accent="text-primary-light" />
+  return <StatsCarousel label={`🌍 ${country.name.toUpperCase()}`} slides={slides} accent="text-primary" />
 }
 
 // ── Base Carousel ────────────────────────────────────────────
@@ -129,32 +127,42 @@ function StatsCarousel({ label, slides, accent }: CarouselProps) {
   }
 
   return (
-    <div className="px-4">
-      {/* Label */}
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-bold tracking-widest text-white/40 uppercase">{label}</p>
-        {/* Dots */}
-        <div className="flex gap-1">
+    <div className="px-1">
+      {/* Label Superior e Dots */}
+      <div className="flex items-center justify-between mb-2 pl-1">
+        <div className="flex items-center gap-2">
+          <div className="w-1 h-3 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)] shrink-0" />
+          <p className="text-[10px] font-bold tracking-widest text-white uppercase font-mono">{label}</p>
+        </div>
+        
+        {/* Dots de navegação */}
+        <div className="flex gap-1.5 pr-1">
           {slides.map((_, i: number) => (
             <button key={i} onClick={() => goToSlide(i)}
-              className={`w-1.5 h-1.5 rounded-full transition-all ${i === current ? `${accent} bg-current` : 'bg-white/20'}`}
+              className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                i === current ? `${accent} bg-current shadow-[0_0_8px_rgba(59,130,246,0.8)] scale-125` : 'bg-surface-border hover:bg-white/30'
+              }`}
             />
           ))}
         </div>
       </div>
 
-      {/* Slide Container */}
+      {/* Container do Slide (Clicável) */}
       <div
         ref={containerRef}
         onClick={handleSlideClick}
         className="relative cursor-pointer"
       >
-        {/* ✅ Adicionado w-full nos itens para garantir o alinhamento no grid */}
-        <div className="bg-surface-card rounded-xl p-3 grid grid-cols-3 gap-2 pointer-events-none">
+        {/* Card sólido com borda azul e sombra */}
+        <div className="bg-surface-card border border-surface-border rounded-lg p-4 grid grid-cols-3 gap-2 pointer-events-none shadow-lg transition-colors hover:border-primary/30">
           {slides[current].map((stat: Stat) => (
             <div key={stat.label} className="flex flex-col items-center justify-center text-center w-full">
-              <span className={`text-base font-black ${accent}`}>{stat.value}</span>
-              <span className="text-white/40 text-xs mt-0.5">{stat.label}</span>
+              <span className={`text-sm font-black font-mono tracking-tight ${accent} drop-shadow-md`}>
+                {stat.value}
+              </span>
+              <span className="text-white/40 text-[9px] font-bold font-mono uppercase tracking-widest mt-1">
+                {stat.label}
+              </span>
             </div>
           ))}
         </div>

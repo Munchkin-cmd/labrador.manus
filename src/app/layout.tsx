@@ -10,9 +10,9 @@ export const metadata: Metadata = {
   description: 'O jogo de estratégia geopolítica',
 }
 
-// 🎨 Cor da barra do navegador em mobile (a que fica acima do site)
+// 🎨 Cor da barra do navegador em mobile atualizada para o novo Azul Escuro
 export const viewport: Viewport = {
-  themeColor: '#2563eb',
+  themeColor: '#060A14',
 }
 
 export default function RootLayout({
@@ -22,11 +22,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className={`${inter.className} bg-[#0a0a1a] text-white antialiased`}>
+      {/* ✅ Fundo atualizado para a nova cor sólida, com antialiased para a fonte ficar mais nítida */}
+      <body className={`${inter.className} bg-[#060A14] text-white antialiased`}>
         <AuthProvider>
           {children}
         </AuthProvider>
       </body>
-    </html>
+    </html> 
   )
 }

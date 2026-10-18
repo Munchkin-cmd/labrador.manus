@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useEco } from '@/hooks/useEco' // ✅ Mantendo useEco (possui catálogo processado)
+import { useEco } from '@/hooks/useEco'
 import { useAuthStore } from '@/store/authStore'
 import { formatMoney, formatNumber } from '@/utils/format'
 import { Coins, Sprout, Pickaxe, Factory, Droplet, Landmark, Zap, ArrowRightLeft } from 'lucide-react'
@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase/client'
 
 export default function OrcamentoPage() {
   const { country } = useAuthStore()
-  const { economy, buildings, loading } = useEco() // ✅ Retorna buildings com building_catalog
+  const { economy, buildings, loading } = useEco()
 
   // ─── BUSCAR IMPOSTOS ────────────────────────────────────────
   const [taxes, setTaxes] = useState<any>(null)
@@ -22,7 +22,7 @@ export default function OrcamentoPage() {
         .from('taxes')
         .select('*')
         .eq('country_id', country.id)
-        .maybeSingle() // ✅ Evita erro se não existir
+        .maybeSingle()
       setTaxes(data)
       setLoadingTax(false)
     }
@@ -116,34 +116,39 @@ export default function OrcamentoPage() {
 
   // ─── RENDER ──────────────────────────────────────────────────
   return (
-    <div className="flex flex-col gap-6 pb-6 p-4">
-      <p className="text-xs font-bold tracking-widest text-white/40 uppercase">ORÇAMENTO</p>
+    <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6">
+      
+      {/* TÍTULO PRINCIPAL */}
+      <div className="flex items-center gap-2 mb-2 pl-1">
+        <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+        <p className="text-xs font-bold tracking-widest text-white uppercase font-mono">Orçamento</p>
+      </div>
 
       {/* ─── RECEITAS BRUTAS ──────────────────────────────────── */}
-      <Section title="Receitas Brutas" color="bg-blue-900/60">
+      <Section title="Receitas Brutas" color="bg-blue-500">
         <TableRow label="Imposto de Renda" value={turnValues.incomeTax} />
         <TableRow label="Imposto sobre Propriedade" value={turnValues.propertyTax} />
         <TableRow label="Manufatura" value={turnValues.manufacturingTax} />
         <TableRow label="Lucro Bruto (Edifícios)" value={turnValues.grossProfit} icon={<Coins size={16} />} />
-        <div className="mt-2 border-t border-white/10 pt-2">
+        <div className="mt-2 border-t border-surface-border pt-2">
           <TableRow label="Total de Receitas" value={totalTurnRevenue} isTotal />
         </div>
       </Section>
 
       {/* ─── DESPESAS BRUTAS ──────────────────────────────────── */}
-      <Section title="Despesas Brutas" color="bg-red-900/60">
+      <Section title="Despesas Brutas" color="bg-red-500">
         <TableRow label="Manutenção Militar" value={turnExpenses.military} />
         <TableRow label="Manutenção de Infraestrutura" value={turnExpenses.infra} />
-        <div className="mt-2 border-t border-white/10 pt-2">
+        <div className="mt-2 border-t border-surface-border pt-2">
           <TableRow label="Total de Despesas" value={totalTurnExpenses} isTotal />
         </div>
       </Section>
 
       {/* ─── COMÉRCIO EXTERIOR ─────────────────────────────────── */}
-      <Section title="Comércio Exterior" color="bg-indigo-900/60">
+      <Section title="Comércio Exterior" color="bg-indigo-500">
         <TableRow label="Exportações" value={exports} icon={<ArrowRightLeft size={16} />} />
         <TableRow label="Importações" value={imports} />
-        <div className="mt-2 border-t border-white/10 pt-2">
+        <div className="mt-2 border-t border-surface-border pt-2">
           <TableRow 
             label="Saldo da Balança Comercial" 
             value={tradeBalance} 
@@ -154,7 +159,7 @@ export default function OrcamentoPage() {
       </Section>
 
       {/* ─── RESULTADO LÍQUIDO ────────────────────────────────── */}
-      <Section title="Resultado Líquido" color="bg-green-900/60">
+      <Section title="Resultado Líquido" color="bg-green-500">
         <TableRow 
           label="Dinheiro" 
           value={netTurn} 
@@ -164,20 +169,20 @@ export default function OrcamentoPage() {
       </Section>
 
       {/* ─── BALANÇO DE RECURSOS (Produção vs. Consumo) ────────── */}
-      <Section title="Utilização de Recursos (por turno)" color="bg-purple-900/60">
+      <Section title="Utilização de Recursos (por turno)" color="bg-purple-500">
         {Object.entries(resources).map(([key, data]) => {
           const balance = data.prod - data.cons
           const isPositive = balance >= 0
           return (
-            <div key={key} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-              <div className="flex items-center gap-2 text-sm text-white/70">
-                {data.icon}
-                <span className="capitalize">{key}</span>
+            <div key={key} className="flex items-center justify-between py-2 border-b border-surface-border last:border-0">
+              <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-white/70">
+                <span className="text-primary/60">{data.icon}</span>
+                <span>{key}</span>
               </div>
-              <div className="flex items-center gap-4 text-xs font-mono">
-                <span className="text-white/50">Prod: {formatNumber(data.prod)}</span>
+              <div className="flex items-center gap-4 text-[10px] font-mono">
+                <span className="text-white/50">PROD: {formatNumber(data.prod)}</span>
                 <span className="text-white/30">/</span>
-                <span className="text-white/50">Cons: {formatNumber(data.cons)}</span>
+                <span className="text-white/50">CONS: {formatNumber(data.cons)}</span>
                 <span className={`font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
                   {isPositive ? '+' : ''}{formatNumber(balance)}
                 </span>
@@ -186,15 +191,15 @@ export default function OrcamentoPage() {
           )
         })}
 
-        <div className="flex items-center justify-between py-2 border-b border-white/5 last:border-0 mt-2 pt-2 border-t border-white/10">
-          <div className="flex items-center gap-2 text-sm text-white/70">
-            <Zap size={16} />
+        <div className="flex items-center justify-between py-2 border-surface-border last:border-0 mt-2 pt-2 border-t">
+          <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-white/70">
+            <span className="text-primary/60"><Zap size={16} /></span>
             <span>Energia</span>
           </div>
-          <div className="flex items-center gap-4 text-xs font-mono">
-            <span className="text-white/50">Prod: {formatNumber(energyProd)}</span>
+          <div className="flex items-center gap-4 text-[10px] font-mono">
+            <span className="text-white/50">PROD: {formatNumber(energyProd)}</span>
             <span className="text-white/30">/</span>
-            <span className="text-white/50">Cons: {formatNumber(energyCons)}</span>
+            <span className="text-white/50">CONS: {formatNumber(energyCons)}</span>
             <span className={`font-bold ${energyBalance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {energyBalance >= 0 ? '+' : ''}{formatNumber(energyBalance)}
             </span>
@@ -207,21 +212,25 @@ export default function OrcamentoPage() {
 
 function Section({ title, children, color }: { title: string; children: React.ReactNode; color?: string }) {
   return (
-    <div className={`rounded-xl border border-white/10 overflow-hidden ${color || 'bg-white/5'}`}>
-      <div className={`px-4 py-2 ${color || 'bg-white/5'}`}>
-        <p className="text-white font-semibold text-sm tracking-wide">{title}</p>
+    <div className="rounded-lg border border-surface-border overflow-hidden bg-surface-card shadow-lg">
+      <div className="px-4 py-3 bg-surface-input border-b border-surface-border flex items-center gap-2">
+        {/* ✅ Barrinha colorida dinâmica em vez do fundo inteiro colorido */}
+        <div className={`w-1.5 h-3 rounded-full ${color || 'bg-primary'}`} />
+        <p className="text-white font-bold text-xs font-mono uppercase tracking-widest">{title}</p>
       </div>
-      <div className="bg-surface-card p-4 flex flex-col gap-1">{children}</div>
+      <div className="p-4 flex flex-col gap-1">{children}</div>
     </div>
   )
 }
 
 function TableRow({ label, value, icon, isTotal = false, moneyColor = 'text-white' }: { label: string; value: number; icon?: React.ReactNode; isTotal?: boolean; moneyColor?: string }) {
   return (
-    <div className={`flex items-center justify-between py-1.5 ${isTotal ? 'bg-white/5 -mx-2 px-2 rounded-lg mt-1' : 'border-b border-white/5'}`}>
-      <div className="flex items-center gap-2 text-sm">
-        {icon && <span className="text-white/40">{icon}</span>}
-        <span className={isTotal ? 'text-white font-bold' : 'text-white/60'}>{label}</span>
+    <div className={`flex items-center justify-between py-2 ${isTotal ? 'bg-surface-input -mx-2 px-2 rounded-md mt-1 border border-surface-border' : 'border-b border-surface-border last:border-0'}`}>
+      <div className="flex items-center gap-2">
+        {icon && <span className="text-primary/60">{icon}</span>}
+        <span className={`text-[11px] font-mono uppercase tracking-wider ${isTotal ? 'text-white font-bold' : 'text-white/60'}`}>
+          {label}
+        </span>
       </div>
       <div className={`flex items-center gap-4 text-xs font-mono ${moneyColor}`}>
         <span className={isTotal ? 'font-bold text-sm' : ''}>{formatMoney(value)}</span>

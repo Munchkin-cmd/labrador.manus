@@ -8,13 +8,19 @@ type ArticleRow = Database['public']['Tables']['articles']['Row']
 type CommentRow = Database['public']['Tables']['comments']['Row']
 type CountryRow = Database['public']['Tables']['countries']['Row']
 
+// ✅ Adicionado o 'users' com a 'flag_url'
 export interface Article extends ArticleRow {
-  countries: Pick<CountryRow, 'name' | 'flag_emoji'>
+  countries: Pick<CountryRow, 'name' | 'flag_emoji'> & {
+    users?: { flag_url: string | null } | { flag_url: string | null }[] | null
+  }
   user_vote?: 1 | -1 | null
 }
 
+// ✅ Adicionado o 'users' com a 'flag_url'
 export interface Comment extends CommentRow {
-  countries: Pick<CountryRow, 'name' | 'flag_emoji'>
+  countries: Pick<CountryRow, 'name' | 'flag_emoji'> & {
+    users?: { flag_url: string | null } | { flag_url: string | null }[] | null
+  }
 }
 
 export const CATEGORIES = [
@@ -43,7 +49,8 @@ export function useFeed() {
 
     const { data, error } = await supabase
       .from('articles')
-      .select('*, countries(name, flag_emoji)')
+      // ✅ Adicionado o users(flag_url) aqui
+      .select('*, countries(name, flag_emoji, users(flag_url))')
       .order('likes', { ascending: false })
       .order('created_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
@@ -245,7 +252,8 @@ export function useFeed() {
     
     const { data, error } = await supabase
       .from('comments')
-      .select('*, countries(name, flag_emoji)')
+      // ✅ Adicionado o users(flag_url) aqui também
+      .select('*, countries(name, flag_emoji, users(flag_url))')
       .eq('article_id', articleId)
       .order('created_at', { ascending: true })
 
@@ -274,7 +282,6 @@ export function useFeed() {
     if (!country?.id) return { success: false, error: 'País não encontrado. Faça login novamente.' }
     if (!articleId) return { success: false, error: 'Artigo não encontrado.' }
 
-    // ✅ AQUI ESTÁ A CORREÇÃO: Verifica se tem mídia antes de bloquear texto vazio
     const hasMedia = !!(mediaData?.gif_url || mediaData?.sticker_url || mediaData?.image_url)
     if (!content.trim() && !hasMedia) {
       return { success: false, error: 'O comentário não pode estar vazio.' }
@@ -319,4 +326,4 @@ export function useFeed() {
     fetchComments,
     postComment,
   }
-}
+} 

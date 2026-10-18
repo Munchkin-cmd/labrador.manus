@@ -13,8 +13,8 @@
   }
  
   body {
-    /* 🌈 Fundo escuro profundo (roxo/azulado) — combina com os blobs */
-    background-color: #0a0a1a;
+    /* Fundo super escuro (Quase preto, azulado) */
+    background-color: #060A14;
     color: #f5f5f5;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     min-height: 100vh;
@@ -26,54 +26,48 @@
     width: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: #060A14;
   }
   ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #7c3aed, #06b6d4);
+    background: #1E2D4A;
     border-radius: 10px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, #a78bfa, #22d3ee);
+    background: #3B82F6;
   }
 }
  
 @layer components {
-  /* ✅ HEADER (caso não use o style inline do componente) */
+  /* ✅ HEADER (Sólido e escuro) */
   .header-gradient {
-    background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 100%);
-    box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4);
+    background: #0E1626;
+    border-bottom: 1px solid #1E2D4A;
     width: 100%;
     padding: 0.75rem 1rem;
   }
  
-  /* ✅ CARDS — vidro colorido */
+  /* ✅ CARDS — Sólidos com borda fina */
   .card {
-    background: rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 14px;
+    background: #0E1626;
+    border: 1px solid #1E2D4A;
+    border-radius: 8px; /* Bordas menos arredondadas para parecer mais sério */
     padding: 1rem;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    transition: border-color 0.2s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
   }
   .card:hover {
-    border-color: rgba(167, 139, 250, 0.6);
-    transform: translateY(-3px);
-    box-shadow: 0 12px 40px rgba(124, 58, 237, 0.35);
+    border-color: #3B82F6;
   }
  
-  /* ✅ BOTTOM NAV — vidro colorido */
+  /* ✅ BOTTOM NAV — Sólido e escuro */
   .bottom-nav {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     z-index: 40;
-    background: rgba(15, 15, 35, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: #0E1626;
+    border-top: 1px solid #1E2D4A;
     height: 60px;
     display: flex;
     align-items: center;
@@ -88,18 +82,20 @@
     gap: 0.125rem;
     flex: 1;
     padding: 0.25rem 0;
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(255, 255, 255, 0.4);
     font-size: 0.6rem;
-    font-weight: 500;
-    transition: all 0.25s ease;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.2s ease;
     text-decoration: none;
     position: relative;
   }
   .tab-item:hover {
-    color: rgba(255, 255, 255, 0.9);
+    color: rgba(255, 255, 255, 0.8);
   }
   .tab-item.active {
-    color: #a78bfa;
+    color: #3B82F6; /* Azul vivo */
   }
   .tab-item.active::before {
     content: '';
@@ -108,70 +104,67 @@
     width: 24px;
     height: 3px;
     border-radius: 0 0 4px 4px;
-    background: linear-gradient(90deg, #7c3aed, #06b6d4);
-    box-shadow: 0 0 10px rgba(124, 58, 237, 0.8);
+    background: #3B82F6;
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
   }
   .tab-item .icon {
     font-size: 1.25rem;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
   }
  
-  /* ✅ BOTÃO PRINCIPAL — gradiente vivo */
+  /* ✅ BOTÃO PRINCIPAL — Azul Sólido */
   .btn-primary {
-    background: linear-gradient(135deg, #7c3aed 0%, #06b6d4 100%);
+    background: #3B82F6;
     color: white;
     font-weight: 700;
     padding: 0.75rem 1.5rem;
-    border-radius: 10px;
-    border: none;
+    border-radius: 8px;
+    border: 1px solid #60A5FA;
     cursor: pointer;
     width: 100%;
     text-align: center;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(124, 58, 237, 0.35);
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
   }
   .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(124, 58, 237, 0.55);
+    background: #1D4ED8;
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
   }
   .btn-primary:active {
-    transform: translateY(0);
+    transform: translateY(1px);
   }
  
-  /* ✅ INPUT — vidro suave */
+  /* ✅ INPUT — Fundo escuro sólido */
   .input-field {
     width: 100%;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 10px;
+    background: #141F35;
+    border: 1px solid #1E2D4A;
+    border-radius: 8px;
     padding: 0.75rem 1rem;
     color: white;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
   }
   .input-field::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.3);
   }
   .input-field:focus {
     outline: none;
-    border-color: #a78bfa;
-    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
-    background: rgba(255, 255, 255, 0.09);
+    border-color: #3B82F6;
+    background: #1A263F;
   }
  
   /* ✅ PROGRESS BAR */
   .progress-bar {
     height: 0.5rem;
-    border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    background: #141F35;
     overflow: hidden;
+    border: 1px solid #1E2D4A;
   }
   .progress-fill {
     height: 100%;
-    border-radius: 9999px;
+    border-radius: 4px;
     transition: width 0.5s ease;
-    background: linear-gradient(90deg, #7c3aed, #06b6d4, #22c55e);
-    background-size: 200% 100%;
-    animation: progress-shine 3s linear infinite;
+    background: #3B82F6;
   }
 }
 
@@ -223,12 +216,6 @@
   animation: fadeInOut infinite alternate ease-in-out;
 }
 
-/* ✨ Brilho percorrendo a progress bar */
-@keyframes progress-shine {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 200% 50%; }
-}
-
 /* 🔮 Pulso suave */
 @keyframes soft-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -236,67 +223,4 @@
 }
 .animate-soft-pulse {
   animation: soft-pulse 2s ease-in-out infinite;
-}
-
-/* ============================================
-   🪟 VIDRO GLOBAL — sobrescreve classes cinzas
-   Aplica em qualquer card do app automaticamente
-   ============================================ */
-
-/* Fundos escuros → vidro transparente */
-.bg-gray-800,
-.bg-gray-900,
-.bg-zinc-800,
-.bg-zinc-900,
-.bg-neutral-800,
-.bg-neutral-900,
-.bg-slate-800,
-.bg-slate-900,
-.bg-surface,
-.bg-surface-card,
-.bg-card,
-.bg-background {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-/* Cards um pouco mais claros */
-.bg-gray-700,
-.bg-zinc-700,
-.bg-neutral-700 {
-  background-color: rgba(255, 255, 255, 0.08) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-/* Bordas cinzas → bordas claras translúcidas */
-.border-gray-600,
-.border-gray-700,
-.border-gray-800,
-.border-zinc-700,
-.border-zinc-800,
-.border-neutral-700,
-.border-neutral-800,
-.border-slate-700,
-.border-slate-800,
-.border-border {
-  border-color: rgba(255, 255, 255, 0.12) !important;
-}
-
-/* Textos cinzas → brancos translúcidos */
-.text-gray-300,
-.text-zinc-300,
-.text-neutral-300 {
-  color: rgba(255, 255, 255, 0.85) !important;
-}
-.text-gray-400,
-.text-zinc-400,
-.text-neutral-400 {
-  color: rgba(255, 255, 255, 0.65) !important;
-}
-.text-gray-500,
-.text-zinc-500,
-.text-neutral-500 {
-  color: rgba(255, 255, 255, 0.5) !important;
 }

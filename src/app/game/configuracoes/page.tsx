@@ -5,13 +5,12 @@ import { useRouter } from 'next/navigation'
 import { useConfiguracoes } from '@/hooks/useMenu'
 import { useAuthStore } from '@/store/authStore'
 import { supabase } from '@/lib/supabase/client'
-import { Loader2, Upload, X, Plus, AlertTriangle } from 'lucide-react' // ✅ Adicionado AlertTriangle
+import { Loader2, Upload, X, Plus, AlertTriangle } from 'lucide-react'
 
 export default function ConfiguracoesPage() {
   const router = useRouter()
   const { user, country } = useAuthStore()
   
-  // ✅ Adicionado abandonCountry no hook
   const { data, profile, loading, saving, saveCountry, saveProfile, abandonCountry } = useConfiguracoes()
 
   // ─── ESTADOS DOS CAMPOS ──────────────────────────────────────
@@ -142,7 +141,6 @@ export default function ConfiguracoesPage() {
     const res = await abandonCountry()
     
     if (res.success) {
-      // Desloga o usuário e manda para a tela de login
       await supabase.auth.signOut()
       window.location.href = '/auth/login'
     } else {
@@ -154,8 +152,12 @@ export default function ConfiguracoesPage() {
   if (loading) return <Loading />
 
   return (
-    <div className="flex flex-col gap-5 pb-6 p-4">
-      <p className="text-xs font-bold tracking-widest text-white/40 uppercase">CONFIGURAÇÕES</p>
+    <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6">
+      
+      <div className="flex items-center gap-2 mb-2 pl-1">
+        <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+        <p className="text-xs font-bold tracking-widest text-white uppercase font-mono">Configurações</p>
+      </div>
 
       {/* Líder */}
       <Section title="👤 LÍDER">
@@ -172,7 +174,7 @@ export default function ConfiguracoesPage() {
             <button
               onClick={() => leaderInputRef.current?.click()}
               disabled={uploadingLeader}
-              className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl py-2 px-4 text-white/70 text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-1 bg-surface-input border border-surface-border hover:bg-white/5 rounded-lg py-2.5 px-4 text-white/80 text-xs font-bold font-mono uppercase tracking-wider transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {uploadingLeader ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
               {uploadingLeader ? 'Enviando...' : 'Selecionar Imagem'}
@@ -188,9 +190,9 @@ export default function ConfiguracoesPage() {
               }}
             />
             {leaderUrl && (
-              <div className="relative w-12 h-12 rounded-full overflow-hidden border border-white/10 flex-shrink-0 bg-black">
+              <div className="relative w-12 h-12 rounded-full overflow-hidden border border-surface-border flex-shrink-0 bg-surface-input">
                 <img src={leaderUrl} alt="Líder" className="w-full h-full object-cover" />
-                <button onClick={() => setLeaderUrl('')} className="absolute top-0 right-0 bg-black/60 text-white rounded-full p-0.5">
+                <button onClick={() => setLeaderUrl('')} className="absolute top-0 right-0 bg-black/60 hover:bg-red-600 text-white rounded-full p-0.5 transition-colors">
                   <X size={12} />
                 </button>
               </div>
@@ -211,7 +213,7 @@ export default function ConfiguracoesPage() {
             <button
               onClick={() => flagInputRef.current?.click()}
               disabled={uploadingFlag}
-              className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl py-2 px-4 text-white/70 text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-1 bg-surface-input border border-surface-border hover:bg-white/5 rounded-lg py-2.5 px-4 text-white/80 text-xs font-bold font-mono uppercase tracking-wider transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {uploadingFlag ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
               {uploadingFlag ? 'Enviando...' : 'Selecionar Imagem'}
@@ -227,9 +229,9 @@ export default function ConfiguracoesPage() {
               }}
             />
             {flagUrl && (
-              <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-white/10 flex-shrink-0 bg-black">
+              <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-surface-border flex-shrink-0 bg-surface-input">
                 <img src={flagUrl} alt="Bandeira" className="w-full h-full object-cover" />
-                <button onClick={() => setFlagUrl('')} className="absolute top-0 right-0 bg-black/60 text-white rounded-full p-0.5">
+                <button onClick={() => setFlagUrl('')} className="absolute top-0 right-0 bg-black/60 hover:bg-red-600 text-white rounded-full p-0.5 transition-colors">
                   <X size={12} />
                 </button>
               </div>
@@ -253,18 +255,18 @@ export default function ConfiguracoesPage() {
 
       {/* ─── BANNERS DINÂMICOS ────────────── */}
       <Section title="🎨 BANNERS DO PAÍS">
-        <p className="text-white/40 text-xs mb-2">
-          Adicione quantas fotos quiser para o banner. Clique em "+" para adicionar ou no "X" para remover.
+        <p className="text-white/50 text-[10px] font-mono uppercase tracking-widest mb-2">
+          Adicione fotos para o banner. Clique em "+" para adicionar ou no "X" para remover.
         </p>
         
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-2">
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-2">
           
           {bannerUrls.map((imgUrl, i) => {
             if (!imgUrl) return null 
             return (
               <div 
                 key={i} 
-                className="relative aspect-square bg-black/40 border border-white/10 rounded-lg overflow-hidden group"
+                className="relative aspect-square bg-surface-input border border-surface-border rounded-lg overflow-hidden group"
               >
                 <img src={imgUrl} alt={`Banner ${i+1}`} className="w-full h-full object-cover" />
                 <button
@@ -285,14 +287,14 @@ export default function ConfiguracoesPage() {
             onClick={() => {
               if (!uploadingBanner) bannerInputRef.current?.click()
             }}
-            className="relative aspect-square bg-white/5 border border-white/10 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-white/10 transition-colors"
+            className="relative aspect-square bg-surface-card border border-surface-border border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-white/5 transition-colors"
           >
             {uploadingBanner ? (
-              <Loader2 className="animate-spin text-primary-light" size={24} />
+              <Loader2 className="animate-spin text-primary" size={24} />
             ) : (
               <>
                 <Plus className="text-white/40 mb-1" size={24} />
-                <span className="text-[10px] font-semibold text-white/40 uppercase">Adicionar</span>
+                <span className="text-[9px] font-bold font-mono tracking-widest text-white/40 uppercase">Adicionar</span>
               </>
             )}
           </div>
@@ -319,11 +321,11 @@ export default function ConfiguracoesPage() {
           }}
         />
 
-        <div className="flex gap-3 mt-4">
+        <div className="flex gap-3 mt-4 border-t border-surface-border pt-4">
           <button
             onClick={handleSaveBanners}
             disabled={saving}
-            className="flex-1 bg-primary hover:bg-primary-light text-white font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
+            className="flex-1 bg-primary hover:bg-primary-dark text-white font-bold font-mono uppercase tracking-wider py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-primary/20 text-xs"
           >
             💾 SALVAR BANNERS
           </button>
@@ -331,11 +333,11 @@ export default function ConfiguracoesPage() {
       </Section>
 
       {feedback && (
-        <p className={`text-sm text-center font-semibold ${feedback.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>{feedback}</p>
+        <p className={`text-xs font-mono text-center font-bold ${feedback.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>{feedback}</p>
       )}
 
-      <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50 mt-2">
-        {saving ? 'Salvando...' : 'SALVAR ALTERAÇÕES GERAIS'}
+      <button onClick={handleSave} disabled={saving} className="w-full bg-primary hover:bg-primary-dark disabled:opacity-50 text-white font-bold font-mono uppercase tracking-wider py-3.5 rounded-lg transition-colors shadow-lg shadow-primary/20 text-sm mt-2">
+        {saving ? 'Salvando...' : 'Salvar Alterações Gerais'}
       </button>
 
       {/* Senha */}
@@ -345,41 +347,44 @@ export default function ConfiguracoesPage() {
             className="input-field" placeholder="Mínimo 6 caracteres" />
         </Field>
         {pwMsg && (
-          <p className={`text-sm mt-2 ${pwMsg.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>{pwMsg}</p>
+          <p className={`text-xs font-mono mt-1 ${pwMsg.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>{pwMsg}</p>
         )}
-        <button onClick={handleChangePassword} className="w-full mt-3 bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-xl transition-colors text-sm">
-          ALTERAR SENHA
+        <button onClick={handleChangePassword} className="w-full mt-2 bg-surface-input border border-surface-border hover:bg-white/5 text-white font-bold font-mono uppercase tracking-wider py-2.5 rounded-lg transition-colors text-xs">
+          Alterar Senha
         </button>
       </Section>
 
       {/* Email info */}
       <Section title="📧 CONTA">
         <div className="flex justify-between items-center">
-          <span className="text-white/40 text-sm">Email</span>
-          <span className="text-white/70 text-sm">{user?.email}</span>
+          <span className="text-white/50 text-[10px] font-mono uppercase tracking-widest">Email</span>
+          <span className="text-white/80 text-xs font-mono">{user?.email}</span>
         </div>
       </Section>
 
       {/* ✅ ZONA DE PERIGO (EXCLUIR PAÍS) */}
       <Section title="⚠️ ZONA DE PERIGO">
-        <p className="text-white/60 text-xs mb-3">
+        <p className="text-white/60 text-[10px] font-mono leading-relaxed mb-3">
           Ao excluir seu país, todos os seus edifícios, economia, leis e histórico serão apagados permanentemente. O país ficará disponível para outro jogador.
         </p>
         <button 
           onClick={() => setShowDeleteModal(true)}
-          className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+          className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold font-mono uppercase tracking-wider py-3 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs"
         >
-          <AlertTriangle size={18} />
-          EXCLUIR PAÍS E SAIR
+          <AlertTriangle size={16} />
+          Excluir País e Sair
         </button>
       </Section>
 
       {/* ✅ MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#1a1a2e] border border-red-500/50 rounded-xl p-6 max-w-sm w-full text-center shadow-2xl">
-            <h3 className="text-white font-bold text-lg mb-2">Tem certeza absoluta?</h3>
-            <p className="text-white/60 text-sm mb-6">
+          <div className="bg-surface-card border border-surface-border rounded-xl p-6 max-w-sm w-full text-center shadow-2xl relative">
+            <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="text-red-500" size={24} />
+            </div>
+            <h3 className="text-white font-bold text-lg mb-2 uppercase tracking-wider">Tem certeza absoluta?</h3>
+            <p className="text-white/60 text-xs font-mono mb-6 leading-relaxed">
               Essa ação não pode ser desfeita. Você perderá todo o progresso do seu país no jogo.
             </p>
             
@@ -387,14 +392,14 @@ export default function ConfiguracoesPage() {
               <button 
                 onClick={() => setShowDeleteModal(false)}
                 disabled={deleting}
-                className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-2.5 rounded-lg text-sm transition-colors"
+                className="flex-1 bg-surface-input border border-surface-border hover:bg-white/5 text-white font-bold font-mono uppercase tracking-wider py-2.5 rounded-lg text-xs transition-colors"
               >
                 Cancelar
               </button>
               <button 
                 onClick={handleDeleteCountry}
                 disabled={deleting}
-                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-lg text-sm transition-colors disabled:opacity-50"
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold font-mono uppercase tracking-wider py-2.5 rounded-lg text-xs transition-colors disabled:opacity-50 shadow-lg shadow-red-900/50"
               >
                 {deleting ? 'Excluindo...' : 'Sim, Excluir'}
               </button>
@@ -410,8 +415,11 @@ export default function ConfiguracoesPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-2">{title}</p>
-      <div className="bg-surface-card rounded-xl p-4 flex flex-col gap-4 border border-white/5">{children}</div>
+      <div className="flex items-center gap-2 mb-2 pl-1">
+        <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)] shrink-0" />
+        <p className="text-xs font-bold tracking-widest text-white uppercase font-mono">{title}</p>
+      </div>
+      <div className="bg-surface-card border border-surface-border rounded-lg p-4 sm:p-5 shadow-lg flex flex-col gap-4">{children}</div>
     </div>
   )
 }
@@ -419,7 +427,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-white/50 text-xs font-semibold">{label}</label>
+      <label className="text-white/50 text-[10px] font-bold font-mono uppercase tracking-widest">{label}</label>
       {children}
     </div>
   )

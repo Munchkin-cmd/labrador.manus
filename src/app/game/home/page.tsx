@@ -29,7 +29,6 @@ export default function HomePage() {
   useEffect(() => {
     if (!country?.id) return
 
-    // Extraímos o ID para uma constante para o TypeScript não achar que ele pode ser undefined depois
     const currentId = country.id
 
     async function fetchRegionsCount() {
@@ -48,10 +47,10 @@ export default function HomePage() {
 
   if (loadingCountry) {
     return (
-      <div className="flex-1 flex items-center justify-center min-h-screen">
+      <div className="flex-1 flex items-center justify-center min-h-[60vh]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-white/40 text-sm">Carregando...</p>
+          <p className="text-white/40 text-xs font-mono tracking-widest uppercase">Carregando...</p>
         </div>
       </div>
     )
@@ -59,10 +58,10 @@ export default function HomePage() {
 
   if (!country || !economy || !profile) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8 text-center">
+      <div className="flex-1 flex items-center justify-center p-8 text-center min-h-[60vh]">
         <div>
-          <p className="text-white/60 text-sm mb-3">Não foi possível carregar os dados do país.</p>
-          <button onClick={() => window.location.reload()} className="btn-primary text-sm py-2 px-4 w-auto">
+          <p className="text-white/60 text-xs font-mono uppercase tracking-widest mb-4">Não foi possível carregar os dados do país.</p>
+          <button onClick={() => window.location.reload()} className="btn-primary text-sm py-2 px-6 w-auto mx-auto block">
             Tentar novamente
           </button>
         </div>
@@ -71,20 +70,33 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 pb-6">
+    <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-6 pb-24">
 
       {/* ── Banner principal ── */}
       <CountryBanner country={country} profile={profile} />
 
       {/* ── Barras de status ── */}
-      <div className="px-4 flex flex-col gap-2">
-        <TrustBar trust={country.trust}         label="Confiança"   color="bg-green-500" />
-        <TrustBar trust={country.intl_approval} label="Aprovação"   color="bg-blue-400" />
+      <div className="bg-surface-card border border-surface-border rounded-lg p-4 shadow-lg flex flex-col gap-3">
+        <TrustBar trust={country.trust} label="Confiança" color="bg-green-500" />
+        <TrustBar trust={country.intl_approval} label="Aprovação" color="bg-blue-400" />
         <TrustBar trust={country.political_power} label="Poder Pol." color="bg-purple-400" />
       </div>
 
       {/* ── Separador ── */}
       <Divider />
+
+      {/* ✅ NOVO: Saudação de Bem-Vindo */}
+      <div className="flex items-center gap-3 px-1 mt-2 mb-2 animate-in fade-in slide-in-from-left-4 duration-500">
+        <div className="w-1.5 h-10 bg-primary rounded-full shadow-[0_0_10px_rgba(59,130,246,0.6)]" />
+        <div className="flex flex-col">
+          <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+            Bem-vindo, <span className="text-primary drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]">{country.name}</span> 👋
+          </h1>
+          <p className="text-[10px] text-white/40 font-mono tracking-widest uppercase mt-0.5">
+            Painel de Controle • Visão Geral
+          </p>
+        </div>
+      </div>
 
       {/* ── Stats mundiais ── */}
       {stats && !loadingWorld ? (
@@ -110,18 +122,18 @@ export default function HomePage() {
 }
 
 function Divider() {
-  return <div className="h-px bg-white/5 mx-4" />
+  return <div className="h-px bg-surface-border mx-2" />
 }
 
 function StatsSkeleton() {
   return (
-    <div className="px-4">
-      <div className="h-3 w-32 bg-white/10 rounded mb-3 animate-pulse" />
-      <div className="bg-surface-card rounded-xl p-3 grid grid-cols-3 gap-2">
+    <div className="px-1">
+      <div className="h-3 w-32 bg-surface-input border border-surface-border rounded mb-3 animate-pulse" />
+      <div className="bg-surface-card border border-surface-border rounded-lg p-4 grid grid-cols-3 gap-2 shadow-lg">
         {[1,2,3].map(i => (
-          <div key={i} className="flex flex-col items-center gap-1">
-            <div className="h-5 w-12 bg-white/10 rounded animate-pulse" />
-            <div className="h-2 w-8 bg-white/5 rounded animate-pulse" />
+          <div key={i} className="flex flex-col items-center gap-2">
+            <div className="h-5 w-12 bg-surface-input rounded animate-pulse" />
+            <div className="h-2 w-8 bg-surface-border rounded animate-pulse" />
           </div>
         ))}
       </div>

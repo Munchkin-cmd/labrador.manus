@@ -21,7 +21,6 @@ type UserRow = Database['public']['Tables']['users']['Row']
 type EconomyRow = Database['public']['Tables']['economy']['Row']
 type WarRow = Database['public']['Tables']['wars']['Row']
 
-// ─── TIPO PARA ALIADOS (APENAS OS CAMPOS EXIBIDOS) ──────
 type AllyInfo = {
   id: number
   name: string
@@ -57,7 +56,10 @@ export default function PaisPage() {
   const [regions, setRegions] = useState<any[]>([])
   const [buildingsCount, setBuildingsCount] = useState<Record<string, number>>({})
   const [activeWars, setActiveWars] = useState<WarRow[]>([])
-  const [allies, setAllies] = useState<AllyInfo[]>([]) // ← tipo corrigido
+  const [allies, setAllies] = useState<AllyInfo[]>([])
+  
+  const [isFightingAlongside, setIsFightingAlongside] = useState(false)
+  const [isFightingAgainst, setIsFightingAgainst] = useState(false)
 
   // ─── BANNER CARROSSEL ──────────────────────────────────
   const [bannerIndex, setBannerIndex] = useState(0)
@@ -84,7 +86,7 @@ export default function PaisPage() {
     startTimer()
   }
 
-  // ─── MODAIS ──────────────────────────────────────────────
+  // ─── MODAIS E FEEDBACK ───────────────────────────────────
   const [showMessageModal, setShowMessageModal] = useState(false)
   const [selectedMessage, setSelectedMessage] = useState('')
   const [error, setError] = useState('')
@@ -99,11 +101,16 @@ export default function PaisPage() {
       setLoading(true)
       setError('')
 
-      const { data: countryData, error: countryError } = await supabase
-        .from('countries')
-        .select('*')
-        .eq('slug', slug)
-        .maybeSingle<CountryRow>()
+      // ✅ CORREÇÃO AQUI: Busca pelo ID se for número, ou pelo Slug se for texto
+      let query = supabase.from('countries').select('*')
+      
+      if (!isNaN(Number(slug))) {
+        query = query.eq('id', Number(slug))
+      } else {
+        query = query.eq('slug', slug)
+      }
+
+      const { data: countryData, error: countryError } = await query.maybeSingle<CountryRow>()
 
       if (countryError || !countryData) {
         setError('País não encontrado')
@@ -132,8 +139,9 @@ export default function PaisPage() {
       // Regiões
       const { data: regionsData } = await supabase
         .from('regions')
-        .select('id, name, used_area')
+        .select('*')
         .eq('country_id', countryData.id)
+        
       if (regionsData && regionsData.length > 0) {
         setRegions(regionsData)
         const regionIds = regionsData.map((r: any) => r.id)
@@ -142,14 +150,51 @@ export default function PaisPage() {
             .from('buildings')
             .select('region_id, quantity')
             .in('region_id', regionIds)
+            
           if (buildingsData) {
             const count: Record<string, number> = {}
             buildingsData.forEach((b: any) => {
-              count[b.region_id] = (count[b.region_id] || 0) + b.quantity
+              count[b.region_id] = (count[b.region_id] || 0) + (b.quantity || 1)
             })
             setBuildingsCount(count)
           }
         }
+      }
+
+      // Guerras ativas
+      const { data: warsData } = await supabase
+        .from('wars')
+        .select('*')
+        .or(`attacker_id.eq.${countryData.id},defender_id.eq.${countryData.id}`)
+        .eq('status', 'active')
+      setActiveWars(warsData || [])
+
+      // Lógica de guerra
+      if (myCountry?.id) {
+        let fightingAgainst = false
+        let fightingAlongside = false
+
+        for (const w of warsData || []) {
+          if (
+            (w.attacker_id === myCountry.id && w.defender_id === countryData.id) ||
+            (w.defender_id === myCountry.id && w.attacker_id === countryData.id)
+          ) {
+            fightingAgainst = true
+          } else if (
+            w.attacker_id === countryData.id || w.defender_id === countryData.id
+          ) {
+            const { data: myPart } = await supabase
+              .from('war_participants')
+              .select('side')
+              .eq('war_id', w.id)
+              .eq('country_id', myCountry.id)
+              .maybeSingle()
+            
+            if (myPart) fightingAlongside = true
+          }
+        }
+        setIsFightingAgainst(fightingAgainst)
+        setIsFightingAlongside(fightingAlongside)
       }
 
       // Relação diplomática
@@ -164,11 +209,11 @@ export default function PaisPage() {
         if (relData) {
           setRelation(relData)
         } else {
-          const { data: newRel, error: insertError } = await supabase
+          const { data: newRel } = await supabase
             .from('diplomacy')
             .insert({
-              country_a_id: myCountry.id,
-              country_b_id: countryData.id,
+              country_a_id: Math.min(myCountry.id, countryData.id),
+              country_b_id: Math.max(myCountry.id, countryData.id),
               status: 'neutral',
               relation_score: 50,
               has_embassy: false,
@@ -176,17 +221,9 @@ export default function PaisPage() {
             })
             .select()
             .single<DiplomacyRow>()
-          if (!insertError && newRel) setRelation(newRel)
+          if (newRel) setRelation(newRel)
         }
       }
-
-      // Guerras ativas envolvendo este país
-      const { data: warsData } = await supabase
-        .from('wars')
-        .select('*')
-        .or(`attacker_id.eq.${countryData.id},defender_id.eq.${countryData.id}`)
-        .eq('status', 'active')
-      setActiveWars(warsData || [])
 
       // Aliados
       const { data: allyRels } = await supabase
@@ -203,7 +240,7 @@ export default function PaisPage() {
           .from('countries')
           .select('id, name, flag_emoji, slug')
           .in('id', ids)
-        setAllies(allyCountries || []) // ← agora é AllyInfo[]
+        setAllies(allyCountries || [])
       }
 
       setLoading(false)
@@ -215,12 +252,7 @@ export default function PaisPage() {
   // ─── AÇÕES ──────────────────────────────────────────────
 
   async function handleSendMessage() {
-    if (!selectedMessage) {
-      setError('Selecione uma mensagem')
-      return
-    }
-    if (!user || !myCountry || !country) return
-    if (isMyCountry) return
+    if (!selectedMessage || !user || !myCountry || !country || isMyCountry) return
 
     setError('')
     setSuccess('')
@@ -234,19 +266,13 @@ export default function PaisPage() {
     }
 
     try {
-      // 1. Insere a mensagem na tabela country_messages
-      const { error: msgError } = await supabase
-        .from('country_messages')
-        .insert({
-          from_country: myCountry.id,
-          to_country: country.id,
-          content: msg.content,
-          is_read: false,
-        })
+      await supabase.from('country_messages').insert({
+        from_country: myCountry.id,
+        to_country: country.id,
+        content: msg.content,
+        is_read: false,
+      })
 
-      if (msgError) throw msgError
-
-      // 2. Atualiza relação diplomática
       const newScore = Math.max(0, Math.min(100, (relation?.relation_score || 50) + msg.effect_relation))
       await supabase
         .from('diplomacy')
@@ -257,35 +283,21 @@ export default function PaisPage() {
           updated_at: new Date().toISOString(),
         }, { onConflict: 'country_a_id, country_b_id' })
 
-      // 3. Atualiza aprovação internacional do remetente
       const { data: fromCountry } = await supabase
         .from('countries')
-        .select('intl_approval')
+        .select('intl_approval, trust')
         .eq('id', myCountry.id)
         .single()
+        
       if (fromCountry) {
         const newApproval = Math.max(0, Math.min(100, (fromCountry.intl_approval || 50) + msg.effect_approval))
+        const newTrust = Math.max(0, Math.min(100, (fromCountry.trust || 50) + msg.effect_trust))
         await supabase
           .from('countries')
-          .update({ intl_approval: newApproval })
+          .update({ intl_approval: newApproval, trust: newTrust })
           .eq('id', myCountry.id)
       }
 
-      // 4. Atualiza confiança do remetente
-      const { data: fromTrust } = await supabase
-        .from('countries')
-        .select('trust')
-        .eq('id', myCountry.id)
-        .single()
-      if (fromTrust) {
-        const newTrust = Math.max(0, Math.min(100, (fromTrust.trust || 50) + msg.effect_trust))
-        await supabase
-          .from('countries')
-          .update({ trust: newTrust })
-          .eq('id', myCountry.id)
-      }
-
-      // 5. Notifica o destinatário
       await supabase.rpc('notify_country', {
         p_country_id: country.id,
         p_message: `${myCountry.name} enviou uma mensagem diplomática: "${msg.title}"`,
@@ -297,7 +309,6 @@ export default function PaisPage() {
       setShowMessageModal(false)
       setSelectedMessage('')
       
-      // Atualiza relação localmente
       setRelation(prev => prev ? { ...prev, relation_score: newScore } : null)
     } catch (err: any) {
       setError(err.message || 'Erro ao enviar mensagem')
@@ -357,17 +368,21 @@ export default function PaisPage() {
     }
 
     try {
+      const scoreChange = hasEmbassy ? -20 : 10
+      const newScore = Math.max(0, Math.min(100, (relation?.relation_score || 50) + scoreChange))
+
       await supabase
         .from('diplomacy')
         .upsert({
           country_a_id: Math.min(myCountry.id, country.id),
           country_b_id: Math.max(myCountry.id, country.id),
           has_embassy: !hasEmbassy,
+          relation_score: newScore,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'country_a_id, country_b_id' })
 
-      setRelation(prev => prev ? { ...prev, has_embassy: !hasEmbassy } : null)
-      setSuccess(hasEmbassy ? '✅ Embaixada destruída' : '✅ Embaixada construída')
+      setRelation(prev => prev ? { ...prev, has_embassy: !hasEmbassy, relation_score: newScore } : null)
+      setSuccess(hasEmbassy ? '💥 Embaixada destruída! A relação azedou (-20).' : '✅ Embaixada construída! A relação melhorou (+10).')
     } catch (err: any) {
       setError(err.message || 'Erro ao construir/destruir embaixada')
     }
@@ -391,66 +406,66 @@ export default function PaisPage() {
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-4">
         <h1 className="text-4xl font-bold text-white">404</h1>
         <p className="text-white/60">País não encontrado</p>
-        <Link href="/game/home" className="btn-primary">
-          Voltar ao início
-        </Link>
+        <Link href="/game/home" className="btn-primary">Voltar ao início</Link>
       </div>
     )
   }
 
   const relationScore = relation?.relation_score || 50
-  const isAlly = relation?.status === 'ally'
-  const isEnemy = relation?.status === 'war' || activeWars.some(w => 
-    w.attacker_id === country.id || w.defender_id === country.id
-  )
+  
+  let relColor = 'text-white/70'
+  let relBg = 'bg-white/10'
+  let relBorder = 'border-white/20'
+  let relLabel = 'Neutro'
+  let relEmoji = '⚪'
+  let progressColor = 'bg-white/50'
+
+  if (relationScore >= 76) {
+    relLabel = 'Aliado'; relEmoji = '💙'; relColor = 'text-blue-400'; relBg = 'bg-blue-500/20'; relBorder = 'border-blue-500/30'; progressColor = 'bg-blue-500';
+  } else if (relationScore >= 56) {
+    relLabel = 'Amigo'; relEmoji = '💚'; relColor = 'text-green-400'; relBg = 'bg-green-500/20'; relBorder = 'border-green-500/30'; progressColor = 'bg-green-500';
+  } else if (relationScore >= 46) {
+    relLabel = 'Neutro'; relEmoji = '⚪'; relColor = 'text-white/70'; relBg = 'bg-white/10'; relBorder = 'border-white/20'; progressColor = 'bg-white/50';
+  } else if (relationScore >= 26) {
+    relLabel = 'Tensão'; relEmoji = '⚠️'; relColor = 'text-yellow-400'; relBg = 'bg-yellow-500/20'; relBorder = 'border-yellow-500/30'; progressColor = 'bg-yellow-500';
+  } else {
+    relLabel = 'Inimigo'; relEmoji = '💔'; relColor = 'text-red-400'; relBg = 'bg-red-500/20'; relBorder = 'border-red-500/30'; progressColor = 'bg-red-500';
+  }
+
   const isSanctioned = relation?.sanctions_active === true
   const hasEmbassy = relation?.has_embassy === true
+  const isWar = relation?.status === 'war' || isFightingAgainst
 
-  // ─── RENDER ──────────────────────────────────────────────
   return (
     <div className="max-w-4xl mx-auto pb-24 px-4">
-      {/* Header com voltar */}
+      {/* Header */}
       <div className="flex items-center gap-4 mb-4 pt-4">
-        <button
-          onClick={() => router.back()}
-          className="text-white/50 hover:text-white transition-colors p-2 -ml-2"
-        >
+        <button onClick={() => router.back()} className="text-white/50 hover:text-white transition-colors p-2 -ml-2">
           <ArrowLeft size={24} />
         </button>
         <h1 className="text-xl font-bold text-white">Perfil do País</h1>
       </div>
 
-      {/* ─── BANNER CARROSSEL ───────────────────────────── */}
+      {/* BANNER */}
       <div className="relative w-full h-48 rounded-xl overflow-hidden bg-gradient-to-r from-primary/30 to-primary/5 border border-white/10">
         {hasBanner ? (
           <>
-            <img
-              src={bannerImages[bannerIndex]}
-              alt={country.name}
-              className="w-full h-full object-cover transition-opacity duration-700"
-            />
+            <img src={bannerImages[bannerIndex]} alt={country.name} className="w-full h-full object-cover transition-opacity duration-700" />
             {bannerImages.length > 1 && (
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
                 {bannerImages.map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={(e) => { e.stopPropagation(); goToSlide(idx) }}
-                    className={`w-2 h-2 rounded-full transition-all ${
-                      idx === bannerIndex ? 'bg-primary w-4' : 'bg-white/30 hover:bg-white/50'
-                    }`}
-                  />
+                  <button key={idx} onClick={(e) => { e.stopPropagation(); goToSlide(idx) }}
+                    className={`w-2 h-2 rounded-full transition-all ${idx === bannerIndex ? 'bg-primary w-4' : 'bg-white/30 hover:bg-white/50'}`} />
                 ))}
               </div>
             )}
           </>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-6xl text-white/10">
-            🌍
-          </div>
+          <div className="absolute inset-0 flex items-center justify-center text-6xl text-white/10">🌍</div>
         )}
       </div>
 
-      {/* ─── CABEÇALHO ───────────────────────────────────── */}
+      {/* CABEÇALHO */}
       <div className="relative px-4">
         <div className="relative -mt-16 flex items-end gap-4">
           <div className="relative flex-shrink-0">
@@ -458,9 +473,7 @@ export default function PaisPage() {
               {userProfile?.flag_url ? (
                 <img src={userProfile.flag_url} alt={country.name} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-4xl text-white/30">
-                  <Flag size={40} />
-                </div>
+                <div className="w-full h-full flex items-center justify-center text-4xl text-white/30"><Flag size={40} /></div>
               )}
             </div>
           </div>
@@ -469,109 +482,91 @@ export default function PaisPage() {
               {userProfile?.leader_url ? (
                 <img src={userProfile.leader_url} alt={country.leader_name || 'Líder'} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-3xl text-white/30">
-                  <Crown size={36} />
-                </div>
+                <div className="w-full h-full flex items-center justify-center text-3xl text-white/30"><Crown size={36} /></div>
               )}
             </div>
           </div>
           <div className="flex-1 text-center pb-4">
             <h2 className="text-2xl font-bold text-white">{country.name}</h2>
-            {!country.is_active && (
-              <span className="text-xs bg-white/10 text-white/50 px-2 py-0.5 rounded-full mt-1 inline-block">NPC</span>
-            )}
+            {!country.is_active && <span className="text-xs bg-white/10 text-white/50 px-2 py-0.5 rounded-full mt-1 inline-block">NPC</span>}
           </div>
         </div>
       </div>
 
-      {/* ─── BOTÕES DE AÇÃO (APENAS AÇÕES DIRETAS) ────── */}
+      {/* BOTÕES */}
       {user && !isMyCountry && (
         <div className="mt-2 px-4 flex flex-wrap justify-center gap-2">
-          <button
-            onClick={() => setShowMessageModal(true)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors border border-purple-500/20 flex items-center gap-1"
-          >
+          <button onClick={() => setShowMessageModal(true)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors border border-purple-500/20 flex items-center gap-1">
             <Send size={14} /> Mensagem
           </button>
-          <button
-            onClick={() => handleSendMoney(1000000)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors border border-green-500/20 flex items-center gap-1"
-          >
+          <button onClick={() => handleSendMoney(1000000)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors border border-green-500/20 flex items-center gap-1">
             <Coins size={14} /> Enviar R$ 1M
           </button>
-          <button
-            onClick={handleEmbassy}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1
-              ${hasEmbassy ? 'bg-blue-500/20 text-blue-400 border border-blue-500/20' : 'bg-white/10 text-white/70 hover:bg-white/20 border border-white/10'}`}
-          >
-            <Landmark size={14} />
-            {hasEmbassy ? 'Destruir Embaixada' : 'Construir Embaixada'}
+          <button onClick={handleEmbassy} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${hasEmbassy ? 'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20'}`}>
+            <Landmark size={14} /> {hasEmbassy ? 'Destruir Embaixada (-20 Rel)' : 'Construir Embaixada (+10 Rel)'}
           </button>
         </div>
       )}
 
-      {/* ─── RELAÇÃO DIPLOMÁTICA ────────────────────────── */}
+      {/* RELAÇÃO */}
       {relation && (
-        <div className="mt-3 px-4">
+        <div className="mt-4 px-4">
           <div className="bg-surface-card rounded-xl p-4 border border-white/5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <Shield size={18} className="text-white/40" />
-                <span className="text-white/40 text-xs font-bold tracking-widest uppercase">RELAÇÃO</span>
+                <span className="text-white/40 text-xs font-bold tracking-widest uppercase">RELAÇÃO DIPLOMÁTICA</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-white/50">{relationScore}%</span>
-                <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full" style={{ width: `${relationScore}%` }} />
-                </div>
-              </div>
+              <span className={`text-sm font-bold ${relColor}`}>{relationScore}% {relLabel}</span>
             </div>
+            
+            <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden flex relative mb-3">
+              <div className={`h-full ${progressColor} transition-all duration-500`} style={{ width: `${relationScore}%` }} />
+            </div>
+
             <div className="flex flex-wrap gap-2 mt-2">
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium
-                ${isAlly ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
-                  isEnemy ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                  isSanctioned ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
-                  'bg-white/10 text-white/50 border border-white/10'}`}
-              >
-                {isAlly ? '🤝 Aliado' : isEnemy ? '⚔️ Inimigo' : isSanctioned ? '🚫 Sanções' : '🤝 Neutro'}
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${relBg} ${relColor} ${relBorder}`}>
+                {relEmoji} {relLabel}
               </span>
+              
               {hasEmbassy && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
                   🏛️ Embaixada
                 </span>
               )}
+              
               {isSanctioned && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-                  🚫 Sanções Ativas
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                  🚫 Sancionado
+                </span>
+              )}
+
+              {isWar && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                  ⚔️ Em Guerra contra você
+                </span>
+              )}
+
+              {isFightingAlongside && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                  🤝 Aliado na Guerra
                 </span>
               )}
             </div>
-            {activeWars.length > 0 && (
-              <div className="mt-2 text-xs text-white/50">
-                ⚔️ Em guerra ativa
-              </div>
-            )}
+            
             {allies.length > 0 && (
-              <div className="mt-1 text-xs text-white/50">
-                🤝 Aliados: {allies.map(a => a.name).join(', ')}
+              <div className="mt-2 text-xs text-white/50">
+                🤝 Aliados do país: {allies.map(a => a.name).join(', ')}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {error && (
-        <div className="mt-3 px-4">
-          <p className="text-red-400 text-sm bg-red-500/10 p-3 rounded-xl">{error}</p>
-        </div>
-      )}
-      {success && (
-        <div className="mt-3 px-4">
-          <p className="text-green-400 text-sm bg-green-500/10 p-3 rounded-xl">{success}</p>
-        </div>
-      )}
+      {error && <div className="mt-3 px-4"><p className="text-red-400 text-sm bg-red-500/10 p-3 rounded-xl">{error}</p></div>}
+      {success && <div className="mt-3 px-4"><p className="text-green-400 text-sm bg-green-500/10 p-3 rounded-xl">{success}</p></div>}
 
-      {/* ─── LEMA NACIONAL ───────────────────────────────── */}
+      {/* LEMA */}
       {country.motto && (
         <div className="mt-4 px-4">
           <div className="bg-[#1a1a1a] border border-white/5 rounded-xl p-4 text-center">
@@ -581,7 +576,7 @@ export default function PaisPage() {
         </div>
       )}
 
-      {/* ─── GUERRAS ────────────────────────────────────── */}
+      {/* GUERRAS */}
       <div className="mt-4 px-4">
         <div className="bg-surface-card rounded-xl p-4 border border-white/5">
           <div className="flex items-center gap-2 mb-3 text-white/40 text-xs font-bold tracking-widest uppercase">
@@ -600,7 +595,7 @@ export default function PaisPage() {
         </div>
       </div>
 
-      {/* ─── RECURSOS ────────────────────────────────────── */}
+      {/* RECURSOS */}
       <div className="mt-4 px-4">
         <div className="bg-surface-card rounded-xl p-4 border border-white/5">
           <div className="flex items-center gap-2 mb-3 text-white/40 text-xs font-bold tracking-widest uppercase">
@@ -608,42 +603,15 @@ export default function PaisPage() {
           </div>
           {economy ? (
             <div className="grid grid-cols-3 gap-2">
-              <div className="bg-black/40 rounded-xl p-2 text-center">
-                <p className="text-white font-bold text-sm">{economy.food || 0}</p>
-                <p className="text-white/40 text-[10px]">Comida</p>
-              </div>
-              <div className="bg-black/40 rounded-xl p-2 text-center">
-                <p className="text-white font-bold text-sm">{economy.gold || 0}</p>
-                <p className="text-white/40 text-[10px]">Ouro</p>
-              </div>
-              <div className="bg-black/40 rounded-xl p-2 text-center">
-                <p className="text-white font-bold text-sm">{economy.iron || 0}</p>
-                <p className="text-white/40 text-[10px]">Ferro</p>
-              </div>
-              <div className="bg-black/40 rounded-xl p-2 text-center">
-                <p className="text-white font-bold text-sm">{economy.oil || 0}</p>
-                <p className="text-white/40 text-[10px]">Petróleo</p>
-              </div>
-              <div className="bg-black/40 rounded-xl p-2 text-center">
-                <p className="text-white font-bold text-sm">{economy.wood || 0}</p>
-                <p className="text-white/40 text-[10px]">Madeira</p>
-              </div>
-              <div className="bg-black/40 rounded-xl p-2 text-center">
-                <p className="text-white font-bold text-sm">{economy.uranium || 0}</p>
-                <p className="text-white/40 text-[10px]">Urânio</p>
-              </div>
-              <div className="bg-black/40 rounded-xl p-2 text-center">
-                <p className="text-white font-bold text-sm">{economy.coal || 0}</p>
-                <p className="text-white/40 text-[10px]">Carvão</p>
-              </div>
-              <div className="bg-black/40 rounded-xl p-2 text-center">
-                <p className="text-white font-bold text-sm">{economy.steel || 0}</p>
-                <p className="text-white/40 text-[10px]">Aço</p>
-              </div>
-              <div className="bg-black/40 rounded-xl p-2 text-center">
-                <p className="text-white font-bold text-sm">{economy.energy || 0}</p>
-                <p className="text-white/40 text-[10px]">Energia</p>
-              </div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.food || 0}</p><p className="text-white/40 text-[10px]">Comida</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.gold || 0}</p><p className="text-white/40 text-[10px]">Ouro</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.iron || 0}</p><p className="text-white/40 text-[10px]">Ferro</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.oil || 0}</p><p className="text-white/40 text-[10px]">Petróleo</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.wood || 0}</p><p className="text-white/40 text-[10px]">Madeira</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.uranium || 0}</p><p className="text-white/40 text-[10px]">Urânio</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.coal || 0}</p><p className="text-white/40 text-[10px]">Carvão</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.steel || 0}</p><p className="text-white/40 text-[10px]">Aço</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.energy || 0}</p><p className="text-white/40 text-[10px]">Energia</p></div>
             </div>
           ) : (
             <p className="text-white/30 text-sm text-center py-2">Sem dados de economia</p>
@@ -651,7 +619,7 @@ export default function PaisPage() {
         </div>
       </div>
 
-      {/* ─── REGIÕES ──────────────────────────────────────── */}
+      {/* REGIÕES */}
       <div className="mt-4 px-4">
         <div className="bg-surface-card rounded-xl p-4 border border-white/5">
           <div className="flex items-center gap-2 mb-3 text-white/40 text-xs font-bold tracking-widest uppercase">
@@ -665,7 +633,6 @@ export default function PaisPage() {
                 <thead>
                   <tr className="text-white/40 text-xs border-b border-white/5">
                     <th className="text-left py-2 font-medium">Nome</th>
-                    <th className="text-right py-2 font-medium">Km² usados</th>
                     <th className="text-right py-2 font-medium">Edifícios</th>
                   </tr>
                 </thead>
@@ -673,7 +640,6 @@ export default function PaisPage() {
                   {regions.map((region: any) => (
                     <tr key={region.id} className="border-b border-white/5 last:border-0">
                       <td className="py-2 text-white font-medium">{region.name}</td>
-                      <td className="py-2 text-white/70 text-right">{region.used_area || 0}</td>
                       <td className="py-2 text-white/70 text-right">{buildingsCount[region.id] || 0}</td>
                     </tr>
                   ))}
@@ -684,84 +650,45 @@ export default function PaisPage() {
         </div>
       </div>
 
-      {/* ─── INFORMAÇÕES E ESTATÍSTICAS ────────────────── */}
+      {/* INFORMAÇÕES E ESTATÍSTICAS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 px-4">
         <div className="bg-[#1a1a1a] border border-white/5 rounded-xl p-4">
           <h3 className="text-white/60 text-xs font-bold tracking-widest uppercase mb-3">📋 INFORMAÇÕES</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between py-1 border-b border-white/5">
-              <span className="text-white/40">Capital</span>
-              <span className="text-white">{country.capital}</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-white/5">
-              <span className="text-white/40">Líder</span>
-              <span className="text-white">{country.leader_title} {country.leader_name}</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-white/5">
-              <span className="text-white/40">Estrutura</span>
-              <span className="text-white">{country.state_structure}</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-white/5">
-              <span className="text-white/40">Religião</span>
-              <span className="text-white">{country.religion}</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-white/5">
-              <span className="text-white/40">Idioma</span>
-              <span className="text-white">{country.language}</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-white/5">
-              <span className="text-white/40">Moeda</span>
-              <span className="text-white">{country.currency}</span>
-            </div>
+            <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Capital</span><span className="text-white">{country.capital}</span></div>
+            <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Líder</span><span className="text-white">{country.leader_title} {country.leader_name}</span></div>
+            <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Estrutura</span><span className="text-white">{country.state_structure}</span></div>
+            <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Religião</span><span className="text-white">{country.religion}</span></div>
+            <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Idioma</span><span className="text-white">{country.language}</span></div>
+            <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Moeda</span><span className="text-white">{country.currency}</span></div>
           </div>
         </div>
 
         <div className="bg-[#1a1a1a] border border-white/5 rounded-xl p-4">
           <h3 className="text-white/60 text-xs font-bold tracking-widest uppercase mb-3">📊 ESTATÍSTICAS</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between py-1 border-b border-white/5">
-              <span className="text-white/40">Confiança</span>
-              <span className="text-white">{country.trust}%</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-white/5">
-              <span className="text-white/40">Dinheiro</span>
-              <span className="text-white">{formatMoney(economy?.money || 0)}</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-white/5">
-              <span className="text-white/40">Poluição</span>
-              <span className="text-white">{economy?.pollution || 0}%</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-white/5">
-              <span className="text-white/40">Fundado em</span>
-              <span className="text-white">{new Date(country.created_at).toLocaleDateString('pt-BR')}</span>
-            </div>
-            <div className="flex justify-between py-1">
-              <span className="text-white/40">Tipo</span>
-              <span className="text-white">{country.is_active ? '👤 Jogador' : '🤖 NPC'}</span>
-            </div>
+            <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Confiança</span><span className="text-white">{country.trust}%</span></div>
+            <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Dinheiro</span><span className="text-white">{formatMoney(economy?.money || 0)}</span></div>
+            <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Poluição</span><span className="text-white">{economy?.pollution || 0}%</span></div>
+            <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Fundado em</span><span className="text-white">{new Date(country.created_at).toLocaleDateString('pt-BR')}</span></div>
+            <div className="flex justify-between py-1"><span className="text-white/40">Tipo</span><span className="text-white">{country.is_active ? '👤 Jogador' : '🤖 NPC'}</span></div>
           </div>
         </div>
       </div>
 
-      {/* ─── MODAL DE MENSAGEM ──────────────────────────── */}
+      {/* MODAL DE MENSAGEM */}
       {showMessageModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 max-w-md w-full">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-white font-bold">📨 Enviar Mensagem</h3>
-              <button onClick={() => setShowMessageModal(false)} className="text-white/40 hover:text-white/70 transition-colors">
-                <X size={20} />
-              </button>
+              <button onClick={() => setShowMessageModal(false)} className="text-white/40 hover:text-white/70 transition-colors"><X size={20} /></button>
             </div>
 
             <div className="space-y-4">
               <div>
                 <label className="text-white/60 text-sm block mb-1.5">Tom da mensagem</label>
-                <select
-                  value={selectedMessage}
-                  onChange={(e) => setSelectedMessage(e.target.value)}
-                  className="w-full bg-[#0a0a0a] border border-white/10 text-white px-4 py-2 rounded-xl focus:outline-none focus:border-primary transition-colors"
-                >
+                <select value={selectedMessage} onChange={(e) => setSelectedMessage(e.target.value)} className="w-full bg-[#0a0a0a] border border-white/10 text-white px-4 py-2 rounded-xl focus:outline-none focus:border-primary transition-colors">
                   <option value="">Selecione uma mensagem...</option>
                   {DIPLOMATIC_MESSAGES.map((msg) => (
                     <option key={msg.id} value={msg.id}>
@@ -778,25 +705,15 @@ export default function PaisPage() {
                   <div className="bg-[#0a0a0a] rounded-xl p-3 border border-white/5">
                     <p className="text-white/70 text-sm italic">"{foundMsg.content}"</p>
                     <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      <span className="bg-green-500/10 text-green-400 px-2 py-0.5 rounded">
-                        Relação: {foundMsg.effect_relation > 0 ? '+' : ''}{foundMsg.effect_relation}
-                      </span>
-                      <span className="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded">
-                        Aprovação: {foundMsg.effect_approval > 0 ? '+' : ''}{foundMsg.effect_approval}
-                      </span>
-                      <span className="bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded">
-                        Confiança: {foundMsg.effect_trust > 0 ? '+' : ''}{foundMsg.effect_trust}
-                      </span>
+                      <span className="bg-green-500/10 text-green-400 px-2 py-0.5 rounded">Relação: {foundMsg.effect_relation > 0 ? '+' : ''}{foundMsg.effect_relation}</span>
+                      <span className="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded">Aprovação: {foundMsg.effect_approval > 0 ? '+' : ''}{foundMsg.effect_approval}</span>
+                      <span className="bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded">Confiança: {foundMsg.effect_trust > 0 ? '+' : ''}{foundMsg.effect_trust}</span>
                     </div>
                   </div>
                 )
               })()}
 
-              <button
-                onClick={handleSendMessage}
-                disabled={!selectedMessage || sending}
-                className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button onClick={handleSendMessage} disabled={!selectedMessage || sending} className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 {sending ? 'Enviando...' : 'Enviar Mensagem'}
               </button>
             </div>

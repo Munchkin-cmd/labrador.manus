@@ -514,7 +514,6 @@ export function useParliament() {
 
         // 16. Imprimir Dinheiro
         case 16: {
-          // ✅ CORREÇÃO: Removemos a busca e atualização da coluna 'inflation'
           const { data: ecoData } = await supabase
             .from('economy')
             .select('money')
@@ -533,21 +532,30 @@ export function useParliament() {
           return { success: true, message: `+1B adicionados ao tesouro!` }
         }
 
-        // 17. Alterar Impostos
+        // ✅ 17. Alterar Impostos (CORRIGIDO)
         case 17: {
           if (!params.target_tax_type || params.target_tax_value === undefined) {
             return { success: false, error: 'Imposto não especificado' }
           }
 
-          const updateData: any = {}
-          updateData[params.target_tax_type] = params.target_tax_value
+          const limitTax = Math.min(60, Math.max(1, Number(params.target_tax_value)))
+          
+          const updateData: any = {
+            country_id: country.id,
+            [params.target_tax_type]: limitTax
+          }
 
-          await supabase
+          // Usa upsert para garantir que crie/atualize e checa o erro
+          const { error: taxError } = await supabase
             .from('taxes')
-            .update(updateData)
-            .eq('country_id', country.id)
+            .upsert(updateData, { onConflict: 'country_id' })
 
-          return { success: true, message: `${params.target_tax_type} alterado para ${params.target_tax_value}%` }
+          if (taxError) {
+            console.error('❌ Erro ao salvar imposto (Lei 17):', taxError)
+            return { success: false, error: taxError.message }
+          }
+
+          return { success: true, message: `Imposto alterado para ${limitTax}%` }
         }
 
         default:

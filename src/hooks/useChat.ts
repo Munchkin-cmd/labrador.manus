@@ -13,11 +13,16 @@ export interface ChatMessage {
   reply_to_id?: string | null
   reply_to_message?: {
     content: string
-    country: { name: string; flag_emoji: string } | null
+    country: { 
+      name: string; 
+      flag_emoji: string; 
+      users?: { flag_url: string | null } | { flag_url: string | null }[] | null 
+    } | null
   } | null
   country: {
     name: string
     flag_emoji: string
+    users?: { flag_url: string | null } | { flag_url: string | null }[] | null // ✅ Adicionado
   }
 }
 
@@ -45,7 +50,7 @@ export function useChat() {
           media_type,
           created_at,
           reply_to_id,
-          countries ( name, flag_emoji )
+          countries ( name, flag_emoji, users ( flag_url ) )
         `)
         .order('created_at', { ascending: true })
         .limit(100)
@@ -68,7 +73,7 @@ export function useChat() {
             .select(`
               id,
               content,
-              countries ( name, flag_emoji )
+              countries ( name, flag_emoji, users ( flag_url ) )
             `)
             .in('id', replyIds)
 
@@ -110,7 +115,9 @@ export function useChat() {
           event: 'INSERT',
           schema: 'public',
           table: 'chat_messages',
-          filter: `country_id=eq.${country.id}`
+          // Dica: Se você quiser que TODOS vejam TODAS as mensagens no chat global, 
+          // remova o filtro abaixo. O filtro atual só deixa você ver as SUAS mensagens no realtime.
+          // filter: `country_id=eq.${country.id}` 
         },
         async (payload) => {
           try {
@@ -119,7 +126,7 @@ export function useChat() {
               .select(`
                 id, country_id, content, image_url, video_url, gif_url,
                 sticker_url, file_url, music_url, media_type, created_at, reply_to_id,
-                countries ( name, flag_emoji )
+                countries ( name, flag_emoji, users ( flag_url ) )
               `)
               .eq('id', payload.new.id)
               .single()
@@ -134,7 +141,7 @@ export function useChat() {
               if (fullMsg.reply_to_id) {
                 const { data: reply, error: replyError } = await supabase
                   .from('chat_messages')
-                  .select('content, countries ( name, flag_emoji )')
+                  .select('content, countries ( name, flag_emoji, users ( flag_url ) )')
                   .eq('id', fullMsg.reply_to_id)
                   .single()
 
@@ -152,7 +159,12 @@ export function useChat() {
                 country: fullMsg.countries,
                 reply_to_message: reply_to_message
               }
-              setMessages(prev => [...prev, newMsg])
+              
+              // Evita duplicar a mensagem se ela já foi adicionada (por conta do seu próprio envio)
+              setMessages(prev => {
+                if (prev.some(m => m.id === newMsg.id)) return prev;
+                return [...prev, newMsg]
+              })
             }
           } catch (err) {
             console.error('❌ Erro ao processar nova mensagem:', err)
@@ -166,8 +178,6 @@ export function useChat() {
     }
   }, [country?.id, fetchMessages])
 
-  // ─── ENVIAR MENSAGEM (CORRIGIDO) ──────────────────────────
-
   async function sendMessage(
     content: string,
     file?: File,
@@ -177,64 +187,39 @@ export function useChat() {
   ): Promise<{ success: boolean; error?: string }> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
 
-    // ⚠️ Se não houver conteúdo E não houver mídia, retorna erro
     if (!content.trim() && !file && !media_url) {
       return { success: false, error: 'Mensagem vazia' }
     }
 
     let insertData: any = {
       country_id: country.id,
-      content: content.trim() || '', // ← NUNCA NULL! Usa string vazia se não houver texto.
+      content: content.trim() || '',
       reply_to_id: reply_to_id || null
     }
 
-    // ─── SE FOR UMA URL DE MÍDIA (GIF/STICKER/IMAGEM/VIDEO/ÁUDIO) ──
     if (media_url) {
       const type = media_type || 'gif'
       switch (type) {
-        case 'gif':
-          insertData.gif_url = media_url
-          break
-        case 'sticker':
-          insertData.sticker_url = media_url
-          break
-        case 'image':
-          insertData.image_url = media_url
-          break
-        case 'video':
-          insertData.video_url = media_url
-          break
-        case 'audio':
-          insertData.music_url = media_url
-          break
-        default:
-          insertData.file_url = media_url
+        case 'gif': insertData.gif_url = media_url; break
+        case 'sticker': insertData.sticker_url = media_url; break
+        case 'image': insertData.image_url = media_url; break
+        case 'video': insertData.video_url = media_url; break
+        case 'audio': insertData.music_url = media_url; break
+        default: insertData.file_url = media_url
       }
       insertData.media_type = type
     }
 
-    // ─── SE FOR UPLOAD DE ARQUIVO ────────────────────────────
     if (file) {
       try {
         let mediaType: string
         let columnName: string
 
-        if (file.type.startsWith('image/')) {
-          mediaType = 'image'
-          columnName = 'image_url'
-        } else if (file.type.startsWith('video/')) {
-          mediaType = 'video'
-          columnName = 'video_url'
-        } else if (file.type === 'image/gif') {
-          mediaType = 'gif'
-          columnName = 'gif_url'
-        } else if (file.type.startsWith('audio/')) {
-          mediaType = 'audio'
-          columnName = 'music_url'
-        } else {
-          mediaType = 'file'
-          columnName = 'file_url'
-        }
+        if (file.type.startsWith('image/')) { mediaType = 'image'; columnName = 'image_url' }
+        else if (file.type.startsWith('video/')) { mediaType = 'video'; columnName = 'video_url' }
+        else if (file.type === 'image/gif') { mediaType = 'gif'; columnName = 'gif_url' }
+        else if (file.type.startsWith('audio/')) { mediaType = 'audio'; columnName = 'music_url' }
+        else { mediaType = 'file'; columnName = 'file_url' }
 
         const fileExt = file.name.split('.').pop()
         const fileName = `chat_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`
@@ -261,7 +246,6 @@ export function useChat() {
       }
     }
 
-    // ─── INSERIR MENSAGEM ──────────────────────────────────────
     try {
       const { error: insertError } = await supabase
         .from('chat_messages')

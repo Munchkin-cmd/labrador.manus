@@ -60,17 +60,25 @@ export default function ArmazemPage() {
   ]
 
   return (
-    <div className="flex flex-col gap-6 pb-6 p-4">
+    // ✅ Adicionado limite de largura (max-w-4xl) e margens consistentes com o resto do jogo
+    <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6">
+      
       {/* Cabeçalho estilo jogo */}
-      <p className="text-base font-bold tracking-widest text-white/90 uppercase font-mono">
-        ARMAZÉM
-      </p>
+      <div className="flex items-center gap-2 mb-2 pl-1">
+        <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+        <p className="text-xs font-bold tracking-widest text-white uppercase font-mono">
+          ARMAZÉM
+        </p>
+      </div>
 
       {/* ─── RECURSOS ────────────────────────────────────────── */}
       <div>
-        <p className="text-xs font-bold text-white/40 mb-3 uppercase tracking-widest font-mono">
-          RECURSOS
-        </p>
+        <div className="flex items-center gap-2 mb-3 pl-1">
+          <div className="w-1 h-3 bg-primary/60 rounded-full" />
+          <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest font-mono">
+            RECURSOS
+          </p>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           {resources.map((item) => (
             <ItemCard key={item.label} {...item} />
@@ -80,9 +88,12 @@ export default function ArmazemPage() {
 
       {/* ─── EQUIPAMENTOS MILITARES ────────────────────────── */}
       <div>
-        <p className="text-xs font-bold text-white/40 mb-3 uppercase tracking-widest font-mono">
-          EQUIPAMENTOS MILITARES
-        </p>
+        <div className="flex items-center gap-2 mb-3 pl-1">
+          <div className="w-1 h-3 bg-primary/60 rounded-full" />
+          <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest font-mono">
+            EQUIPAMENTOS MILITARES
+          </p>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           {militaryItems.map((item) => (
             <ItemCard key={item.label} {...item} />
@@ -93,7 +104,7 @@ export default function ArmazemPage() {
   )
 }
 
-// ─── COMPONENTE DO CARTÃO (ESTILO EXATO DA IMAGEM) ───────────
+// ─── COMPONENTE DO CARTÃO (ESTILO DARK TECH) ───────────
 function ItemCard({ icon, label, value }: { icon: React.ReactNode; label: string; value?: number }) {
   // Formatação: Dinheiro usa Money, outros usam Number
   const displayValue = label === 'Dinheiro'
@@ -101,21 +112,23 @@ function ItemCard({ icon, label, value }: { icon: React.ReactNode; label: string
     : formatNumber(Number(value ?? 0))
 
   return (
-    <div className="bg-[#1a1a1a] border border-white/5 rounded-lg p-4 flex flex-col gap-1 shadow-sm hover:border-white/10 transition-colors">
+    // ✅ Fundo azul sólido (bg-surface-card), borda nítida (border-surface-border) e hover com azul
+    <div className="bg-surface-card border border-surface-border rounded-lg p-3.5 flex flex-col gap-1 shadow-lg hover:border-primary/40 transition-colors group">
+      
       {/* Linha superior: Ícone + Nome */}
       <div className="flex items-center justify-between">
-        <span className="text-white/80">{icon}</span>
-        <span className="text-[10px] font-mono uppercase text-white/70 tracking-widest">
+        <span className="text-primary/70 group-hover:text-primary transition-colors">{icon}</span>
+        <span className="text-[9px] font-bold font-mono uppercase text-white/50 tracking-widest">
           {label}
         </span>
       </div>
       
       {/* Linha divisória (traço) */}
-      <div className="h-px bg-white/10 my-1 w-full" />
+      <div className="h-px bg-surface-border my-1.5 w-full" />
       
       {/* Linha inferior: Valor alinhado à direita */}
       <div className="flex justify-end pt-0.5">
-        <span className="text-xs font-mono text-white font-bold tracking-wide">
+        <span className="text-sm font-bold font-mono text-white tracking-wider">
           {displayValue}
         </span>
       </div>

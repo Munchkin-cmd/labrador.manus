@@ -11,14 +11,24 @@ export default function TrustBar({ trust, label = 'Confiança', color = 'bg-gree
 
   return (
     <div className="flex items-center gap-3">
-      <span className="text-white/50 text-xs w-20 flex-shrink-0">{label}</span>
-      <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+      
+      {/* ✅ Label formatada com fonte mono, caixa alta e mais espaço */}
+      <span className="text-white/50 text-[10px] font-mono font-bold uppercase tracking-widest w-24 flex-shrink-0">
+        {label}
+      </span>
+      
+      {/* ✅ Fundo da barra sólido, com borda azul e cantos quadrados (menos arredondados) */}
+      <div className="flex-1 h-2.5 rounded-sm bg-surface-input border border-surface-border overflow-hidden shadow-inner">
         <div
-          className={`h-full rounded-full transition-all duration-700 ${color}`}
+          className={`h-full rounded-sm transition-all duration-700 ${color} shadow-[0_0_8px_rgba(255,255,255,0.3)]`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-white/70 text-xs w-8 text-right">{pct}%</span>
+      
+      {/* ✅ Texto da porcentagem em destaque, fonte mono e alinhado à direita */}
+      <span className="text-white font-bold font-mono text-xs w-10 text-right">
+        {pct}%
+      </span>
     </div>
   )
 }

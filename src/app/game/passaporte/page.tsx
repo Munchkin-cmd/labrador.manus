@@ -77,12 +77,12 @@ export default function PassaportePage() {
     const { count: destroyed } = await supabase.from('destroyed_buildings').select('*', { count: 'exact', head: true }).eq('country_id', currentId)
     setDestroyedBuildings(destroyed || 0)
 
-    // 6. Estatísticas de guerras (✅ Adicionado "as any" para o TypeScript não bloquear)
+    // 6. Estatísticas de guerras (✅ Mantido o "as any")
     const { data: wars } = await supabase
       .from('wars')
       .select('attacker_id, defender_id, winner_id, status')
       .or(`attacker_id.eq.${currentId},defender_id.eq.${currentId}`)
-      .in('status', ['ended', 'peace']) as any // <- Aqui está a correção
+      .in('status', ['ended', 'peace']) as any
 
     let wins = 0, lossesCount = 0
     wars?.forEach((w: any) => {
@@ -140,24 +140,32 @@ export default function PassaportePage() {
   ]
 
   return (
-    <div className="flex flex-col gap-5 pb-6">
+    <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6 pb-24">
+      
       {/* Capa */}
-      <div className="relative h-48 bg-gradient-to-br from-primary-dark via-secondary-dark to-black overflow-hidden">
+      <div className="relative h-56 bg-surface-card border border-surface-border rounded-xl overflow-hidden shadow-2xl">
         {profile?.banner_urls?.[0] && (
-          <img src={profile.banner_urls[0]} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
+          <img src={profile.banner_urls[0]} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" />
         )}
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4">
+        <div className="absolute inset-0 bg-gradient-to-t from-surface-card via-surface-card/60 to-transparent" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
           {profile?.flag_url ? (
-            <img src={profile.flag_url} alt="Bandeira" className="w-16 h-10 object-cover rounded shadow-lg" />
+            <div className="w-20 h-14 rounded-md overflow-hidden border border-surface-border shadow-lg bg-surface-input flex items-center justify-center">
+              <img src={profile.flag_url} alt="Bandeira" className="w-full h-full object-cover" />
+            </div>
           ) : (
-            <span className="text-5xl">{data.flag_emoji}</span>
+            <span className="text-5xl drop-shadow-lg">{data.flag_emoji}</span>
           )}
-          <h2 className="text-white font-black text-xl text-center">{data.name}</h2>
-          <p className="text-white/50 text-sm">{data.capital}</p>
+          <h2 className="text-white font-black text-2xl text-center uppercase tracking-widest drop-shadow-md">
+            {data.name}
+          </h2>
+          <p className="text-primary/80 text-[11px] font-mono font-bold uppercase tracking-widest">
+            CAPITAL: {data.capital}
+          </p>
         </div>
       </div>
 
-      <div className="px-4 flex flex-col gap-4">
+      <div className="flex flex-col gap-6">
         <Section title="IDENTIDADE">
           <Row label="País"            value={data.name} />
           <Row label="Capital"         value={data.capital} />
@@ -176,7 +184,7 @@ export default function PassaportePage() {
         </Section>
 
         <Section title="STATUS">
-          <div className="flex flex-col gap-2 pt-1">
+          <div className="flex flex-col gap-4 pt-1 pb-1">
             <TrustBar trust={data.trust}           label="Confiança"   color="bg-green-500" />
             <TrustBar trust={data.intl_approval}   label="Aprovação"   color="bg-blue-400" />
             <TrustBar trust={data.political_power} label="Poder Pol."  color="bg-purple-400" />
@@ -184,7 +192,7 @@ export default function PassaportePage() {
         </Section>
 
         <Section title="ESTATÍSTICAS NACIONAIS">
-          <div className="bg-white/5 rounded-lg p-3">
+          <div className="bg-surface-input border border-surface-border rounded-lg p-3">
             <Row label="Infraestrutura destruída" value={`${destroyedBuildings} edifícios`} />
             <Row label="Guerras vencidas" value={`${warStats.wins}`} />
             <Row label="Guerras perdidas" value={`${warStats.losses}`} />
@@ -197,17 +205,17 @@ export default function PassaportePage() {
               const stock = (military?.[item.key as keyof MilitaryRow] as number) || 0
               const lost = (losses?.[item.lossKey as keyof MilitaryLossesRow] as number) || 0
               return (
-                <div key={item.key} className="bg-white/5 rounded-lg p-3 flex items-center justify-between">
+                <div key={item.key} className="bg-surface-input border border-surface-border rounded-lg p-3 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">{item.emoji}</span>
+                    <span className="text-2xl drop-shadow-md">{item.emoji}</span>
                     <div>
-                      <p className="text-white font-semibold">{item.label}</p>
-                      <p className="text-white/30 text-xs">Em estoque: {formatNumber(stock)}</p>
+                      <p className="text-white font-bold text-xs uppercase tracking-wider">{item.label}</p>
+                      <p className="text-white/40 text-[10px] font-mono mt-0.5">ESTOQUE: {formatNumber(stock)}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-red-400 text-xs font-semibold">Baixas: {formatNumber(lost)}</p>
-                    <p className="text-white/30 text-[10px]">Destruídos em guerra</p>
+                    <p className="text-red-400 text-[11px] font-bold font-mono">BAIXAS: {formatNumber(lost)}</p>
+                    <p className="text-white/30 text-[9px] font-mono uppercase tracking-widest mt-0.5">Destruídos</p>
                   </div>
                 </div>
               )
@@ -217,17 +225,19 @@ export default function PassaportePage() {
 
         <Section title="🤝 ALIADOS">
           {allies.length === 0 ? (
-            <p className="text-white/30 text-sm text-center py-2">Nenhum aliado ativo</p>
+            <p className="text-white/40 text-[10px] font-mono text-center py-4 uppercase tracking-widest">Nenhum aliado ativo</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {allies.map((ally) => (
                 <Link
                   key={ally.id}
                   href={`/game/pais/${ally.slug || ally.id}`}
-                  className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2 hover:bg-green-500/20 transition-colors"
+                  className="flex items-center gap-2 bg-surface-input border border-surface-border hover:border-primary/50 hover:bg-white/5 rounded-lg px-3 py-2 transition-colors group"
                 >
                   <span className="text-xl">{ally.flag_emoji || '🌐'}</span>
-                  <span className="text-white text-sm font-semibold">{ally.name}</span>
+                  <span className="text-white text-[11px] font-bold uppercase tracking-wider group-hover:text-primary transition-colors">
+                    {ally.name}
+                  </span>
                 </Link>
               ))}
             </div>
@@ -240,18 +250,21 @@ export default function PassaportePage() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div>
-      <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-2">{title}</p>
-      <div className="bg-surface-card rounded-xl p-3">{children}</div>
+    <div className="flex flex-col">
+      <div className="flex items-center gap-2 mb-2 pl-1">
+        <div className="w-1 h-3 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)] shrink-0" />
+        <p className="text-[10px] font-bold tracking-widest text-white uppercase font-mono">{title}</p>
+      </div>
+      <div className="bg-surface-card border border-surface-border rounded-lg p-4 shadow-lg">{children}</div>
     </div>
   )
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between items-start py-2 border-b border-white/5 last:border-0 gap-4">
-      <span className="text-white/40 text-sm flex-shrink-0">{label}</span>
-      <span className="text-white text-sm font-medium text-right">{value}</span>
+    <div className="flex justify-between items-start py-2 border-b border-surface-border last:border-0 gap-4">
+      <span className="text-white/50 text-[10px] font-mono uppercase tracking-widest flex-shrink-0">{label}</span>
+      <span className="text-white text-xs font-medium text-right">{value}</span>
     </div>
   )
 }
