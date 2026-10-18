@@ -198,9 +198,10 @@ export default function StatePage() {
     if (!data?.id) return
     const currentCountryId = data.id
 
+    // ✅ CORREÇÃO: Usar select('*') para evitar erros se alguma coluna estiver com nome diferente
     const { data: regionsData, error: regionsError } = await supabase
       .from('regions')
-      .select('id, name, used_area, terrain, area_km2, total_buildings')
+      .select('*') 
       .eq('country_id', currentCountryId)
 
     if (regionsError) {
@@ -213,15 +214,18 @@ export default function StatePage() {
       const regionIds = regionsData.map((r: any) => r.id)
 
       if (regionIds.length > 0) {
+        // ✅ CORREÇÃO: Usar select('*') na tabela de construções também
         const { data: buildingsData } = await supabase
           .from('buildings')
-          .select('region_id, quantity')
+          .select('*')
           .in('region_id', regionIds)
 
         if (buildingsData) {
           const count: Record<string, number> = {}
           buildingsData.forEach((b: any) => {
-            count[b.region_id] = (count[b.region_id] || 0) + b.quantity
+            // Fallback caso a coluna 'quantity' não exista (assume 1)
+            const qty = b.quantity || 1 
+            count[b.region_id] = (count[b.region_id] || 0) + qty
           })
           setBuildingsCount(count)
         }
@@ -316,7 +320,6 @@ export default function StatePage() {
       return
     }
 
-    // ✅ Captura o valor fora do async (o TS perde o narrowing dentro da async fn)
     const enemyCountryId = targetCountryId
 
     async function fetchEnemyRegions() {

@@ -1,8 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { useBriefing } from '@/hooks/useMenu'
 import { formatTime } from '@/utils/format'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, Check, X } from 'lucide-react'
 
 const TYPE_CONFIG: Record<string, { emoji: string; color: string }> = {
   war:      { emoji: '⚔️', color: 'border-red-500/40 bg-red-500/5' },
@@ -18,9 +19,31 @@ const TYPE_CONFIG: Record<string, { emoji: string; color: string }> = {
 }
 
 export default function BriefingPage() {
-  const { notifications, loading, markRead, markAllRead } = useBriefing()
+  // ✅ Importando a nova função handleProposalAction
+  const { notifications, loading, markRead, markAllRead, handleProposalAction } = useBriefing()
+  
+  // Estado para controlar qual botão está carregando
+  const [processingId, setProcessingId] = useState<string | null>(null)
 
   const unread = notifications.filter(n => !n.is_read).length
+
+  // ✅ Função para processar o clique nos botões
+  const handleAction = async (e: React.MouseEvent, notification: any, action: 'accept' | 'reject') => {
+    e.stopPropagation() // Impede que o clique marque a notificação como lida sem querer
+    setProcessingId(notification.id)
+
+    // Chama a função do backend (useMenu.ts)
+    const result = await handleProposalAction(notification.id, action)
+    
+    setProcessingId(null)
+
+    if (result.success) {
+      // Recarrega a página para atualizar as sanções e os dados na tela
+      window.location.reload()
+    } else {
+      alert(result.error || 'Erro ao processar proposta')
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4 pb-6 p-4">
@@ -67,10 +90,10 @@ export default function BriefingPage() {
         return (
           <div
             key={n.id}
-            onClick={() => !isRead && markRead(n.id)}
-            className={`border rounded-xl p-3 cursor-pointer transition-all duration-300 ${
+            onClick={() => !isRead && n.type !== 'diplomacy' && markRead(n.id)}
+            className={`border rounded-xl p-3 transition-all duration-300 ${
               isRead
-                ? 'opacity-50 border-white/10 bg-white/5 grayscale-[30%] hover:opacity-70'
+                ? 'opacity-50 border-white/10 bg-white/5 grayscale-[30%]'
                 : 'opacity-100 border-primary bg-primary/10 shadow-[0_0_12px_rgba(139,92,246,0.15)] hover:border-primary-light'
             } ${cfg.color}`}
           >
@@ -86,8 +109,29 @@ export default function BriefingPage() {
                 <p className={`text-xs mt-0.5 leading-snug ${isRead ? 'text-white/40' : 'text-white/70'}`}>
                   {n.message}
                 </p>
+
+                {/* ✅ BOTÕES DE AÇÃO PARA PROPOSTAS DE LIVRE COMÉRCIO */}
+                {n.type === 'diplomacy' && !isRead && (
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={(e) => handleAction(e, n, 'accept')}
+                      disabled={processingId === n.id}
+                      className="flex-1 bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-500/30 font-bold py-1.5 rounded-lg text-xs transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                    >
+                      {processingId === n.id ? 'Processando...' : <><Check size={14} /> Aceitar</>}
+                    </button>
+                    <button
+                      onClick={(e) => handleAction(e, n, 'reject')}
+                      disabled={processingId === n.id}
+                      className="flex-1 bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 font-bold py-1.5 rounded-lg text-xs transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                    >
+                      {processingId === n.id ? 'Processando...' : <><X size={14} /> Recusar</>}
+                    </button>
+                  </div>
+                )}
               </div>
-              {!isRead && (
+              
+              {!isRead && n.type !== 'diplomacy' && (
                 <div className="w-2 h-2 rounded-full bg-primary-light flex-shrink-0 mt-1.5 animate-pulse" />
               )}
               {isRead && (

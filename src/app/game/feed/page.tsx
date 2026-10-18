@@ -4,18 +4,28 @@ import Link from 'next/link'
 import { useFeed, CATEGORIES, Article } from '@/hooks/useFeed'
 import { formatTime } from '@/utils/format'
 
+// ✅ Função mágica que limpa HTML e símbolos do Markdown
+function createCleanPreview(content: string) {
+  if (!content) return ''
+  return content
+    .replace(/<[^>]*>?/gm, '') // Remove HTML
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Transforma [Texto](link) em apenas Texto
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '') // Remove imagens do markdown
+    .replace(/[*_~#`>]/g, '') // Remove asteriscos, underlines, cerquilhas, etc
+    .replace(/https?:\/\/\S+/g, '') // Remove links soltos
+    .replace(/\s+/g, ' ') // Junta espaços em branco
+    .trim()
+}
+
 export default function FeedPage() {
   const { articles, loading, hasMore, loadMore, voteArticle } = useFeed()
 
   return (
     <div className="flex flex-col pb-6 min-h-screen">
-
-      {/* Header da aba */}
       <div className="px-4 pt-4 pb-2">
         <p className="text-xs font-bold tracking-widest text-white/40 uppercase">FEED GLOBAL</p>
       </div>
 
-      {/* Lista de artigos */}
       <div className="flex flex-col gap-3 px-4">
         {loading && articles.length === 0 && (
           <div className="flex flex-col gap-3">
@@ -24,11 +34,7 @@ export default function FeedPage() {
         )}
 
         {articles.map(article => (
-          <ArticleCard
-            key={article.id}
-            article={article}
-            onVote={voteArticle}
-          />
+          <ArticleCard key={article.id} article={article} onVote={voteArticle} />
         ))}
 
         {hasMore && (
@@ -47,7 +53,6 @@ export default function FeedPage() {
         )}
       </div>
 
-      {/* FAB - REDIRECIONA PARA A PÁGINA SEPARADA */}
       <Link
         href="/game/feed/novo-artigo"
         className="fixed bottom-20 right-4 w-14 h-14 rounded-full bg-primary shadow-lg
@@ -60,13 +65,12 @@ export default function FeedPage() {
   )
 }
 
-// ── Article Card ─────────────────────────────────────────────
 function ArticleCard({ article, onVote }: {
   article: Article
   onVote: (id: string, v: 1 | -1) => void
 }) {
-  // ✅ Limpa as tags HTML do conteúdo para exibir um texto limpo na prévia do feed
-  const cleanPreview = article.content?.replace(/<[^>]*>?/gm, '') || ''
+  // ✅ Usa a função de limpeza
+  const cleanPreview = createCleanPreview(article.content || '')
 
   return (
     <div className="bg-surface-card rounded-xl p-4 flex flex-col gap-3 border border-white/5 hover:border-white/10 transition-colors">
@@ -79,7 +83,6 @@ function ArticleCard({ article, onVote }: {
         <span className="text-xs bg-white/10 text-white/50 rounded-full px-2 py-0.5">{article.category}</span>
       </div>
 
-      {/* ✅ Link sem erros de HTML (só texto puro aqui dentro) */}
       <Link href={`/game/feed/${article.id}`} className="block text-left group">
         <h3 className="text-white font-bold text-base leading-snug line-clamp-2 group-hover:text-primary-light transition-colors">
           {article.title}

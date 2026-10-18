@@ -4,7 +4,6 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
 import { Database } from '@/types/database'
-import { MILITARY_IMAGES } from '@/components/buildingImages'
 
 type EconomyRow = Database['public']['Tables']['economy']['Row']
 type RegionRow = Database['public']['Tables']['regions']['Row']
@@ -46,7 +45,6 @@ export function useEco() {
   const fetchingRef = useRef(false)
   const lastLoadedIdRef = useRef<number | null>(null)
 
-  // ✅ Completa edifícios quando finished_at chegar
   const completeFinishedBuildings = useCallback(
     async (buildingsToCheck: Building[]) => {
       if (!countryId || buildingsToCheck.length === 0) return
@@ -88,8 +86,8 @@ export function useEco() {
     [countryId]
   )
 
-  // ✅ Fetch inicial de todos os dados
-  const fetchAll = useCallback(async () => {
+  // ✅ Permite forçar a atualização mesmo se o polling estiver rodando
+  const fetchAll = useCallback(async (isBackground = false, force = false) => {
     if (!countryId) {
       setRegions([])
       setBuildings([])
@@ -100,14 +98,15 @@ export function useEco() {
       return
     }
 
-    if (fetchingRef.current || lastLoadedIdRef.current === countryId) return
+    // Se force for true, ignora os bloqueios de requisição
+    if (!force && (fetchingRef.current || lastLoadedIdRef.current === countryId)) return
 
     fetchingRef.current = true
-    setLoading(true)
+    
+    if (!isBackground) setLoading(true)
     setError(null)
 
     try {
-      // Economy
       const { data: eData, error: eError } = await supabase
         .from('economy')
         .select('*')
@@ -117,7 +116,6 @@ export function useEco() {
       if (eError) throw eError
       setEconomy(eData || null)
 
-      // Country (para pegar terrain)
       const { data: cData, error: cError } = await supabase
         .from('countries')
         .select('*')
@@ -127,7 +125,6 @@ export function useEco() {
       if (cError) throw cError
       setCountryData(cData || null)
 
-      // Regions
       const { data: rData, error: rError } = await supabase
         .from('regions')
         .select('*')
@@ -137,7 +134,6 @@ export function useEco() {
       if (rError) throw rError
       setRegions(rData || [])
 
-      // Building Catalog
       const { data: catData, error: catError } = await supabase
         .from('building_catalog')
         .select('*')
@@ -146,7 +142,6 @@ export function useEco() {
       if (catError) throw catError
       setCatalog(catData || [])
 
-      // Buildings (com relação ao catalog)
       const { data: bData, error: bError } = await supabase
         .from('buildings')
         .select('*')
@@ -180,7 +175,6 @@ export function useEco() {
     }
   }, [countryId, completeFinishedBuildings])
 
-  // ✅ Fetch inicial
   useEffect(() => {
     if (!countryId) {
       setRegions([])
@@ -191,13 +185,11 @@ export function useEco() {
       setLoading(false)
       return
     }
-
     if (lastLoadedIdRef.current !== countryId) {
-      fetchAll()
+      fetchAll(false, true)
     }
   }, [countryId, fetchAll])
 
-  // ✅ Polling inteligente (30s)
   useEffect(() => {
     if (!countryId) return
 
@@ -209,9 +201,7 @@ export function useEco() {
           .eq('country_id', countryId)
           .maybeSingle()
 
-        if (eData) {
-          setEconomy(eData)
-        }
+        if (eData) setEconomy(eData)
 
         const { data: bData } = await supabase
           .from('buildings')
@@ -220,15 +210,9 @@ export function useEco() {
 
         if (bData) {
           const updatedBuildings = (bData || []).map((building: BuildingRow) => {
-            const catalogItem = catalog.find(
-              c => c.type === building.building_type
-            )
+            const catalogItem = catalog.find(c => c.type === building.building_type)
             const region = regions.find(r => r.id === building.region_id)
-            return {
-              ...building,
-              building_catalog: catalogItem,
-              region,
-            }
+            return { ...building, building_catalog: catalogItem, region }
           })
           setBuildings(updatedBuildings)
           await completeFinishedBuildings(updatedBuildings)
@@ -242,44 +226,33 @@ export function useEco() {
     return () => clearInterval(interval)
   }, [countryId, catalog, regions, completeFinishedBuildings])
 
-  // ✅ Construir edifício
   async function build(
     regionId: string,
     buildingType: string,
     quantity: number = 1
   ): Promise<RpcResult> {
-    if (!countryId)
-      return { success: false, error: 'País não encontrado' }
+    if (!countryId) return { success: false, error: 'País não encontrado' }
 
     try {
-      // Validação local: limite de 7 edifícios mesma categoria/região
       const buildingsInRegionCategory = buildings.filter(
-        b =>
-          b.region_id === regionId &&
-          b.building_type === buildingType
+        b => b.region_id === regionId && b.building_type === buildingType
       )
 
+      // ✅ Converte para número para evitar bugs
       const currentQty = buildingsInRegionCategory.reduce(
-        (acc, b) => acc + (b.quantity || 1),
+        (acc, b) => acc + Number(b.quantity || 1), 
         0
       )
 
       if (currentQty + quantity > 7) {
-        return {
-          success: false,
-          error: `Limite de 7 edifícios da mesma categoria por região. Você já tem ${currentQty}.`,
-        }
+        return { success: false, error: `Limite de 7 edifícios por região. Você já tem ${currentQty}.` }
       }
 
-      // Validação de custo
       const catalogItem = catalog.find(c => c.type === buildingType)
       if (catalogItem && economy) {
         const totalCost = catalogItem.cost_money * quantity
-        if (economy.money < totalCost) {
-          return {
-            success: false,
-            error: `Dinheiro insuficiente. Necessário: ${totalCost}, disponível: ${economy.money}`,
-          }
+        if (Number(economy.money) < totalCost) {
+          return { success: false, error: `Dinheiro insuficiente. Necessário: ${totalCost}, disponível: ${economy.money}` }
         }
       }
 
@@ -290,26 +263,26 @@ export function useEco() {
         p_quantity: quantity,
       })
 
-      if (error) return { success: false, error: error.message }
+      // Log para ver o erro no F12 caso o RPC falhe
+      if (error) {
+        console.error('Erro no RPC construct_building:', error)
+        return { success: false, error: error.message }
+      }
 
       lastLoadedIdRef.current = null
-      await fetchAll()
+      await fetchAll(true, true) // ✅ Force = true garante a atualização
 
-      return (
-        (data as RpcResult) ?? { success: false, error: 'Erro desconhecido' }
-      )
+      return (data as RpcResult) ?? { success: false, error: 'Erro desconhecido no RPC' }
     } catch (err: any) {
       return { success: false, error: err.message }
     }
   }
 
-  // ✅ Produzir equipamento militar
   async function produceEquipment(
     equipType: string,
     quantity: number = 1
   ): Promise<RpcResult> {
-    if (!countryId)
-      return { success: false, error: 'País não encontrado' }
+    if (!countryId) return { success: false, error: 'País não encontrado' }
 
     try {
       const { data, error } = await supabase.rpc('produce_equipment', {
@@ -321,20 +294,17 @@ export function useEco() {
       if (error) return { success: false, error: error.message }
 
       lastLoadedIdRef.current = null
-      await fetchAll()
+      await fetchAll(true, true) // ✅ Force = true garante a atualização
 
-      return (
-        (data as RpcResult) ?? { success: false, error: 'Erro desconhecido' }
-      )
+      return (data as RpcResult) ?? { success: false, error: 'Erro desconhecido' }
     } catch (err: any) {
       return { success: false, error: err.message }
     }
   }
 
-  // ✅ Refetch manual
   const refetch = useCallback(() => {
     lastLoadedIdRef.current = null
-    fetchAll()
+    fetchAll(false, true)
   }, [fetchAll])
 
   return {

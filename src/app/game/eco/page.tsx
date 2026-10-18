@@ -7,9 +7,7 @@ import { BUILDING_IMAGES, MILITARY_IMAGES } from '@/components/buildingImages'
 import {
   IoPeople,
   IoDisc,
-  IoShield,
   IoAirplane,
-  IoCog,
   IoBug,
   IoRocket,
   IoNuclear,
@@ -48,7 +46,9 @@ export default function EcoPage() {
 
   const [buildQty, setBuildQty] = useState(1)
   const [militaryQty, setMilitaryQty] = useState(1)
-  const [feedback, setFeedback] = useState('')
+  
+  const [modalFeedback, setModalFeedback] = useState('')
+  const [pageFeedback, setPageFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   if (loading) return <LoadingSpinner />
@@ -81,27 +81,39 @@ export default function EcoPage() {
 
   const handleBuild = async (regionId: string, buildingType: string) => {
     setSubmitting(true)
-    setFeedback('')
+    setModalFeedback('')
+    setPageFeedback('')
+
     const res = await build(regionId, buildingType, buildQty)
-    setFeedback(res.error || res.message || 'Construção iniciada!')
-    setBuildQty(1)
+    
     if (res.success) {
       setSelectedBuilding(null)
-      setTimeout(() => setFeedback(''), 3000)
+      setPageFeedback('✅ Construção iniciada com sucesso!')
+      setTimeout(() => setPageFeedback(''), 3000)
+    } else {
+      setModalFeedback(res.error || 'Erro ao construir')
     }
+    
+    setBuildQty(1)
     setSubmitting(false)
   }
 
   const handleProduceMilitary = async (key: string) => {
     setSubmitting(true)
-    setFeedback('')
+    setModalFeedback('')
+    setPageFeedback('')
+
     const res = await produceEquipment(key, militaryQty)
-    setFeedback(res.error || res.message || 'Produção iniciada!')
-    setMilitaryQty(1)
+    
     if (res.success) {
       setSelectedMilitary(null)
-      setTimeout(() => setFeedback(''), 3000)
+      setPageFeedback('✅ Produção iniciada com sucesso!')
+      setTimeout(() => setPageFeedback(''), 3000)
+    } else {
+      setModalFeedback(res.error || 'Erro ao produzir')
     }
+    
+    setMilitaryQty(1)
     setSubmitting(false)
   }
 
@@ -135,6 +147,13 @@ export default function EcoPage() {
           ✨ Aproveite para explorar: <span className="text-emerald-200 font-semibold">{terrainResources.join(', ')}</span>
         </p>
       </div>
+
+      {/* FEEDBACK GERAL DA PÁGINA */}
+      {pageFeedback && (
+        <div className="p-3 rounded-lg text-sm border bg-green-500/10 border-green-500/30 text-green-400 text-center">
+          {pageFeedback}
+        </div>
+      )}
 
       {/* REGIÕES */}
       <div>
@@ -180,7 +199,10 @@ export default function EcoPage() {
                                 {(items as any[]).map(building => (
                                   <button
                                     key={building.type}
-                                    onClick={() => setSelectedBuilding({ regionId: region.id, building })}
+                                    onClick={() => {
+                                      setSelectedBuilding({ regionId: region.id, building })
+                                      setModalFeedback('')
+                                    }}
                                     className="relative bg-white/10 hover:bg-white/15 border border-white/20 hover:border-primary/50 rounded-lg p-3 transition-all text-left flex flex-col justify-between"
                                   >
                                     <p className="text-xs font-bold text-white truncate">{building.name}</p>
@@ -211,7 +233,10 @@ export default function EcoPage() {
             return (
               <button
                 key={unit.key}
-                onClick={() => setSelectedMilitary(unit)}
+                onClick={() => {
+                  setSelectedMilitary(unit)
+                  setModalFeedback('')
+                }}
                 className={`relative p-4 rounded-lg border transition-all flex flex-col items-start ${
                   hasRequirements
                     ? 'bg-surface-card border-white/10 hover:border-primary/50 hover:bg-white/5 cursor-pointer backdrop-blur-md'
@@ -237,28 +262,11 @@ export default function EcoPage() {
         </p>
       </div>
 
-      {/* FEEDBACK */}
-      {feedback && (
-        <div
-          className={`p-3 rounded-lg text-sm border ${
-            feedback.includes('insuficiente') || feedback.includes('Erro') || feedback.includes('Limite')
-              ? 'bg-red-500/10 border-red-500/30 text-red-400'
-              : 'bg-green-500/10 border-green-500/30 text-green-400'
-          }`}
-        >
-          {feedback}
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* 🏗️ MODAL DE CONSTRUÇÃO */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL DE CONSTRUÇÃO */}
       {selectedBuilding && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity">
-          {/* O Modal inteiro tem tamanho máximo e esconde o que passar das bordas arredondadas */}
           <div className="bg-[#1a1a2e] border border-primary/50 rounded-xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             
-            {/* Botão X FIXO (Fica flutuando no canto, não rola com o texto) */}
             <button
               onClick={() => setSelectedBuilding(null)}
               className="absolute top-3 right-3 z-50 text-white bg-black/60 hover:bg-red-600 rounded-full p-2 transition-colors cursor-pointer border border-white/10 shadow-lg"
@@ -267,10 +275,8 @@ export default function EcoPage() {
               <IoClose size={20} />
             </button>
 
-            {/* ÁREA ROLÁVEL: Tudo aqui dentro rola junto de forma natural */}
             <div className="overflow-y-auto w-full h-full custom-scrollbar rounded-xl">
               
-              {/* Imagem */}
               <div className="w-full h-48 sm:h-64 bg-gradient-to-br from-slate-700 to-slate-900 relative flex items-center justify-center">
                 <div className="absolute inset-0 flex flex-col items-center justify-center opacity-40">
                   <span className="text-6xl mb-1">🏭</span>
@@ -285,7 +291,6 @@ export default function EcoPage() {
                 )}
               </div>
 
-              {/* Conteúdo */}
               <div className="p-5 sm:p-6 pb-2">
                 <p className="text-xl font-bold text-white mb-1">
                   {selectedBuilding.building.name}
@@ -299,10 +304,10 @@ export default function EcoPage() {
 
                 <div className="space-y-3 text-sm text-white/80 border-t border-white/10 pt-4 mb-6">
                   {selectedBuilding.building.produces && (
-                    <p>📦 Produz: <span className="text-yellow-400 font-bold">300x {selectedBuilding.building.produces}/24h</span></p>
+                    <p>📦 Produz: <span className="text-yellow-400 font-bold">300x {selectedBuilding.building.produces}/15min</span></p>
                   )}
                   {selectedBuilding.building.energy_produces > 0 && (
-                    <p>⚡ Energia: <span className="text-blue-400 font-bold">+300/24h</span></p>
+                    <p>⚡ Energia: <span className="text-blue-400 font-bold">+300/15min</span></p>
                   )}
                   {selectedBuilding.building.energy_cost > 0 && (
                     <p>🔌 Consome: <span className="text-red-400 font-bold">{selectedBuilding.building.energy_cost} energia</span></p>
@@ -311,24 +316,32 @@ export default function EcoPage() {
                 </div>
               </div>
 
-              {/* Rodapé de Ação */}
-              <div className="p-4 sm:p-5 bg-[#151526] border-t border-white/10 flex gap-3">
-                <input
-                  type="number"
-                  min={1}
-                  max={7}
-                  value={buildQty}
-                  onChange={e => setBuildQty(Number(e.target.value))}
-                  className="input-field w-20 text-sm py-2 text-center"
-                  placeholder="Qtd"
-                />
-                <button
-                  onClick={() => handleBuild(selectedBuilding.regionId, selectedBuilding.building.type)}
-                  disabled={submitting}
-                  className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-30 text-white font-bold py-2.5 rounded-lg text-sm transition-colors shadow-lg"
-                >
-                  {submitting ? 'Construindo...' : 'Construir'}
-                </button>
+              <div className="p-4 sm:p-5 bg-[#151526] border-t border-white/10 flex flex-col gap-3">
+                
+                {modalFeedback && (
+                  <div className="p-3 rounded-lg text-sm border bg-red-500/10 border-red-500/30 text-red-400 text-center font-bold">
+                    ⚠️ {modalFeedback}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <input
+                    type="number"
+                    min={1}
+                    max={7}
+                    value={buildQty}
+                    onChange={e => setBuildQty(Number(e.target.value))}
+                    className="input-field w-20 text-sm py-2 text-center"
+                    placeholder="Qtd"
+                  />
+                  <button
+                    onClick={() => handleBuild(selectedBuilding.regionId, selectedBuilding.building.type)}
+                    disabled={submitting}
+                    className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-30 text-white font-bold py-2.5 rounded-lg text-sm transition-colors shadow-lg"
+                  >
+                    {submitting ? 'Construindo...' : 'Construir'}
+                  </button>
+                </div>
               </div>
 
             </div>
@@ -336,9 +349,7 @@ export default function EcoPage() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* 🪖 MODAL MILITAR */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL MILITAR */}
       {selectedMilitary && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity">
           <div className="bg-[#1a1a2e] border border-primary/50 rounded-xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -383,22 +394,31 @@ export default function EcoPage() {
                 </div>
               </div>
 
-              <div className="p-4 sm:p-5 bg-[#151526] border-t border-white/10 flex gap-3">
-                <input
-                  type="number"
-                  min={1}
-                  value={militaryQty}
-                  onChange={e => setMilitaryQty(Number(e.target.value))}
-                  className="input-field w-20 text-sm py-2 text-center"
-                  placeholder="Qtd"
-                />
-                <button
-                  onClick={() => handleProduceMilitary(selectedMilitary.key)}
-                  disabled={submitting}
-                  className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white font-bold py-2.5 rounded-lg text-sm transition-colors shadow-lg"
-                >
-                  {submitting ? 'Produzindo...' : 'Produzir'}
-                </button>
+              <div className="p-4 sm:p-5 bg-[#151526] border-t border-white/10 flex flex-col gap-3">
+                
+                {modalFeedback && (
+                  <div className="p-3 rounded-lg text-sm border bg-red-500/10 border-red-500/30 text-red-400 text-center font-bold">
+                    ⚠️ {modalFeedback}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <input
+                    type="number"
+                    min={1}
+                    value={militaryQty}
+                    onChange={e => setMilitaryQty(Number(e.target.value))}
+                    className="input-field w-20 text-sm py-2 text-center"
+                    placeholder="Qtd"
+                  />
+                  <button
+                    onClick={() => handleProduceMilitary(selectedMilitary.key)}
+                    disabled={submitting}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white font-bold py-2.5 rounded-lg text-sm transition-colors shadow-lg"
+                  >
+                    {submitting ? 'Produzindo...' : 'Produzir'}
+                  </button>
+                </div>
               </div>
 
             </div>

@@ -25,9 +25,14 @@ export function WorldStatsCarousel({ stats }: WorldProps) {
 }
 
 // ── Country Stats ────────────────────────────────────────────
-interface CountryProps { country: CountryFull; economy: Economy }
+// ✅ Adicionado regionsCount na interface
+interface CountryProps { 
+  country: CountryFull; 
+  economy: Economy; 
+  regionsCount: number;
+}
 
-export function CountryStatsCarousel({ country, economy }: CountryProps) {
+export function CountryStatsCarousel({ country, economy, regionsCount }: CountryProps) {
   const slides = [
     [
       { label: 'Dinheiro',    value: formatMoney(Number(economy.money)) },
@@ -36,7 +41,8 @@ export function CountryStatsCarousel({ country, economy }: CountryProps) {
     ],
     [
       { label: 'Poder Pol.',  value: `${country.political_power}` },
-      { label: 'Regiões',     value: formatNumber(country.total_regions) },
+      // ✅ AQUI ESTÁ A CORREÇÃO: Agora usa o regionsCount em vez de country.total_regions
+      { label: 'Regiões',     value: formatNumber(regionsCount) }, 
       { label: 'Energia',     value: formatNumber(Number(economy.energy)) },
     ],
     [
@@ -72,7 +78,6 @@ function StatsCarousel({ label, slides, accent }: CarouselProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Função para iniciar o timer
   const startTimer = () => {
     if (intervalRef.current) clearInterval(intervalRef.current)
     intervalRef.current = setInterval(() => {
@@ -80,7 +85,6 @@ function StatsCarousel({ label, slides, accent }: CarouselProps) {
     }, 5000)
   }
 
-  // Função para parar o timer
   const stopTimer = () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
@@ -88,13 +92,11 @@ function StatsCarousel({ label, slides, accent }: CarouselProps) {
     }
   }
 
-  // Inicia o timer quando o componente monta e o slides mudam
   useEffect(() => {
     startTimer()
     return () => stopTimer()
   }, [slides.length])
 
-  // Funções de navegação manual (com reset do timer)
   const goToSlide = (index: number) => {
     setCurrent(index)
     stopTimer()
@@ -113,17 +115,16 @@ function StatsCarousel({ label, slides, accent }: CarouselProps) {
     startTimer()
   }
 
-  // Navegação via clique nas laterais
   const handleSlideClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left // Posição do clique dentro do container
+    const x = e.clientX - rect.left
     const center = rect.width / 2
 
     if (x < center) {
-      goPrev() // Clicou na metade esquerda → Volta
+      goPrev()
     } else {
-      goNext() // Clicou na metade direita → Avança
+      goNext()
     }
   }
 
@@ -142,15 +143,16 @@ function StatsCarousel({ label, slides, accent }: CarouselProps) {
         </div>
       </div>
 
-      {/* Slide Container (clique na lateral para navegar) */}
+      {/* Slide Container */}
       <div
         ref={containerRef}
         onClick={handleSlideClick}
         className="relative cursor-pointer"
       >
+        {/* ✅ Adicionado w-full nos itens para garantir o alinhamento no grid */}
         <div className="bg-surface-card rounded-xl p-3 grid grid-cols-3 gap-2 pointer-events-none">
           {slides[current].map((stat: Stat) => (
-            <div key={stat.label} className="flex flex-col items-center text-center">
+            <div key={stat.label} className="flex flex-col items-center justify-center text-center w-full">
               <span className={`text-base font-black ${accent}`}>{stat.value}</span>
               <span className="text-white/40 text-xs mt-0.5">{stat.label}</span>
             </div>

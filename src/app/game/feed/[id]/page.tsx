@@ -12,6 +12,9 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import { formatTime } from '@/utils/format'
 import { ArrowLeft, Trash2, Pencil, Image, X, AlertCircle, CheckCircle } from 'lucide-react'
 
+// ✅ IMPORT DO CARTÃO (ESTAVA FALTANDO AQUI)
+import LinkPreview from '@/components/LinkPreview'
+
 // ─── GIPHY SDK ──────────────────────────────────────────────
 import { GiphyFetch } from '@giphy/js-fetch-api'
 import { Grid } from '@giphy/react-components'
@@ -25,12 +28,11 @@ const sanitizeSchema = {
     ...defaultSchema.attributes,
     span: [...(defaultSchema.attributes?.span || []), 'className', 'style'],
     u: [],
-    a: [...(defaultSchema.attributes?.a || []), 'target', 'rel'],
+    a: [...(defaultSchema.attributes?.a || []), 'target', 'rel', 'href'],
   },
   tagNames: [...(defaultSchema.tagNames || []), 'u', 'span'],
 }
 
-// ✅ CORREÇÃO DE TIPAGEM: Herda os tipos exatos do banco de dados
 interface CommentWithReplies extends Comment {
   replies: CommentWithReplies[]
 }
@@ -75,7 +77,6 @@ export default function ArtigoPage() {
     loadArticle()
   }, [id])
 
-  // ✅ FUNÇÃO PARA TRANSFORMAR LISTA EM ÁRVORE DE COMENTÁRIOS
   async function loadComments() {
     const flatComments = await fetchComments(id)
     
@@ -122,7 +123,6 @@ export default function ArtigoPage() {
     setDeleting(false)
   }
 
-  // ─── ENVIAR COMENTÁRIO ──────────────────────────────────────
   async function handleComment() {
     if (!reply.trim() && !selectedMedia) {
       setFeedback({ type: 'error', message: 'Escreva algo ou adicione uma mídia' })
@@ -198,7 +198,7 @@ export default function ArtigoPage() {
         </div>
         <h2 className="text-white font-black text-2xl leading-snug mb-4">{article.title}</h2>
         
-        {/* ✅ CORREÇÃO: Renderiza HTML, cores, listas e links clicáveis */}
+        {/* ✅ CORREÇÃO DO CARTÃO AQUI */}
         <div className="text-white/90 text-sm max-w-none">
           <ReactMarkdown 
             remarkPlugins={[remarkGfm]} 
@@ -207,7 +207,11 @@ export default function ArtigoPage() {
               ul: ({node, ...props}) => <ul {...props} className="list-disc ml-5 my-2" />,
               ol: ({node, ...props}) => <ol {...props} className="list-decimal ml-5 my-2" />,
               li: ({node, ...props}) => <li {...props} className="mb-1" />,
-              a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline" />
+              // ✅ SUBSTITUÍDO O LINK AZUL PELO CARTÃO
+              a: ({node, href, children, ...props}) => {
+                if (!href) return <span {...props}>{children}</span>
+                return <LinkPreview url={href}>{children}</LinkPreview>
+              }
             }}
           >
             {article.content}
@@ -247,7 +251,6 @@ export default function ArtigoPage() {
           ))}
         </div>
 
-        {/* ─── INPUT DE COMENTÁRIO ────── */}
         <div className="mt-4 flex flex-col gap-2">
           {replyingTo && (
             <div className="flex items-center justify-between bg-white/5 p-2 rounded-lg text-xs text-white/60 border border-white/10">
@@ -334,7 +337,6 @@ export default function ArtigoPage() {
   )
 }
 
-// ✅ COMPONENTE RECURSIVO PARA RENDERIZAR COMENTÁRIOS E RESPOSTAS
 function CommentItem({ comment, onReply, isReply = false }: { 
   comment: CommentWithReplies; 
   onReply: (c: CommentWithReplies) => void;
@@ -365,7 +367,6 @@ function CommentItem({ comment, onReply, isReply = false }: {
         </div>
       </div>
 
-      {/* Renderiza as respostas recursivamente */}
       {comment.replies && comment.replies.length > 0 && (
         <div className="flex flex-col gap-3 mt-1">
           {comment.replies.map(reply => (

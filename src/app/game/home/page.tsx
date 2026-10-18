@@ -1,14 +1,15 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { useCountry } from '@/hooks/useCountry'
 import { useWorldStats } from '@/hooks/useWorldStats'
+import { supabase } from '@/lib/supabase/client'
 import CountryBanner from '@/components/home/CountryBanner'
 import { WorldStatsCarousel, CountryStatsCarousel } from '@/components/home/StatsCarousel'
 import GlobalChat from '@/components/home/GlobalChat'
 import TrustBar from '@/components/home/TrustBar'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
 
 export default function HomePage() {
   const { user } = useAuthStore()
@@ -17,9 +18,33 @@ export default function HomePage() {
   const { data: country, economy, profile, loading: loadingCountry } = useCountry()
   const { stats, loading: loadingWorld } = useWorldStats()
 
+  // ✅ Estado para guardar a contagem exata de regiões
+  const [regionsCount, setRegionsCount] = useState(0)
+
   useEffect(() => {
     if (!user) router.replace('/auth/login')
   }, [user, router])
+
+  // ✅ Busca a contagem exata de regiões no banco
+  useEffect(() => {
+    if (!country?.id) return
+
+    // Extraímos o ID para uma constante para o TypeScript não achar que ele pode ser undefined depois
+    const currentId = country.id
+
+    async function fetchRegionsCount() {
+      const { count, error } = await supabase
+        .from('regions')
+        .select('*', { count: 'exact', head: true })
+        .eq('country_id', currentId)
+
+      if (!error && count !== null) {
+        setRegionsCount(count)
+      }
+    }
+
+    fetchRegionsCount()
+  }, [country?.id])
 
   if (loadingCountry) {
     return (
@@ -71,8 +96,8 @@ export default function HomePage() {
       {/* ── Separador ── */}
       <Divider />
 
-      {/* ── Stats do país ── */}
-      <CountryStatsCarousel country={country} economy={economy} />
+      {/* ── Stats do país (Passando o regionsCount) ── */}
+      <CountryStatsCarousel country={country} economy={economy} regionsCount={regionsCount} />
 
       {/* ── Separador ── */}
       <Divider />
