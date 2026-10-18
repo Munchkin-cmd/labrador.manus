@@ -6,7 +6,6 @@ import { Database } from '@/types/database'
 // ─── TIPOS ──────────────────────────────────────────────────
 type CountryRow = Database['public']['Tables']['countries']['Row']
 
-// ✅ Interface da Economia sem a inflação
 export interface Economy {
   id: string
   country_id: number
@@ -31,15 +30,20 @@ export interface Economy {
   created_at: string
 }
 
-export interface CountryFull extends CountryRow {
-  // Adicione aqui se houver campos extras na view/função
+// ✅ RESTAURADO: Tipagem do perfil do usuário
+export interface UserProfile {
+  flag_url: string | null
+  leader_url: string | null
+  banner_urls: string[] | null
 }
+
+export interface CountryFull extends CountryRow {}
 
 export function useCountry() {
   const { country: authCountry } = useAuthStore()
   const [data, setData] = useState<CountryFull | null>(null)
   const [economy, setEconomy] = useState<Economy | null>(null)
-  const [profile, setProfile] = useState<any>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null) // ✅ Agora usa a tipagem
   const [loading, setLoading] = useState(true)
   
   const fetchingRef = useRef(false)
@@ -62,7 +66,6 @@ export function useCountry() {
     setLoading(true)
 
     try {
-      // ✅ Puxa os dados de todas as tabelas necessárias
       const [c, e, u] = await Promise.all([
         supabase.from('countries').select('*').eq('id', authCountry.id).maybeSingle(),
         supabase.from('economy').select('*').eq('country_id', authCountry.id).maybeSingle(),
@@ -74,11 +77,11 @@ export function useCountry() {
       if (u.error) throw u.error
 
       setData(c.data)
-      
-      // ✅ CORREÇÃO: Agora o economy bate perfeitamente com a interface
       setEconomy(e.data as Economy || null)
       
-      setProfile(u.data)
+      // ✅ Passando os dados do usuário corretamente
+      setProfile(u.data as UserProfile || null) 
+      
       lastLoadedIdRef.current = authCountry.id
     } catch (err) {
       console.error('Erro ao buscar dados do país:', err)
