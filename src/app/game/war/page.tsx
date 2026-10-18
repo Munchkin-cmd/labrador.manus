@@ -32,6 +32,7 @@ export default function WarPage() {
   const [peaceLoading, setPeaceLoading] = useState<string | null>(null)
   const [joining, setJoining] = useState<string | null>(null)
   
+  // ✅ Estado para o Modal de Histórico
   const [showHistory, setShowHistory] = useState(false)
 
   if (loading) {
@@ -182,7 +183,7 @@ export default function WarPage() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl p-5 sm:p-6 w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl relative">
             
-            <button onClick={() => setShowHistory(false)} className="absolute top-4 right-4 text-white/40 hover:text-white bg-black/20 p-2 rounded-full">
+            <button onClick={() => setShowHistory(false)} className="absolute top-4 right-4 text-white/40 hover:text-white bg-black/20 p-2 rounded-full transition-colors">
               <X size={20} />
             </button>
 
@@ -194,7 +195,7 @@ export default function WarPage() {
               {endedWars.length === 0 ? (
                 <p className="text-white/40 text-center py-8">Nenhuma guerra encerrada ainda.</p>
               ) : (
-                endedWars.map((war: War) => { // ✅ Tipo War aqui resolve o erro
+                endedWars.map((war: War) => {
                   const isAttackerWinner = Number(war.winner_id) === Number(war.attacker_id);
                   const isDefenderWinner = Number(war.winner_id) === Number(war.defender_id);
                   
@@ -206,6 +207,7 @@ export default function WarPage() {
                       </div>
                       
                       <div className="flex items-center justify-between">
+                        {/* Atacante */}
                         <div className={`flex flex-col items-center flex-1 ${isAttackerWinner ? 'opacity-100' : 'opacity-50'}`}>
                           <span className="text-2xl mb-1">{war.attacker?.flag_emoji}</span>
                           <p className="text-white text-xs font-bold text-center">{war.attacker?.name}</p>
@@ -214,6 +216,7 @@ export default function WarPage() {
 
                         <div className="px-4 text-white/20 font-black italic text-sm">VS</div>
 
+                        {/* Defensor */}
                         <div className={`flex flex-col items-center flex-1 ${isDefenderWinner ? 'opacity-100' : 'opacity-50'}`}>
                           <span className="text-2xl mb-1">{war.defender?.flag_emoji}</span>
                           <p className="text-white text-xs font-bold text-center">{war.defender?.name}</p>

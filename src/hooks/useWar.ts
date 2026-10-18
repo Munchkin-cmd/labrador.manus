@@ -1,10 +1,11 @@
-// hooks/useWar.ts - VERSÃO FINAL COM HISTÓRICO
+// hooks/useWar.ts - VERSÃO FINAL COMPLETA
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
 import { Database } from '@/types/database'
 
-// ✅ Interface atualizada com winner_id e ended_at
+// ─── TIPOS ──────────────────────────────────────────────
+
 export interface War {
   id: string
   attacker_id: number
@@ -53,6 +54,8 @@ type RpcSimpleResult = {
   error?: string
 }
 
+// ─── HOOK ────────────────────────────────────────────────
+
 export function useWar() {
   const { country } = useAuthStore()
   const [myWars, setMyWars] = useState<War[]>([])
@@ -66,8 +69,8 @@ export function useWar() {
   const fetchingRef = useRef(false)
   const lastLoadedIdRef = useRef<number | null>(null)
 
-  // ✅ Função com parâmetro 'force' para ignorar o cache e atualizar na hora
-  const fetchAll = useCallback(async (force = false) => {
+  // ✅ Função com 'isBackground' para não piscar a tela durante o polling
+  const fetchAll = useCallback(async (isBackground = false, force = false) => {
     if (!country?.id) {
       setMyWars([]); setWorldWars([]); setEndedWars([]); setMilitary(null); setCombatXP(null); setLoading(false)
       return
@@ -76,7 +79,9 @@ export function useWar() {
     if (!force && (fetchingRef.current || lastLoadedIdRef.current === country.id)) return
 
     fetchingRef.current = true
-    setLoading(true)
+    
+    // Só mostra o spinner de carregamento se NÃO for uma atualização em segundo plano
+    if (!isBackground) setLoading(true)
     setError(null)
 
     try {
@@ -94,7 +99,7 @@ export function useWar() {
         )
       `;
 
-      // ✅ Busca Guerras Ativas, Encerradas e dados do jogador em paralelo
+      // Busca Guerras Ativas, Encerradas e dados do jogador em paralelo
       const [activeWarsData, endedWarsData, militaryData, combatXPData] = await Promise.all([
         supabase.from('wars').select(selectQuery).in('status', ['active', 'paused']).order('started_at', { ascending: false }),
         supabase.from('wars').select(selectQuery).in('status', ['ended', 'peace']).order('started_at', { ascending: false }).limit(30),
@@ -105,19 +110,19 @@ export function useWar() {
       const activeWars = (activeWarsData?.data as any[]) || []
       const ended = (endedWarsData?.data as any[]) || []
 
-      // Minhas Guerras (Atacante, Defensor ou Aliado)
+      // Filtra Minhas Guerras (Atacante, Defensor ou Aliado)
       const myWarsFiltered = activeWars.filter(w => 
         Number(w.attacker_id) === Number(country.id) || 
         Number(w.defender_id) === Number(country.id) || 
         w.participants?.some((p: any) => Number(p.country_id) === Number(country.id))
       )
 
-      // ✅ Todas as guerras ativas aparecem no mundo
+      // Todas as guerras ativas vão para a aba do mundo
       const worldWarsFiltered = activeWars.filter(w => w.status === 'active').slice(0, 20)
 
       setMyWars(myWarsFiltered)
       setWorldWars(worldWarsFiltered)
-      setEndedWars(ended) // ✅ Salvando o histórico
+      setEndedWars(ended)
       setMilitary(militaryData?.data ?? null)
       setCombatXP(combatXPData?.data ? (combatXPData.data as CombatXP) : null)
 
@@ -131,12 +136,13 @@ export function useWar() {
     }
   }, [country?.id])
 
-  // ✅ Polling de 10s e atualização ao focar na aba
+  // Polling a cada 10s e atualização ao focar na aba
   useEffect(() => {
     if (country?.id) {
-      fetchAll(true)
-      const interval = setInterval(() => fetchAll(true), 10000)
-      const onFocus = () => fetchAll(true)
+      fetchAll(false, true) // Primeira carga com spinner
+      
+      const interval = setInterval(() => fetchAll(true, true), 10000) // Atualiza em background
+      const onFocus = () => fetchAll(true, true)
       window.addEventListener('focus', onFocus)
       
       return () => { 
@@ -151,7 +157,7 @@ export function useWar() {
   async function declareWar(targetId: number): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
     const { data, error } = await supabase.rpc('declare_war', { p_attacker_id: country.id, p_defender_id: targetId })
-    await fetchAll(true)
+    await fetchAll(true, true)
     if (error) return { success: false, error: error.message }
     return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
   }
@@ -161,7 +167,7 @@ export function useWar() {
     try {
       const { data, error } = await supabase.rpc('attack', { p_war_id: warId, p_attacker_id: country.id, p_unit_type: unitType, p_quantity: quantity })
       if (error) throw error
-      await fetchAll(true)
+      await fetchAll(true, true)
       return (data as RpcAttackResult) ?? { success: false, error: 'Erro', damage_dealt: 0, losses_suffered: 0 }
     } catch (err: any) {
       return { success: false, error: err.message, damage_dealt: 0, losses_suffered: 0 }
@@ -171,7 +177,7 @@ export function useWar() {
   async function proposePeace(warId: string): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
     const { data, error } = await supabase.rpc('propose_peace', { p_war_id: warId, p_country_id: country.id })
-    await fetchAll(true)
+    await fetchAll(true, true)
     if (error) return { success: false, error: error.message }
     return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
   }
@@ -179,7 +185,7 @@ export function useWar() {
   async function acceptPeace(warId: string): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
     const { data, error } = await supabase.rpc('accept_peace', { p_war_id: warId, p_country_id: country.id })
-    await fetchAll(true)
+    await fetchAll(true, true)
     if (error) return { success: false, error: error.message }
     return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
   }
@@ -187,7 +193,7 @@ export function useWar() {
   async function rejectPeace(warId: string): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
     const { data, error } = await supabase.rpc('reject_peace', { p_war_id: warId, p_country_id: country.id })
-    await fetchAll(true)
+    await fetchAll(true, true)
     if (error) return { success: false, error: error.message }
     return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
   }
@@ -215,7 +221,7 @@ export function useWar() {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
     const { error } = await supabase.from('war_participants').delete().eq('war_id', warId).eq('country_id', country.id)
     if (error) return { success: false, error: error.message }
-    await fetchAll(true) 
+    await fetchAll(true, true) 
     return { success: true, message: 'Você se retirou da guerra. Seu dano anterior foi mantido no placar.' }
   }
 
@@ -223,6 +229,6 @@ export function useWar() {
     myWars, worldWars, endedWars, military, combatXP, loading, error,
     declareWar, attack, proposePeace, acceptPeace, rejectPeace,
     proposeJoinWar, leaveWar,
-    refetch: () => fetchAll(true),
+    refetch: () => fetchAll(false, true),
   }
 }
