@@ -38,6 +38,7 @@ export interface War {
 type CombatXPRow = Database['public']['Tables']['combat_xp']['Row']
 export interface CombatXP extends CombatXPRow {}
 
+// ✅ CORREÇÃO AQUI: Adicionado 'message?: string'
 type RpcAttackResult = {
   success: boolean
   damage_dealt: number
@@ -45,6 +46,7 @@ type RpcAttackResult = {
   victory?: boolean
   winner_id?: number | null
   loser_id?: number | null
+  message?: string 
   error?: string
 }
 
