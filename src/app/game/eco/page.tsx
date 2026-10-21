@@ -28,7 +28,7 @@ const MILITARY_UNITS = [
   { key: 'helicopters', label: 'Helicópteros', icon: IoAirplane, requires: ['air_base'], description: 'Transporte e apoio aéreo. Requer Base Aérea.' },
   { key: 'drones', label: 'Drones', icon: IoBug, requires: ['air_base'], description: 'Vigilância aérea remota. Requer Base Aérea.' },
   { key: 'missiles', label: 'Mísseis', icon: IoRocket, requires: ['weapons_factory'], description: 'Armamento de longo alcance. Requer Fábrica de Armas.' },
-  { key: 'warheads', label: 'Ogivas', icon: IoNuclear, requires: ['weapons_factory', 'nuclear_plant'], description: 'Arma nuclear. Requer Fábrica de Armas + Usina Nuclear.' },
+  { key: 'warheads', label: 'Ogivas', icon: IoNuclear, requires: ['weapons_factory', 'nuclear_power_plant'], description: 'Arma nuclear. Requer Fábrica de Armas + Usina Nuclear.' },
 ]
 
 const TERRAIN_RESOURCES: Record<string, string[]> = {
