@@ -1,5 +1,3 @@
-// src/app/game/pais/[slug]/page.tsx
-
 'use client'
 
 import { useState, useEffect, useRef } from 'react'

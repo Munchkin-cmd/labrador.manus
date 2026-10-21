@@ -35,11 +35,9 @@ export default function GameLayout({ children }: { children: React.ReactNode }) 
           paddingBottom: 'var(--bottom-nav-height)',
         }}
       >
-        {/* 🪟 Container de vidro que envolve o conteúdo */}
-        <div className="mx-auto w-full max-w-7xl px-3 py-4">
-          <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md shadow-2xl p-3 sm:p-4">
-            {children}
-          </div>
+        {/* 🪟 Container do conteúdo (Sem a película de vidro) */}
+        <div className="mx-auto w-full max-w-7xl px-2 py-4">
+          {children}
         </div>
       </main>
 
