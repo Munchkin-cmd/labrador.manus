@@ -77,7 +77,7 @@ export default function PassaportePage() {
     const { count: destroyed } = await supabase.from('destroyed_buildings').select('*', { count: 'exact', head: true }).eq('country_id', currentId)
     setDestroyedBuildings(destroyed || 0)
 
-    // 6. Estatísticas de guerras (✅ Mantido o "as any")
+    // 6. Estatísticas de guerras
     const { data: wars } = await supabase
       .from('wars')
       .select('attacker_id, defender_id, winner_id, status')
@@ -96,19 +96,33 @@ export default function PassaportePage() {
     })
     setWarStats({ wins, losses: lossesCount })
 
-    // 7. Aliados
+    // 7. Aliados (✅ CORRIGIDO: Filtro flexível e conversão de Number)
     const { data: alliesRel } = await supabase
       .from('diplomacy')
-      .select('country_a_id, country_b_id')
+      .select('country_a_id, country_b_id, status, relation_score')
       .or(`country_a_id.eq.${currentId},country_b_id.eq.${currentId}`)
-      .eq('status', 'ally')
 
     if (alliesRel && alliesRel.length > 0) {
-      const allyIds = alliesRel.map(rel => rel.country_a_id === currentId ? rel.country_b_id : rel.country_a_id).filter(Boolean)
-      if (allyIds.length > 0) {
-        const { data: allyCountries } = await supabase.from('countries').select('id, name, flag_emoji, slug').in('id', allyIds)
-        setAllies(allyCountries || [])
-      } else setAllies([])
+      // Filtra para aceitar qualquer variação de "aliado" ou relação maior que 80
+      const alliedRelations = alliesRel.filter(rel => {
+        const status = (rel.status || '').toLowerCase()
+        return status === 'ally' || status === 'aliado' || status === 'alliance' || rel.relation_score >= 80
+      })
+
+      if (alliedRelations.length > 0) {
+        const allyIds = alliedRelations
+          .map(rel => Number(rel.country_a_id) === Number(currentId) ? rel.country_b_id : rel.country_a_id)
+          .filter(id => id !== Number(currentId)) // Garante que não vai incluir o próprio país
+
+        if (allyIds.length > 0) {
+          const { data: allyCountries } = await supabase.from('countries').select('id, name, flag_emoji, slug').in('id', allyIds)
+          setAllies(allyCountries || [])
+        } else {
+          setAllies([])
+        }
+      } else {
+        setAllies([])
+      }
     } else {
       setAllies([])
     }

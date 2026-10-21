@@ -75,14 +75,14 @@ export default function OrcamentoPage() {
 
   // ─── 5. BALANÇO DE RECURSOS (Produção vs. Consumo) ──────────
   const resources = {
-    comida: { icon: <Sprout size={16} />, prod: 0, cons: 0 },
-    ouro: { icon: <Coins size={16} />, prod: 0, cons: 0 },
-    ferro: { icon: <Pickaxe size={16} />, prod: 0, cons: 0 },
-    petroleo: { icon: <Droplet size={16} />, prod: 0, cons: 0 },
-    madeira: { icon: <Landmark size={16} />, prod: 0, cons: 0 },
-    uranio: { icon: <Zap size={16} />, prod: 0, cons: 0 },
-    carvao: { icon: <Factory size={16} />, prod: 0, cons: 0 },
-    aco: { icon: <ArrowRightLeft size={16} />, prod: 0, cons: 0 },
+    food: { label: 'Comida', icon: <Sprout size={16} />, prod: 0, cons: 0 },
+    gold: { label: 'Ouro', icon: <Coins size={16} />, prod: 0, cons: 0 },
+    iron: { label: 'Ferro', icon: <Pickaxe size={16} />, prod: 0, cons: 0 },
+    oil: { label: 'Petróleo', icon: <Droplet size={16} />, prod: 0, cons: 0 },
+    wood: { label: 'Madeira', icon: <Landmark size={16} />, prod: 0, cons: 0 },
+    uranium: { label: 'Urânio', icon: <Zap size={16} />, prod: 0, cons: 0 },
+    coal: { label: 'Carvão', icon: <Factory size={16} />, prod: 0, cons: 0 },
+    steel: { label: 'Aço', icon: <ArrowRightLeft size={16} />, prod: 0, cons: 0 },
   }
 
   let energyProd = 0
@@ -92,23 +92,47 @@ export default function OrcamentoPage() {
     const cat = b.building_catalog as any
     const qty = Number(b.quantity || 1)
 
+    // ✅ Lê a coluna 'produces' e verifica se é energia ou recurso normal
     if (cat.produces && cat.produces_qty > 0) {
-      const resKey = cat.produces as keyof typeof resources
-      if (resources[resKey]) {
-        resources[resKey].prod += cat.produces_qty * qty
+      const resKey = cat.produces.toLowerCase()
+      
+      if (resKey === 'energy' || resKey === 'energia') {
+        energyProd += cat.produces_qty * qty
+      } 
+      else if (resources[resKey as keyof typeof resources]) {
+        resources[resKey as keyof typeof resources].prod += cat.produces_qty * qty
       }
     }
 
-    if (cat.energy_cost > 0) {
-      resources.petroleo.cons += cat.energy_cost * qty * 0.5
-      resources.carvao.cons += cat.energy_cost * qty * 0.5
+    // ✅ NOVO: Mapeamento de manutenção para TODOS os recursos
+    const maintenanceMap: Record<string, keyof typeof resources> = {
+      maint_food: 'food',
+      maint_gold: 'gold',
+      maint_iron: 'iron',
+      maint_wood: 'wood',
+      maint_uranium: 'uranium',
+      maint_steel: 'steel',
+      maint_coal: 'coal',
+      maint_oil: 'oil',
     }
 
+    Object.entries(maintenanceMap).forEach(([dbField, resKey]) => {
+      const cost = Number(cat[dbField] || 0)
+      if (cost > 0) {
+        resources[resKey].cons += cost * qty
+      }
+    })
+
+    // ✅ Consumo de energia e custo de energia em óleo/carvão
+    if (cat.energy_cost > 0) {
+      resources.oil.cons += cat.energy_cost * qty * 0.5
+      resources.coal.cons += cat.energy_cost * qty * 0.5
+      energyCons += cat.energy_cost * qty
+    }
+
+    // ✅ Fallback de segurança para produção de energia antiga
     if (cat.energy_produces > 0) {
       energyProd += cat.energy_produces * qty
-    }
-    if (cat.energy_cost > 0) {
-      energyCons += cat.energy_cost * qty
     }
   })
 
@@ -177,7 +201,7 @@ export default function OrcamentoPage() {
             <div key={key} className="flex items-center justify-between py-2 border-b border-surface-border last:border-0">
               <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-white/70">
                 <span className="text-primary/60">{data.icon}</span>
-                <span>{key}</span>
+                <span>{data.label}</span>
               </div>
               <div className="flex items-center gap-4 text-[10px] font-mono">
                 <span className="text-white/50">PROD: {formatNumber(data.prod)}</span>
@@ -214,7 +238,6 @@ function Section({ title, children, color }: { title: string; children: React.Re
   return (
     <div className="rounded-lg border border-surface-border overflow-hidden bg-surface-card shadow-lg">
       <div className="px-4 py-3 bg-surface-input border-b border-surface-border flex items-center gap-2">
-        {/* ✅ Barrinha colorida dinâmica em vez do fundo inteiro colorido */}
         <div className={`w-1.5 h-3 rounded-full ${color || 'bg-primary'}`} />
         <p className="text-white font-bold text-xs font-mono uppercase tracking-widest">{title}</p>
       </div>
