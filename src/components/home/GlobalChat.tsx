@@ -170,7 +170,7 @@ export default function GlobalChat() {
   }
 
   return (
-    <div className="px-4 flex flex-col gap-3">
+    <div className="px-2 flex flex-col gap-3">
       <div className="flex items-center gap-2 pl-1">
         <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
         <p className="text-xs font-bold tracking-widest text-white uppercase">Chat Global</p>
@@ -180,7 +180,7 @@ export default function GlobalChat() {
       <div className="bg-surface-card rounded-xl overflow-hidden border border-surface-border shadow-lg">
         
         {/* Área de Mensagens */}
-        <div className="h-64 overflow-y-auto p-3 flex flex-col gap-2 scroll-smooth custom-scrollbar">
+        <div className="h-[calc(100dvh-280px)] overflow-y-auto p-3 flex flex-col gap-2 scroll-smooth custom-scrollbar">
           {loading && <div className="flex-1 flex items-center justify-center text-white/40 text-[10px] font-mono uppercase tracking-widest">Carregando...</div>}
           {!loading && messages.length === 0 && <div className="flex-1 flex items-center justify-center text-white/30 text-[10px] font-mono uppercase tracking-widest">Nenhuma mensagem ainda. Seja o primeiro!</div>}
           {messages.map((msg) => <MessageBubble key={msg.id} msg={msg} onReply={handleReply} />)}
