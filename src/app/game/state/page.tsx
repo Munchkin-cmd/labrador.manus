@@ -21,6 +21,7 @@ import {
   Radiation,
   ChevronDown,
   ChevronUp,
+  Clock, // ✅ Importado
 } from 'lucide-react'
 
 import {
@@ -331,6 +332,37 @@ export default function StatePage() {
 
     fetchEnemyRegions()
   }, [targetCountryId])
+
+  // ─── TIMER DE ELEIÇÕES ──────────────────────────────────
+  const [timeLeft, setTimeLeft] = useState<string>('--:--:--')
+
+  useEffect(() => {
+    if (!parliament?.last_random_at) return
+
+    const updateTimer = () => {
+      const lastElection = new Date(parliament.last_random_at).getTime()
+      const nextElection = lastElection + 6 * 60 * 60 * 1000 // 6 horas em milissegundos
+      const now = new Date().getTime()
+      const diff = nextElection - now
+
+      if (diff <= 0) {
+        setTimeLeft('Aguardando...')
+      } else {
+        const hours = Math.floor(diff / (1000 * 60 * 60))
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+        
+        setTimeLeft(
+          `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+        )
+      }
+    }
+
+    updateTimer() // Executa imediatamente
+    const timerId = setInterval(updateTimer, 1000) // Atualiza a cada segundo
+
+    return () => clearInterval(timerId)
+  }, [parliament?.last_random_at])
 
   // ─── ESTADOS DE CARREGAMENTO ─────────────────────────────
   if (loadingC || loadingP) return <PageLoading />
@@ -673,7 +705,7 @@ export default function StatePage() {
                   </span>
                 </div>
 
-                <div className="mt-3 text-center">
+                <div className="mt-3 text-center flex flex-col items-center gap-2">
                   <span
                     className={`text-[10px] font-bold px-3 py-1.5 rounded-md font-mono uppercase tracking-wider ${
                       has_majority
@@ -682,6 +714,14 @@ export default function StatePage() {
                     }`}
                   >
                     {parlamentoStatus}
+                  </span>
+                  
+                  {/* ⏱️ NOVO CONTADOR */}
+                  <span className="text-[10px] text-white/40 font-mono uppercase tracking-widest flex items-center gap-1.5 mt-1">
+                    <Clock size={12} /> Próximas eleições em:
+                  </span>
+                  <span className="text-sm font-bold font-mono text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-md tracking-wider">
+                    {timeLeft}
                   </span>
                 </div>
               </div>

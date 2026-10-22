@@ -20,7 +20,7 @@ type MilitaryRow = Database['public']['Tables']['military']['Row']
 type MilitaryLossesRow = Database['public']['Tables']['military_losses']['Row']
 type CountryRow = Database['public']['Tables']['countries']['Row']
 
-type AllyInfo = {
+type CountryInfo = {
   id: number
   name: string
   flag_emoji: string
@@ -37,7 +37,12 @@ export default function PassaportePage() {
   const [losses, setLosses] = useState<Partial<MilitaryLossesRow> | null>(null)
   const [destroyedBuildings, setDestroyedBuildings] = useState(0)
   const [warStats, setWarStats] = useState({ wins: 0, losses: 0 })
-  const [allies, setAllies] = useState<AllyInfo[]>([])
+  
+  // ✅ Novos estados diplomáticos
+  const [allies, setAllies] = useState<CountryInfo[]>([])
+  const [enemies, setEnemies] = useState<CountryInfo[]>([])
+  const [sanctionsApplied, setSanctionsApplied] = useState<CountryInfo[]>([])
+  const [sanctionsReceived, setSanctionsReceived] = useState<CountryInfo[]>([])
 
   const fetchExtras = useCallback(async () => {
     if (!country?.id) return
@@ -96,36 +101,74 @@ export default function PassaportePage() {
     })
     setWarStats({ wins, losses: lossesCount })
 
-    // 7. Aliados (✅ CORRIGIDO: Filtro flexível e conversão de Number)
-    const { data: alliesRel } = await supabase
+    // 7. Relações Diplomáticas (Aliados, Sanções)
+    const { data: diploData } = await supabase
       .from('diplomacy')
-      .select('country_a_id, country_b_id, status, relation_score')
+      .select(`
+        country_a_id, 
+        country_b_id, 
+        status, 
+        relation_score, 
+        sanctions_active,
+        country_a:countries!diplomacy_country_a_id_fkey(id, name, flag_emoji, slug),
+        country_b:countries!diplomacy_country_b_id_fkey(id, name, flag_emoji, slug)
+      `)
       .or(`country_a_id.eq.${currentId},country_b_id.eq.${currentId}`)
 
-    if (alliesRel && alliesRel.length > 0) {
-      // Filtra para aceitar qualquer variação de "aliado" ou relação maior que 80
-      const alliedRelations = alliesRel.filter(rel => {
+    if (diploData && diploData.length > 0) {
+      const alliedList: CountryInfo[] = []
+      const appliedSanctions: CountryInfo[] = []
+      const receivedSanctions: CountryInfo[] = []
+
+      diploData.forEach((rel: any) => {
+        const isCountryA = Number(rel.country_a_id) === Number(currentId)
+        const otherCountry = isCountryA ? rel.country_b : rel.country_a
+        if (!otherCountry) return
+
         const status = (rel.status || '').toLowerCase()
-        return status === 'ally' || status === 'aliado' || status === 'alliance' || rel.relation_score >= 80
+        const isAlly = status === 'ally' || status === 'aliado' || status === 'alliance' || rel.relation_score >= 80
+        
+        if (isAlly) alliedList.push(otherCountry)
+
+        if (rel.sanctions_active) {
+          if (isCountryA) {
+            appliedSanctions.push(otherCountry) // Eu (A) sancionei o outro (B)
+          } else {
+            receivedSanctions.push(otherCountry) // O outro (A) me sancionou (B)
+          }
+        }
       })
 
-      if (alliedRelations.length > 0) {
-        const allyIds = alliedRelations
-          .map(rel => Number(rel.country_a_id) === Number(currentId) ? rel.country_b_id : rel.country_a_id)
-          .filter(id => id !== Number(currentId)) // Garante que não vai incluir o próprio país
-
-        if (allyIds.length > 0) {
-          const { data: allyCountries } = await supabase.from('countries').select('id, name, flag_emoji, slug').in('id', allyIds)
-          setAllies(allyCountries || [])
-        } else {
-          setAllies([])
-        }
-      } else {
-        setAllies([])
-      }
+      setAllies(alliedList)
+      setSanctionsApplied(appliedSanctions)
+      setSanctionsReceived(receivedSanctions)
     } else {
       setAllies([])
+      setSanctionsApplied([])
+      setSanctionsReceived([])
     }
+
+    // 8. Inimigos (Guerras Ativas)
+    const { data: activeWarsData } = await supabase
+      .from('wars')
+      .select(`
+        attacker_id, 
+        defender_id,
+        attacker:countries!wars_attacker_id_fkey(id, name, flag_emoji, slug),
+        defender:countries!wars_defender_id_fkey(id, name, flag_emoji, slug)
+      `)
+      .eq('status', 'active')
+      .or(`attacker_id.eq.${currentId},defender_id.eq.${currentId}`)
+
+    if (activeWarsData && activeWarsData.length > 0) {
+      const enemyList = activeWarsData.map((w: any) => {
+        return Number(w.attacker_id) === Number(currentId) ? w.defender : w.attacker
+      }).filter(Boolean)
+      setEnemies(enemyList)
+    } else {
+      setEnemies([])
+    }
+
   }, [country?.id])
 
   useEffect(() => {
@@ -237,6 +280,28 @@ export default function PassaportePage() {
           </div>
         </Section>
 
+        {/* ✅ NOVA SEÇÃO: GUERRAS ATIVAS */}
+        <Section title="⚔️ GUERRAS ATIVAS">
+          {enemies.length === 0 ? (
+            <p className="text-white/40 text-[10px] font-mono text-center py-4 uppercase tracking-widest">Em paz com todas as nações</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {enemies.map((enemy) => (
+                <Link
+                  key={enemy.id}
+                  href={`/game/pais/${enemy.slug || enemy.id}`}
+                  className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 rounded-lg px-3 py-2 transition-colors group"
+                >
+                  <span className="text-xl">{enemy.flag_emoji || '🌐'}</span>
+                  <span className="text-red-400 text-[11px] font-bold uppercase tracking-wider group-hover:text-red-300 transition-colors">
+                    {enemy.name}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Section>
+
         <Section title="🤝 ALIADOS">
           {allies.length === 0 ? (
             <p className="text-white/40 text-[10px] font-mono text-center py-4 uppercase tracking-widest">Nenhum aliado ativo</p>
@@ -257,6 +322,62 @@ export default function PassaportePage() {
             </div>
           )}
         </Section>
+
+        {/* ✅ NOVA SEÇÃO: SANÇÕES */}
+        <Section title="🚫 SANÇÕES">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
+            {/* Sanções Recebidas */}
+            <div>
+              <p className="text-white/50 text-[10px] font-mono uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                Sancionado Por
+              </p>
+              {sanctionsReceived.length === 0 ? (
+                <p className="text-white/30 text-[10px] font-mono italic">Nenhuma sanção recebida.</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {sanctionsReceived.map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/game/pais/${c.slug || c.id}`}
+                      className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-md px-2 py-1.5 hover:bg-red-500/20 transition-colors"
+                    >
+                      <span className="text-sm">{c.flag_emoji || '🌐'}</span>
+                      <span className="text-red-400 text-[10px] font-bold uppercase">{c.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Sanções Aplicadas */}
+            <div>
+              <p className="text-white/50 text-[10px] font-mono uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                Você Sancionou
+              </p>
+              {sanctionsApplied.length === 0 ? (
+                <p className="text-white/30 text-[10px] font-mono italic">Você não sancionou ninguém.</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {sanctionsApplied.map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/game/pais/${c.slug || c.id}`}
+                      className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-md px-2 py-1.5 hover:bg-yellow-500/20 transition-colors"
+                    >
+                      <span className="text-sm">{c.flag_emoji || '🌐'}</span>
+                      <span className="text-yellow-400 text-[10px] font-bold uppercase">{c.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+        </Section>
+
       </div>
     </div>
   )

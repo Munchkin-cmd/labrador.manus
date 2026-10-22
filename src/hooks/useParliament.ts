@@ -469,7 +469,7 @@ export function useParliament() {
           return { success: true, message: `Você entrou como aliado do ${side === 'attacker' ? 'atacante' : 'defensor'}!` }
         }
 
-        // 12. Transferir Região
+        // ✅ 12. Transferir Região (CORRIGIDO)
         case 12: {
           if (!params.target_region_id || !params.target_country_id) {
             return { success: false, error: 'Região ou país não selecionado' }
@@ -492,12 +492,26 @@ export function useParliament() {
 
           if (!targetCountry) return { success: false, error: 'País destino não existe' }
 
+          // 1. Transfere a Região
           await supabase
             .from('regions')
             .update({ country_id: params.target_country_id })
             .eq('id', params.target_region_id)
 
-          return { success: true, message: `Região "${region.name}" transferida para ${targetCountry.name}!` }
+          // 2. Transfere os Edifícios da Região
+          await supabase
+            .from('buildings')
+            .update({ country_id: params.target_country_id })
+            .eq('region_id', params.target_region_id)
+
+          // 3. Atualiza o contador do país de origem (-1) e destino (+1)
+          const { data: originData } = await supabase.from('countries').select('total_regions').eq('id', country.id).single()
+          const { data: targetData } = await supabase.from('countries').select('total_regions').eq('id', params.target_country_id).single()
+          
+          await supabase.from('countries').update({ total_regions: Math.max(0, (originData?.total_regions || 1) - 1) }).eq('id', country.id)
+          await supabase.from('countries').update({ total_regions: (targetData?.total_regions || 0) + 1 }).eq('id', params.target_country_id)
+
+          return { success: true, message: `Região "${region.name}" (e seus edifícios) transferida para ${targetCountry.name}!` }
         }
 
         // 13. Alterar Regime
@@ -532,7 +546,7 @@ export function useParliament() {
           return { success: true, message: `+1B adicionados ao tesouro!` }
         }
 
-        // ✅ 17. Alterar Impostos (CORRIGIDO)
+        // 17. Alterar Impostos
         case 17: {
           if (!params.target_tax_type || params.target_tax_value === undefined) {
             return { success: false, error: 'Imposto não especificado' }
@@ -545,7 +559,6 @@ export function useParliament() {
             [params.target_tax_type]: limitTax
           }
 
-          // Usa upsert para garantir que crie/atualize e checa o erro
           const { error: taxError } = await supabase
             .from('taxes')
             .upsert(updateData, { onConflict: 'country_id' })
@@ -567,21 +580,26 @@ export function useParliament() {
     }
   }
 
+  // ✅ runRandomElection (CORRIGIDO - Matemática de transferência de assentos)
   async function runRandomElection(): Promise<{ success: boolean; message?: string }> {
     if (!country?.id || !parliament) return { success: false, message: 'Parlamento não encontrado' }
 
-    const seatsChange = Math.floor(Math.random() * 11) + 10
+    const totalSeats = parliament.coalition_seats + parliament.opposition_seats
+    // Muda entre 10 e 20 assentos, mas não pode ser mais do que a oposição/coalizão tem (mínimo 1)
+    const rawSeatsChange = Math.floor(Math.random() * 11) + 10
     const coalitionGains = Math.random() > 0.5
 
     let newCoalition = parliament.coalition_seats
     let newOpposition = parliament.opposition_seats
 
     if (coalitionGains) {
-      newCoalition += seatsChange
-      newOpposition = Math.max(1, newOpposition - seatsChange)
+      const maxTransfer = Math.min(rawSeatsChange, newOpposition - 1) // Não deixa a oposição com menos de 1
+      newCoalition += maxTransfer
+      newOpposition -= maxTransfer
     } else {
-      newOpposition += seatsChange
-      newCoalition = Math.max(1, newCoalition - seatsChange)
+      const maxTransfer = Math.min(rawSeatsChange, newCoalition - 1) // Não deixa a coalizão com menos de 1
+      newOpposition += maxTransfer
+      newCoalition -= maxTransfer
     }
 
     const { error } = await supabase
@@ -601,7 +619,7 @@ export function useParliament() {
     const direction = coalitionGains ? 'Coalizão ganhou' : 'Oposição ganhou'
     return {
       success: true,
-      message: `${direction} ${seatsChange} assentos. Novo: ${newCoalition} vs ${newOpposition}`,
+      message: `${direction} assentos. Novo: ${newCoalition} vs ${newOpposition} (Total: ${totalSeats})`,
     }
   }
 
