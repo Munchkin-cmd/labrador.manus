@@ -325,11 +325,12 @@ export function useParliament() {
             .eq('id', country.id)
             .single()
 
+          // ✅ CORRIGIDO: Removido o is_coastal
           await supabase.from('regions').insert({
             country_id: country.id,
             name: params.target_text,
             terrain: countryData?.terrain || 'planicie',
-            is_coastal: false,
+            total_buildings: 0
           })
 
           return { success: true, message: `Região "${params.target_text}" criada!` }
@@ -469,7 +470,7 @@ export function useParliament() {
           return { success: true, message: `Você entrou como aliado do ${side === 'attacker' ? 'atacante' : 'defensor'}!` }
         }
 
-        // ✅ 12. Transferir Região (CORRIGIDO)
+        // ✅ 12. Transferir Região
         case 12: {
           if (!params.target_region_id || !params.target_country_id) {
             return { success: false, error: 'Região ou país não selecionado' }
@@ -492,19 +493,16 @@ export function useParliament() {
 
           if (!targetCountry) return { success: false, error: 'País destino não existe' }
 
-          // 1. Transfere a Região
           await supabase
             .from('regions')
             .update({ country_id: params.target_country_id })
             .eq('id', params.target_region_id)
 
-          // 2. Transfere os Edifícios da Região
           await supabase
             .from('buildings')
             .update({ country_id: params.target_country_id })
             .eq('region_id', params.target_region_id)
 
-          // 3. Atualiza o contador do país de origem (-1) e destino (+1)
           const { data: originData } = await supabase.from('countries').select('total_regions').eq('id', country.id).single()
           const { data: targetData } = await supabase.from('countries').select('total_regions').eq('id', params.target_country_id).single()
           
@@ -580,12 +578,10 @@ export function useParliament() {
     }
   }
 
-  // ✅ runRandomElection (CORRIGIDO - Matemática de transferência de assentos)
   async function runRandomElection(): Promise<{ success: boolean; message?: string }> {
     if (!country?.id || !parliament) return { success: false, message: 'Parlamento não encontrado' }
 
     const totalSeats = parliament.coalition_seats + parliament.opposition_seats
-    // Muda entre 10 e 20 assentos, mas não pode ser mais do que a oposição/coalizão tem (mínimo 1)
     const rawSeatsChange = Math.floor(Math.random() * 11) + 10
     const coalitionGains = Math.random() > 0.5
 
@@ -593,11 +589,11 @@ export function useParliament() {
     let newOpposition = parliament.opposition_seats
 
     if (coalitionGains) {
-      const maxTransfer = Math.min(rawSeatsChange, newOpposition - 1) // Não deixa a oposição com menos de 1
+      const maxTransfer = Math.min(rawSeatsChange, newOpposition - 1)
       newCoalition += maxTransfer
       newOpposition -= maxTransfer
     } else {
-      const maxTransfer = Math.min(rawSeatsChange, newCoalition - 1) // Não deixa a coalizão com menos de 1
+      const maxTransfer = Math.min(rawSeatsChange, newCoalition - 1)
       newOpposition += maxTransfer
       newCoalition -= maxTransfer
     }
