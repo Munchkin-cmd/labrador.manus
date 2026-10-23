@@ -18,6 +18,7 @@ import {
   IoCloseCircle,
   IoClose,
   IoTimeOutline,
+  IoWarning,
 } from 'react-icons/io5'
 
 const MILITARY_UNITS = [
@@ -85,6 +86,9 @@ export default function EcoPage() {
       </div>
     )
   }
+
+  // ✅ NOVO: Verifica se algum prédio está paralisado
+  const hasParalyzedBuildings = buildings.some((b: any) => b.is_paralyzed === true)
 
   const groupedByCategory = catalog.reduce((acc: Record<string, any[]>, cat) => {
     if (!acc[cat.category]) acc[cat.category] = []
@@ -172,6 +176,14 @@ export default function EcoPage() {
           <ResourceBox label="Dinheiro" value={economy.money || 0} isMoney />
         </div>
       </div>
+
+      {/* ✅ NOVO: ALERTA DE EDIFÍCIOS PARALISADOS */}
+      {hasParalyzedBuildings && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-[11px] font-mono font-bold uppercase tracking-widest text-center flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-pulse">
+          <IoWarning size={18} />
+          ALERTA: EXISTEM EDIFÍCIOS PARALISADOS POR FALTA DE RECURSOS OU ENERGIA!
+        </div>
+      )}
 
       {/* TERRENO */}
       <div className="bg-surface-input border border-surface-border rounded-lg p-4">

@@ -30,14 +30,25 @@ export default function OrcamentoPage() {
   }, [country?.id])
 
   if (loading || loadingTax) return <Loading />
-  if (!economy || !taxes || !buildings) return null
+
+  // ✅ CORREÇÃO: Só bloqueia a tela se a economia ou os prédios não carregarem. 
+  // Se os impostos falharem, ele usa valores 0 por padrão.
+  if (!economy) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-white/50 p-6 text-center">
+        <p className="text-sm font-mono uppercase">Dados da economia não encontrados.</p>
+        <p className="text-xs mt-2">Tente recarregar a página.</p>
+      </div>
+    )
+  }
 
   // ─── 1. RECEITAS BRUTAS (APENAS Renda, Propriedade e Manufatura) ──
-  const incomeTax = Number(taxes.income_tax || 0)
-  const propertyTax = Number(taxes.property_tax || 0)
-  const manufacturingTax = Number(taxes.manufacturing_tax || 0)
+  // ✅ Usa 'taxes?.campo || 0' para evitar erro caso a tabela esteja vazia
+  const incomeTax = Number(taxes?.income_tax || 0)
+  const propertyTax = Number(taxes?.property_tax || 0)
+  const manufacturingTax = Number(taxes?.manufacturing_tax || 0)
 
-  const grossProfitPerTurn = buildings
+  const grossProfitPerTurn = (buildings || [])
     .filter(b => b.is_built && b.is_active)
     .reduce((acc, b) => acc + (Number((b.building_catalog as any)?.profit_money || 0) * Number(b.quantity || 0)), 0)
 
@@ -88,8 +99,10 @@ export default function OrcamentoPage() {
   let energyProd = 0
   let energyCons = 0
 
-  buildings.filter(b => b.is_built && b.is_active).forEach(b => {
+  ;(buildings || []).filter(b => b.is_built && b.is_active).forEach(b => {
     const cat = b.building_catalog as any
+    if (!cat) return; // ✅ Evita que a página quebre se o catálogo sumir
+    
     const qty = Number(b.quantity || 1)
 
     // ✅ Lê a coluna 'produces' e verifica se é energia ou recurso normal
@@ -104,7 +117,7 @@ export default function OrcamentoPage() {
       }
     }
 
-    // ✅ NOVO: Mapeamento de manutenção para TODOS os recursos
+    // ✅ Mapeamento de manutenção para TODOS os recursos
     const maintenanceMap: Record<string, keyof typeof resources> = {
       maint_food: 'food',
       maint_gold: 'gold',
@@ -128,11 +141,6 @@ export default function OrcamentoPage() {
       resources.oil.cons += cat.energy_cost * qty * 0.5
       resources.coal.cons += cat.energy_cost * qty * 0.5
       energyCons += cat.energy_cost * qty
-    }
-
-    // ✅ Fallback de segurança para produção de energia antiga
-    if (cat.energy_produces > 0) {
-      energyProd += cat.energy_produces * qty
     }
   })
 

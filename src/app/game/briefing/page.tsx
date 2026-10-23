@@ -5,7 +5,7 @@ import { useBriefing } from '@/hooks/useMenu'
 import { formatTime } from '@/utils/format'
 import { CheckCircle2, Check, X } from 'lucide-react'
 
-// ✅ Cores dos cards mantidas, mas com opacidade ajustada para o tema Dark Tech
+// ✅ Cores dos cards mantidas, e novo tipo 'message' adicionado
 const TYPE_CONFIG: Record<string, { emoji: string; color: string }> = {
   war:      { emoji: '⚔️', color: 'border-red-500/30 bg-red-500/10 text-red-400' },
   alliance: { emoji: '🤝', color: 'border-green-500/30 bg-green-500/10 text-green-400' },
@@ -17,6 +17,7 @@ const TYPE_CONFIG: Record<string, { emoji: string; color: string }> = {
   law:      { emoji: '⚖️', color: 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400' },
   sabotage: { emoji: '🕵️', color: 'border-red-400/30 bg-red-400/10 text-red-300' },
   diplomacy: { emoji: '📨', color: 'border-blue-400/30 bg-blue-400/10 text-blue-300' },
+  message:   { emoji: '✉️', color: 'border-blue-400/30 bg-blue-400/10 text-blue-300' }, // ✅ NOVO TIPO AQUI
 }
 
 export default function BriefingPage() {
@@ -112,7 +113,7 @@ export default function BriefingPage() {
                   {n.message}
                 </p>
 
-                {/* ✅ BOTÕES DE AÇÃO */}
+                {/* ✅ BOTÕES DE AÇÃO (Só aparecem para propostas 'diplomacy', não para 'message') */}
                 {n.type === 'diplomacy' && !isRead && (
                   <div className="flex gap-3 mt-4 pt-3 border-t border-surface-border/50">
                     <button

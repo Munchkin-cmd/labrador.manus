@@ -70,7 +70,8 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-6 pb-24">
+    // ✅ ALTERAÇÃO AQUI: Mudei o "pt-6" para "pt-10" para empurrar o banner e criar o vão abaixo do header
+    <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-24">
 
       {/* ── Banner principal ── */}
       <CountryBanner country={country} profile={profile} />

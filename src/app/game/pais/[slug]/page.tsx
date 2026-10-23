@@ -8,9 +8,9 @@ import { useAuthStore } from '@/store/authStore'
 import { Database } from '@/types/database'
 import { 
   ArrowLeft, Coins, Shield, Landmark, Flag, Crown, Send, X, Building2,
-  Package, Trophy
+  Package, Trophy, Swords, Ban, FileText, ChevronRight
 } from 'lucide-react'
-import { formatMoney } from '@/utils/format'
+import { formatMoney, formatNumber } from '@/utils/format'
 
 // ─── TIPOS ──────────────────────────────────────────────
 type CountryRow = Database['public']['Tables']['countries']['Row']
@@ -19,7 +19,7 @@ type UserRow = Database['public']['Tables']['users']['Row']
 type EconomyRow = Database['public']['Tables']['economy']['Row']
 type WarRow = Database['public']['Tables']['wars']['Row']
 
-type AllyInfo = {
+type CountryInfo = {
   id: number
   name: string
   flag_emoji: string
@@ -54,8 +54,13 @@ export default function PaisPage() {
   const [regions, setRegions] = useState<any[]>([])
   const [buildingsCount, setBuildingsCount] = useState<Record<string, number>>({})
   const [activeWars, setActiveWars] = useState<WarRow[]>([])
-  const [allies, setAllies] = useState<AllyInfo[]>([])
   
+  // ✅ Novos Estados
+  const [allies, setAllies] = useState<CountryInfo[]>([])
+  const [enemies, setEnemies] = useState<CountryInfo[]>([])
+  const [sanctioned, setSanctioned] = useState<CountryInfo[]>([])
+  const [topArticle, setTopArticle] = useState<any | null>(null)
+
   const [isFightingAlongside, setIsFightingAlongside] = useState(false)
   const [isFightingAgainst, setIsFightingAgainst] = useState(false)
 
@@ -99,9 +104,7 @@ export default function PaisPage() {
       setLoading(true)
       setError('')
 
-      // ✅ CORREÇÃO AQUI: Busca pelo ID se for número, ou pelo Slug se for texto
       let query = supabase.from('countries').select('*')
-      
       if (!isNaN(Number(slug))) {
         query = query.eq('id', Number(slug))
       } else {
@@ -159,15 +162,16 @@ export default function PaisPage() {
         }
       }
 
-      // Guerras ativas
+      // Guerras ativas (Inimigos)
       const { data: warsData } = await supabase
         .from('wars')
         .select('*')
         .or(`attacker_id.eq.${countryData.id},defender_id.eq.${countryData.id}`)
         .eq('status', 'active')
+      
       setActiveWars(warsData || [])
 
-      // Lógica de guerra
+      // Lógica de guerra (contra ou a favor do meu país)
       if (myCountry?.id) {
         let fightingAgainst = false
         let fightingAlongside = false
@@ -223,23 +227,54 @@ export default function PaisPage() {
         }
       }
 
-      // Aliados
-      const { data: allyRels } = await supabase
+      // Relações (Aliados, Inimigos, Sancionados)
+      const { data: relsData } = await supabase
         .from('diplomacy')
-        .select('country_a_id, country_b_id')
+        .select(`
+          country_a_id, 
+          country_b_id, 
+          status, 
+          sanctions_active,
+          country_a:countries!diplomacy_country_a_id_fkey(id, name, flag_emoji, slug),
+          country_b:countries!diplomacy_country_b_id_fkey(id, name, flag_emoji, slug)
+        `)
         .or(`country_a_id.eq.${countryData.id},country_b_id.eq.${countryData.id}`)
-        .eq('status', 'ally')
 
-      if (allyRels && allyRels.length > 0) {
-        const ids = allyRels.map(rel => 
-          rel.country_a_id === countryData.id ? rel.country_b_id : rel.country_a_id
-        )
-        const { data: allyCountries } = await supabase
-          .from('countries')
-          .select('id, name, flag_emoji, slug')
-          .in('id', ids)
-        setAllies(allyCountries || [])
+      const alliesList: CountryInfo[] = []
+      const sanctionedList: CountryInfo[] = []
+
+      if (relsData) {
+        relsData.forEach((r: any) => {
+          const isA = r.country_a_id === countryData.id
+          const other = isA ? r.country_b : r.country_a
+          
+          if (r.status === 'ally') alliesList.push(other)
+          if (r.sanctions_active) sanctionedList.push(other)
+        })
       }
+      
+      setAllies(alliesList)
+      setSanctioned(sanctionedList)
+
+      // Inimigos (via warsData)
+      if (warsData && warsData.length > 0) {
+        const enemyIds = warsData.map(w => w.attacker_id === countryData.id ? w.defender_id : w.attacker_id)
+        const { data: enemyData } = await supabase.from('countries').select('id, name, flag_emoji, slug').in('id', enemyIds)
+        setEnemies(enemyData || [])
+      } else {
+        setEnemies([])
+      }
+
+      // Artigo Principal (Mais votado)
+      const { data: articleData } = await supabase
+        .from('articles')
+        .select('id, title, content, likes, dislikes, category, created_at, image_url')
+        .eq('country_id', countryData.id)
+        .order('likes', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (articleData) setTopArticle(articleData)
 
       setLoading(false)
     }
@@ -298,9 +333,9 @@ export default function PaisPage() {
 
       await supabase.rpc('notify_country', {
         p_country_id: country.id,
-        p_message: `${myCountry.name} enviou uma mensagem diplomática: "${msg.title}"`,
-        p_title: 'Nova Mensagem Diplomática',
-        p_type: 'diplomacy',
+        p_message: msg.content, 
+        p_title: `${msg.title} de ${myCountry.name}`,
+        p_type: 'message',
       })
 
       setSuccess(`✅ ${msg.title} enviada com sucesso!`)
@@ -316,25 +351,42 @@ export default function PaisPage() {
     }
   }
 
-  async function handleSendMoney(amount: number) {
+  // ✅ CORREÇÃO: Adicionado preventDefault para garantir que não recarregue
+  async function handleSendMoney(e?: React.MouseEvent) {
+    if (e) e.preventDefault()
     if (!user || !myCountry || !country || isMyCountry) return
     setError('')
     setSuccess('')
 
+    const amount = 1000000000 // 1 Bilhão
+
     try {
-      const { data, error } = await supabase
-        .rpc('transfer_money', {
-          p_from: myCountry.id,
-          p_to: country.id,
-          p_amount: amount,
-        }) as { data: RpcResponse | null; error: any }
+      const { data, error } = await supabase.rpc('transfer_money', {
+        p_from: myCountry.id,
+        p_to: country.id,
+        p_amount: amount,
+      }) as { data: RpcResponse | null; error: any }
 
       if (error || !data?.success) {
         setError(data?.error || error?.message || 'Erro ao transferir dinheiro')
         return
       }
 
-      setSuccess(data?.message || '✅ Dinheiro enviado com sucesso!')
+      // Aumentar relação diplomática em +20
+      const newScore = Math.max(0, Math.min(100, (relation?.relation_score || 50) + 20))
+      await supabase
+        .from('diplomacy')
+        .upsert({
+          country_a_id: Math.min(myCountry.id, country.id),
+          country_b_id: Math.max(myCountry.id, country.id),
+          relation_score: newScore,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'country_a_id, country_b_id' })
+
+      setRelation(prev => prev ? { ...prev, relation_score: newScore } : null)
+      
+      // ✅ Mensagem solicitada
+      setSuccess(`✅ Doação realizada com sucesso! Relação melhorou (+20).`)
       if (economy) {
         setEconomy({ ...economy, money: (economy.money || 0) - amount })
       }
@@ -344,7 +396,8 @@ export default function PaisPage() {
     setTimeout(() => setSuccess(''), 4000)
   }
 
-  async function handleEmbassy() {
+  async function handleEmbassy(e?: React.MouseEvent) {
+    if (e) e.preventDefault()
     if (!user || !myCountry || !country || isMyCountry) return
 
     const hasEmbassy = relation?.has_embassy === true
@@ -444,8 +497,8 @@ export default function PaisPage() {
         <h1 className="text-xl font-bold text-white">Perfil do País</h1>
       </div>
 
-      {/* BANNER */}
-      <div className="relative w-full h-48 rounded-xl overflow-hidden bg-gradient-to-r from-primary/30 to-primary/5 border border-white/10">
+      {/* ✅ BANNER LIMPO (Sem sobreposição) */}
+      <div className="relative w-full h-48 rounded-t-xl overflow-hidden bg-gradient-to-r from-primary/30 to-primary/5 border border-white/10 border-b-0">
         {hasBanner ? (
           <>
             <img src={bannerImages[bannerIndex]} alt={country.name} className="w-full h-full object-cover transition-opacity duration-700" />
@@ -463,48 +516,67 @@ export default function PaisPage() {
         )}
       </div>
 
-      {/* CABEÇALHO */}
-      <div className="relative px-4">
-        <div className="relative -mt-16 flex items-end gap-4">
-          <div className="relative flex-shrink-0">
-            <div className="w-20 h-20 rounded-full border-4 border-primary shadow-lg shadow-primary/20 overflow-hidden bg-black/80">
-              {userProfile?.flag_url ? (
-                <img src={userProfile.flag_url} alt={country.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-4xl text-white/30"><Flag size={40} /></div>
-              )}
-            </div>
+      {/* ✅ CABEÇALHO ABAIXO DO BANNER */}
+      <div className="bg-surface-card rounded-b-xl border border-white/10 border-t-0 p-4 flex flex-col sm:flex-row items-center gap-4 justify-between shadow-lg">
+        <div className="flex items-center gap-4">
+          {/* Bandeira */}
+          <div className="w-16 h-16 rounded-full border-2 border-primary overflow-hidden bg-black/80 shrink-0">
+            {userProfile?.flag_url ? (
+              <img src={userProfile.flag_url} alt={country.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-2xl text-white/30"><Flag size={24} /></div>
+            )}
           </div>
-          <div className="relative flex-shrink-0 -ml-4">
-            <div className="w-20 h-20 rounded-full border-4 border-white/20 shadow-lg overflow-hidden bg-black/80">
-              {userProfile?.leader_url ? (
-                <img src={userProfile.leader_url} alt={country.leader_name || 'Líder'} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-3xl text-white/30"><Crown size={36} /></div>
-              )}
-            </div>
+          {/* Líder */}
+          <div className="w-16 h-16 rounded-full border-2 border-white/20 overflow-hidden bg-black/80 shrink-0">
+            {userProfile?.leader_url ? (
+              <img src={userProfile.leader_url} alt={country.leader_name || 'Líder'} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-2xl text-white/30"><Crown size={24} /></div>
+            )}
           </div>
-          <div className="flex-1 text-center pb-4">
-            <h2 className="text-2xl font-bold text-white">{country.name}</h2>
-            {!country.is_active && <span className="text-xs bg-white/10 text-white/50 px-2 py-0.5 rounded-full mt-1 inline-block">NPC</span>}
+          {/* Nome */}
+          <div className="text-left">
+            <h2 className="text-2xl font-bold text-white leading-tight">{country.name}</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-sm text-white/50">{country.capital}</span>
+              {!country.is_active && <span className="text-[10px] bg-white/10 text-white/50 px-2 py-0.5 rounded-full">NPC</span>}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* BOTÕES */}
+      {/* ✅ BOTÕES CORRIGIDOS (type="button" para não recarregar a página) */}
       {user && !isMyCountry && (
-        <div className="mt-2 px-4 flex flex-wrap justify-center gap-2">
-          <button onClick={() => setShowMessageModal(true)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors border border-purple-500/20 flex items-center gap-1">
+        <div className="mt-4 px-4 flex flex-wrap justify-center gap-2">
+          <button 
+            type="button"
+            onClick={() => setShowMessageModal(true)} 
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors border border-purple-500/20 flex items-center gap-1"
+          >
             <Send size={14} /> Mensagem
           </button>
-          <button onClick={() => handleSendMoney(1000000)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors border border-green-500/20 flex items-center gap-1">
-            <Coins size={14} /> Enviar R$ 1M
+          
+          <button 
+            type="button"
+            onClick={handleSendMoney} 
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors border border-green-500/20 flex items-center gap-1"
+          >
+            <Coins size={14} /> Enviar R$ 1B
           </button>
-          <button onClick={handleEmbassy} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${hasEmbassy ? 'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20'}`}>
+          
+          <button 
+            type="button"
+            onClick={handleEmbassy} 
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${hasEmbassy ? 'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20'}`}
+          >
             <Landmark size={14} /> {hasEmbassy ? 'Destruir Embaixada (-20 Rel)' : 'Construir Embaixada (+10 Rel)'}
           </button>
         </div>
       )}
+
+      {error && <div className="mt-3 px-4"><p className="text-red-400 text-sm bg-red-500/10 p-3 rounded-xl border border-red-500/20">{error}</p></div>}
+      {success && <div className="mt-3 px-4"><p className="text-green-400 text-sm bg-green-500/10 p-3 rounded-xl border border-green-500/20">{success}</p></div>}
 
       {/* RELAÇÃO */}
       {relation && (
@@ -551,18 +623,66 @@ export default function PaisPage() {
                 </span>
               )}
             </div>
-            
-            {allies.length > 0 && (
-              <div className="mt-2 text-xs text-white/50">
-                🤝 Aliados do país: {allies.map(a => a.name).join(', ')}
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      {error && <div className="mt-3 px-4"><p className="text-red-400 text-sm bg-red-500/10 p-3 rounded-xl">{error}</p></div>}
-      {success && <div className="mt-3 px-4"><p className="text-green-400 text-sm bg-green-500/10 p-3 rounded-xl">{success}</p></div>}
+      {/* ✅ NOVAS LISTAS DIPLOMÁTICAS */}
+      <div className="mt-4 px-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Aliados */}
+        <div className="bg-surface-card rounded-xl p-4 border border-white/5">
+          <div className="flex items-center gap-2 mb-2 text-white/60 text-xs font-bold uppercase">
+            <Shield size={14} className="text-blue-400" /> Aliados
+          </div>
+          {allies.length === 0 ? (
+            <p className="text-white/30 text-xs italic">Nenhum aliado.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {allies.map(a => (
+                <Link key={a.id} href={`/game/pais/${a.slug || a.id}`} className="flex items-center gap-1 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded text-xs text-blue-400 hover:bg-blue-500/20 transition-colors">
+                  <span>{a.flag_emoji}</span> {a.name}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Inimigos */}
+        <div className="bg-surface-card rounded-xl p-4 border border-white/5">
+          <div className="flex items-center gap-2 mb-2 text-white/60 text-xs font-bold uppercase">
+            <Swords size={14} className="text-red-400" /> Em Guerra
+          </div>
+          {enemies.length === 0 ? (
+            <p className="text-white/30 text-xs italic">Em paz.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {enemies.map(e => (
+                <Link key={e.id} href={`/game/pais/${e.slug || e.id}`} className="flex items-center gap-1 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded text-xs text-red-400 hover:bg-red-500/20 transition-colors">
+                  <span>{e.flag_emoji}</span> {e.name}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Sancionados */}
+        <div className="bg-surface-card rounded-xl p-4 border border-white/5">
+          <div className="flex items-center gap-2 mb-2 text-white/60 text-xs font-bold uppercase">
+            <Ban size={14} className="text-orange-400" /> Sancionados
+          </div>
+          {sanctioned.length === 0 ? (
+            <p className="text-white/30 text-xs italic">Nenhum país sancionado.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {sanctioned.map(s => (
+                <Link key={s.id} href={`/game/pais/${s.slug || s.id}`} className="flex items-center gap-1 bg-orange-500/10 border border-orange-500/20 px-2 py-1 rounded text-xs text-orange-400 hover:bg-orange-500/20 transition-colors">
+                  <span>{s.flag_emoji}</span> {s.name}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* LEMA */}
       {country.motto && (
@@ -674,13 +794,39 @@ export default function PaisPage() {
         </div>
       </div>
 
+      {/* ✅ ARTIGO PRINCIPAL (Mais votado) */}
+      {topArticle && (
+        <div className="mt-4 px-4 mb-4">
+          <div className="bg-surface-card rounded-xl p-4 border border-white/5">
+            <div className="flex items-center gap-2 mb-3 text-white/40 text-xs font-bold tracking-widest uppercase">
+              <FileText size={14} /> ARTIGO EM DESTAQUE
+            </div>
+            <Link href={`/game/noticias/${topArticle.id}`} className="block group">
+              <div className="bg-black/40 rounded-xl p-4 border border-white/5 group-hover:border-primary/50 transition-colors">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded font-bold uppercase tracking-wider">{topArticle.category}</span>
+                  <span className="text-[10px] text-white/40">{new Date(topArticle.created_at).toLocaleDateString('pt-BR')}</span>
+                </div>
+                <h4 className="text-white font-bold text-lg mb-1 group-hover:text-primary transition-colors">{topArticle.title}</h4>
+                <p className="text-white/60 text-sm line-clamp-2">{topArticle.content}</p>
+                <div className="flex items-center gap-3 mt-3 text-xs text-white/40 font-mono">
+                  <span className="text-green-400">👍 {formatNumber(topArticle.likes)}</span>
+                  <span className="text-red-400">👎 {formatNumber(topArticle.dislikes)}</span>
+                  <span className="ml-auto flex items-center gap-1 text-primary group-hover:underline">Ler artigo <ChevronRight size={14} /></span>
+                </div>
+              </div>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* MODAL DE MENSAGEM */}
       {showMessageModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 max-w-md w-full">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-white font-bold">📨 Enviar Mensagem</h3>
-              <button onClick={() => setShowMessageModal(false)} className="text-white/40 hover:text-white/70 transition-colors"><X size={20} /></button>
+              <button type="button" onClick={() => setShowMessageModal(false)} className="text-white/40 hover:text-white/70 transition-colors"><X size={20} /></button>
             </div>
 
             <div className="space-y-4">
@@ -711,7 +857,7 @@ export default function PaisPage() {
                 )
               })()}
 
-              <button onClick={handleSendMessage} disabled={!selectedMessage || sending} className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <button type="button" onClick={handleSendMessage} disabled={!selectedMessage || sending} className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 {sending ? 'Enviando...' : 'Enviar Mensagem'}
               </button>
             </div>

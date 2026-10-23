@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
-
+ 
 // ✅ Componente do mapa carregado apenas no navegador
 const MapaPlano = dynamic(
   () => import('@/components/MapaPlano'),
@@ -41,7 +41,8 @@ export default function MapaPage() {
   const [filter, setFilter]         = useState('')
   const [selected, setSelected]     = useState<CountryInfo | null>(null)
   const [loading, setLoading]       = useState(true)
-  // ✅ Estado para controlar o menu mobile
+  
+  // ✅ Estado para controlar o menu lateral
   const [isMenuOpen, setIsMenuOpen] = useState(false)
  
   useEffect(() => {
@@ -59,7 +60,7 @@ export default function MapaPage() {
     if (pais) {
       setSelected(prev => prev?.id === pais.id ? null : pais);
     }
-    // ✅ Fecha o menu automaticamente ao clicar em um país no celular
+    // ✅ Fecha o menu automaticamente ao clicar em um país no mapa
     setIsMenuOpen(false)
   }
  
@@ -71,22 +72,10 @@ export default function MapaPage() {
   return (
     <div className="relative flex h-screen w-screen overflow-hidden bg-surface">
       
-      {/* ✅ BOTÃO HAMBÚRGUER (Apenas no celular) */}
-      <button 
-        onClick={() => setIsMenuOpen(true)}
-        className="fixed top-4 left-4 z-40 p-2.5 bg-surface-card rounded-lg border border-surface-border md:hidden text-white hover:bg-surface-input transition-colors shadow-lg"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="4" x2="20" y1="12" y2="12" />
-          <line x1="4" x2="20" y1="6" y2="6" />
-          <line x1="4" x2="20" y1="18" y2="18" />
-        </svg>
-      </button>
-
-      {/* ✅ OVERLAY ESCURO (Fundo preto translúcido para fechar o menu clicando fora) */}
+      {/* ✅ OVERLAY ESCURO (Fundo preto para fechar o menu clicando fora) */}
       {isMenuOpen && (
         <div 
-          className="fixed inset-0 z-40 bg-black/70 md:hidden backdrop-blur-sm"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity"
           onClick={() => setIsMenuOpen(false)}
         />
       )}
@@ -97,22 +86,30 @@ export default function MapaPage() {
           fixed inset-y-0 left-0 z-50 w-[85%] max-w-[400px] bg-surface-card border-r border-surface-border shadow-2xl
           transform transition-transform duration-300 ease-in-out
           ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'} 
-          md:static md:translate-x-0 md:flex md:w-[400px]
         `}
       >
-        {/* Botão para Fechar (Apenas no celular) */}
+        {/* ✅ O BOTÃO ÚNICO DE FILTRO (Ele viaja junto com o painel) */}
         <button 
-          onClick={() => setIsMenuOpen(false)}
-          className="absolute top-4 right-4 md:hidden text-white/60 hover:text-white p-1 transition-colors"
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          className={`
+            absolute top-1/2 -translate-y-1/2 right-0 translate-x-full z-50 
+            py-4 px-1.5 border border-l-0 rounded-r-lg shadow-[4px_0_15px_rgba(0,0,0,0.3)] 
+            flex flex-col items-center gap-2 transition-colors duration-300
+            ${isMenuOpen 
+              ? 'bg-primary border-primary text-white' 
+              : 'bg-surface-card border-surface-border text-white hover:bg-surface-input'
+            }
+          `}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" x2="6" y1="6" y2="18" />
-            <line x1="6" x2="18" y1="6" y2="18" />
+          {/* Ícone de Filtro */}
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
           </svg>
+          <span className="text-[9px] font-bold uppercase tracking-widest [writing-mode:vertical-lr] rotate-180">Filtro</span>
         </button>
 
         {/* Conteúdo da lista */}
-        <div className="flex flex-col h-full overflow-y-auto p-4 pt-16 md:pt-4 custom-scrollbar">
+        <div className="flex flex-col h-full overflow-y-auto p-4 custom-scrollbar">
           
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
@@ -206,7 +203,7 @@ export default function MapaPage() {
         </div>
       </div>
 
-      {/* 🌍 MAPA PLANO (Lado Direito) */}
+      {/* 🌍 MAPA PLANO (Fica sempre no fundo, ocupando 100% da tela) */}
       <div className="flex-1 h-full relative z-0">
         <MapaPlano onCountryClick={handleGlobeClick} />
       </div>

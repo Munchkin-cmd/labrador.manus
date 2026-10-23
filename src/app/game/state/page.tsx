@@ -21,7 +21,7 @@ import {
   Radiation,
   ChevronDown,
   ChevronUp,
-  Clock, // ✅ Importado
+  Clock,
 } from 'lucide-react'
 
 import {
@@ -124,7 +124,7 @@ export default function StatePage() {
     if (hasBanner && bannerImages.length > 1) {
       intervalRef.current = setInterval(() => {
         setBannerIndex(prev => (prev + 1) % bannerImages.length)
-      }, 7000)
+      }, 3000)
     }
   }
 
@@ -334,19 +334,23 @@ export default function StatePage() {
   }, [targetCountryId])
 
   // ─── TIMER DE ELEIÇÕES ──────────────────────────────────
-  const [timeLeft, setTimeLeft] = useState<string>('--:--:--')
+  const [timeLeft, setTimeLeft] = useState<string>('06:00:00')
 
   useEffect(() => {
-    if (!parliament?.last_random_at) return
-
     const updateTimer = () => {
+      if (!parliament?.last_random_at) {
+        setTimeLeft('06:00:00')
+        return
+      }
+
       const lastElection = new Date(parliament.last_random_at).getTime()
-      const nextElection = lastElection + 6 * 60 * 60 * 1000 // 6 horas em milissegundos
+      const nextElection = lastElection + 6 * 60 * 60 * 1000
       const now = new Date().getTime()
       const diff = nextElection - now
 
       if (diff <= 0) {
-        setTimeLeft('Aguardando...')
+        setTimeLeft('00:00:00')
+        // ✅ CORREÇÃO: Removido o refetchParliament() daqui para evitar loop infinito
       } else {
         const hours = Math.floor(diff / (1000 * 60 * 60))
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
@@ -358,11 +362,11 @@ export default function StatePage() {
       }
     }
 
-    updateTimer() // Executa imediatamente
-    const timerId = setInterval(updateTimer, 1000) // Atualiza a cada segundo
+    updateTimer()
+    const timerId = setInterval(updateTimer, 1000)
 
     return () => clearInterval(timerId)
-  }, [parliament?.last_random_at])
+  }, [parliament?.last_random_at]) // ✅ CORREÇÃO: refetchParliament removido das dependências
 
   // ─── ESTADOS DE CARREGAMENTO ─────────────────────────────
   if (loadingC || loadingP) return <PageLoading />
@@ -424,7 +428,6 @@ export default function StatePage() {
       setTaxType('')
       setTaxValue(0)
       
-      // ✅ Atualiza o Poder Político na tela imediatamente
       refetchCountry()
       refetchParliament()
     }
@@ -461,7 +464,6 @@ export default function StatePage() {
       setTaxType('')
       setTaxValue(0)
 
-      // ✅ Atualiza o Poder Político na tela imediatamente
       refetchCountry()
       refetchParliament()
     }
@@ -471,13 +473,13 @@ export default function StatePage() {
 
   // ─── RENDER ──────────────────────────────────────────
   return (
-    <div className="flex flex-col gap-5 pb-8 w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6">
+    <div className="flex flex-col gap-5 pb-8 w-full max-w-4xl mx-auto px-4 sm:px-6 pt-14">
 
       {/* ─── BANNER ─────────────────────────────────────── */}
       <div
         ref={bannerContainerRef}
         onClick={handleBannerClick}
-        className={`relative h-48 w-full overflow-hidden rounded-xl bg-surface-card border border-surface-border ${hasBanner && bannerImages.length > 1 ? 'cursor-pointer' : ''}`}
+        className={`relative h-56 sm:h-64 w-full overflow-hidden rounded-xl bg-surface-card border border-surface-border shadow-lg ${hasBanner && bannerImages.length > 1 ? 'cursor-pointer' : ''}`}
       >
         {hasBanner ? (
           <>
@@ -511,27 +513,29 @@ export default function StatePage() {
       </div>
 
       {/* ─── CABEÇALHO ──────────────────────────────────── */}
-      <div className="mt-4 px-2 flex items-center justify-between gap-4">
+      <div className="mt-2 px-2 flex items-center justify-between gap-4">
         
         {/* Bandeira (Esquerda) */}
-        <div className="w-20 h-16 rounded-lg border border-surface-border shadow-lg overflow-hidden shrink-0 bg-surface-input flex items-center justify-center">
+        <div className="w-28 h-20 sm:w-32 sm:h-24 rounded-lg border-2 border-surface-border shadow-xl overflow-hidden shrink-0 bg-surface-input flex items-center justify-center">
           {profile?.flag_url ? (
             <img src={profile.flag_url} alt={data.name} className="w-full h-full object-cover" />
           ) : (
-            <Flag size={36} className="text-white/30" />
+            <Flag size={48} className="text-white/30" />
           )}
         </div>
 
         {/* Nome, Capital e Lema (Direita) */}
-        <div className="flex flex-col items-end text-right">
-          <h2 className="text-2xl font-bold text-white uppercase tracking-wider leading-tight">
+        <div className="flex flex-col items-end text-right flex-1 min-w-0">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white uppercase tracking-wider leading-tight truncate">
             {data.name}
           </h2>
-          <p className="text-white/50 text-[11px] font-mono tracking-widest mt-1">
+          <p className="text-white/50 text-[11px] sm:text-xs font-mono tracking-widest mt-1">
             CAPITAL: <span className="text-white/80 font-bold">{data.capital}</span>
           </p>
           {data.motto && (
-            <p className="text-white/30 text-[10px] font-mono italic mt-1">"{data.motto}"</p>
+            <p className="text-white/30 text-[10px] sm:text-[11px] font-mono italic mt-1 truncate">
+              "{data.motto}"
+            </p>
           )}
         </div>
       </div>
@@ -716,7 +720,7 @@ export default function StatePage() {
                     {parlamentoStatus}
                   </span>
                   
-                  {/* ⏱️ NOVO CONTADOR */}
+                  {/* ⏱️ CONTADOR */}
                   <span className="text-[10px] text-white/40 font-mono uppercase tracking-widest flex items-center gap-1.5 mt-1">
                     <Clock size={12} /> Próximas eleições em:
                   </span>

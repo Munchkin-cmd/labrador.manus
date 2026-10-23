@@ -23,7 +23,9 @@ export function formatTime(dateStr: string): string {
 }
 
 export function formatPopulation(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M hab`
-  if (value >= 1_000)     return `${(value / 1_000).toFixed(1)}K hab`
+  // ✅ CORRIGIDO: Adicionado a checagem de Bilhões
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B hab`
+  if (value >= 1_000_000)     return `${(value / 1_000_000).toFixed(1)}M hab`
+  if (value >= 1_000)         return `${(value / 1_000).toFixed(1)}K hab`
   return `${value} hab`
 }
