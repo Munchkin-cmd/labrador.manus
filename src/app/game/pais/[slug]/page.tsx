@@ -546,7 +546,7 @@ export default function PaisPage() {
         </div>
       </div>
 
-      {/* ✅ BOTÕES CORRIGIDOS (type="button" para não recarregar a página) */}
+      {/* ✅ BOTÕES CORRIGIDOS */}
       {user && !isMyCountry && (
         <div className="mt-4 px-4 flex flex-wrap justify-center gap-2">
           <button 
@@ -785,6 +785,11 @@ export default function PaisPage() {
         <div className="bg-[#1a1a1a] border border-white/5 rounded-xl p-4">
           <h3 className="text-white/60 text-xs font-bold tracking-widest uppercase mb-3">📊 ESTATÍSTICAS</h3>
           <div className="space-y-2 text-sm">
+            {/* ✅ NOVOS INDICADORES */}
+            <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">IDH</span><span className="text-blue-400 font-bold">{(economy as any)?.idh ? Number((economy as any).idh).toFixed(3) : '0.040'}</span></div>
+            <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Cresc. Populacional</span><span className="text-green-400 font-bold">+{Number((economy as any)?.population_growth || 0).toFixed(1)}%</span></div>
+            <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Inflação</span><span className={Number((economy as any)?.inflation || 0) > 10 ? 'text-red-400 font-bold' : 'text-yellow-400 font-bold'}>{Number((economy as any)?.inflation || 0).toFixed(1)}%</span></div>
+            
             <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Confiança</span><span className="text-white">{country.trust}%</span></div>
             <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Dinheiro</span><span className="text-white">{formatMoney(economy?.money || 0)}</span></div>
             <div className="flex justify-between py-1 border-b border-white/5"><span className="text-white/40">Poluição</span><span className="text-white">{economy?.pollution || 0}%</span></div>

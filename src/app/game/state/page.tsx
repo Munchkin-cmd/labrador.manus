@@ -350,7 +350,6 @@ export default function StatePage() {
 
       if (diff <= 0) {
         setTimeLeft('00:00:00')
-        // ✅ CORREÇÃO: Removido o refetchParliament() daqui para evitar loop infinito
       } else {
         const hours = Math.floor(diff / (1000 * 60 * 60))
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
@@ -366,7 +365,7 @@ export default function StatePage() {
     const timerId = setInterval(updateTimer, 1000)
 
     return () => clearInterval(timerId)
-  }, [parliament?.last_random_at]) // ✅ CORREÇÃO: refetchParliament removido das dependências
+  }, [parliament?.last_random_at])
 
   // ─── ESTADOS DE CARREGAMENTO ─────────────────────────────
   if (loadingC || loadingP) return <PageLoading />
@@ -630,6 +629,33 @@ export default function StatePage() {
           {!loadingXP && !combatXP && (
             <div className="text-white/30 text-[10px] font-mono text-center uppercase mt-2 tracking-widest">Sem XP de combate</div>
           )}
+        </div>
+      </Section>
+
+      {/* ✅ NOVA SEÇÃO: INDICADORES SOCIOECONÔMICOS */}
+      <Section
+        title={
+          <span className="flex items-center gap-2">
+            <TrendingUp size={16} /> INDICADORES SOCIOECONÔMICOS
+          </span>
+        }
+      >
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <StatCard
+            label="IDH"
+            value={Number((economy as any).idh || 0).toFixed(3)}
+            icon={<TrendingUp size={18} className="text-blue-400" />}
+          />
+          <StatCard
+            label="Cresc. Populacional"
+            value={`+${Number((economy as any).population_growth || 0).toFixed(1)}%`}
+            icon={<Users size={18} className="text-green-400" />}
+          />
+          <StatCard
+            label="Inflação"
+            value={`${Number((economy as any).inflation || 0).toFixed(1)}%`}
+            icon={<TrendingDown size={18} className={Number((economy as any).inflation || 0) > 10 ? 'text-red-400' : 'text-yellow-400'} />}
+          />
         </div>
       </Section>
 

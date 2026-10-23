@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useEco } from '@/hooks/useEco'
 import { formatMoney, formatNumber } from '@/utils/format'
 import { BUILDING_IMAGES, MILITARY_IMAGES } from '@/components/buildingImages'
+import { supabase } from '@/lib/supabase/client'
 import {
   IoPeople,
   IoDisc,
@@ -19,6 +20,16 @@ import {
   IoClose,
   IoTimeOutline,
   IoWarning,
+  IoBusiness,
+  IoConstruct,
+  IoCash,
+  IoCube,
+  IoFlash,
+  IoTime,
+  IoTrash,
+  IoStatsChart,
+  IoPerson,
+  IoTrendingUp,
 } from 'react-icons/io5'
 
 const MILITARY_UNITS = [
@@ -69,8 +80,8 @@ export default function EcoPage() {
       setTimeLeft(`${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`)
     }
 
-    updateTimer() // Roda uma vez imediatamente
-    const interval = setInterval(updateTimer, 1000) // Atualiza a cada 1 segundo
+    updateTimer()
+    const interval = setInterval(updateTimer, 1000)
     return () => clearInterval(interval)
   }, [])
 
@@ -87,8 +98,10 @@ export default function EcoPage() {
     )
   }
 
-  // ✅ NOVO: Verifica se algum prédio está paralisado
-  const hasParalyzedBuildings = buildings.some((b: any) => b.is_paralyzed === true)
+  // ✅ ALERTAS
+  const paralyzedBuildings = buildings.filter((b: any) => b.is_paralyzed === true)
+  const hasParalyzedBuildings = paralyzedBuildings.length > 0
+  const hasParalyzedPowerPlants = paralyzedBuildings.some((b: any) => b.building_catalog?.produces === 'energy')
 
   const groupedByCategory = catalog.reduce((acc: Record<string, any[]>, cat) => {
     if (!acc[cat.category]) acc[cat.category] = []
@@ -99,6 +112,21 @@ export default function EcoPage() {
   const buildingCountByRegion = (regionId: string) => {
     return buildings.filter(b => b.region_id === regionId).length
   }
+
+  // Resumo de Edifícios por Tipo no país
+  const myBuildingsSummary = buildings.reduce((acc, b) => {
+    if (!b.is_built) return acc
+    const type = b.building_type
+    const qty = Number(b.quantity || 1)
+    const name = b.building_catalog?.name || type
+    
+    if (!acc[type]) {
+      acc[type] = { name, totalQty: 0, isParalyzed: false }
+    }
+    acc[type].totalQty += qty
+    if (b.is_paralyzed) acc[type].isParalyzed = true
+    return acc
+  }, {} as Record<string, { name: string, totalQty: number, isParalyzed: boolean }>)
 
   const validateMilitaryRequirements = (requires: string[]) => {
     const builtTypes = new Set(buildings.map(b => b.building_type))
@@ -124,6 +152,28 @@ export default function EcoPage() {
     setSubmitting(false)
   }
 
+  const handleDestroy = async (regionId: string, buildingType: string) => {
+    if (!window.confirm("Tem certeza que deseja DESTRUIR este edifício? A ação é irreversível.")) return
+    setSubmitting(true)
+    setModalFeedback('')
+
+    const { error } = await supabase
+      .from('buildings')
+      .delete()
+      .eq('region_id', regionId)
+      .eq('building_type', buildingType)
+
+    if (error) {
+      setModalFeedback(error.message)
+    } else {
+      setSelectedBuilding(null)
+      setPageFeedback('💥 Edifício destruído com sucesso!')
+      refetch()
+      setTimeout(() => setPageFeedback(''), 3000)
+    }
+    setSubmitting(false)
+  }
+
   const handleProduceMilitary = async (key: string) => {
     setSubmitting(true)
     setModalFeedback('')
@@ -145,6 +195,48 @@ export default function EcoPage() {
 
   const terrainResources = TERRAIN_RESOURCES[countryData.terrain?.toLowerCase() || 'planicie'] || []
 
+  const renderCostList = (building: any, prefix: 'cost' | 'maint') => {
+    const items = [
+      { key: `${prefix}_money`, label: 'Dinheiro', icon: <IoCash size={14} className="text-green-400" /> },
+      { key: `${prefix}_food`, label: 'Comida', icon: <IoCube size={14} className="text-orange-400" /> },
+      { key: `${prefix}_wood`, label: 'Madeira', icon: <IoCube size={14} className="text-amber-600" /> },
+      { key: `${prefix}_iron`, label: 'Ferro', icon: <IoCube size={14} className="text-gray-400" /> },
+      { key: `${prefix}_coal`, label: 'Carvão', icon: <IoCube size={14} className="text-gray-600" /> },
+      { key: `${prefix}_oil`, label: 'Petróleo', icon: <IoCube size={14} className="text-black" /> },
+      { key: `${prefix}_steel`, label: 'Aço', icon: <IoCube size={14} className="text-cyan-400" /> },
+      { key: `${prefix}_gold`, label: 'Ouro', icon: <IoCube size={14} className="text-yellow-400" /> },
+      { key: `${prefix}_uranium`, label: 'Urânio', icon: <IoCube size={14} className="text-green-600" /> },
+    ]
+
+    const activeItems = items.filter(i => building[i.key] > 0)
+
+    if (activeItems.length === 0) {
+      return <span className="text-white/40 italic font-mono text-[10px]">Nenhum recurso.</span>
+    }
+
+    return (
+      <div className="flex flex-wrap gap-2 mt-1">
+        {activeItems.map(item => (
+          <span key={item.key} className="flex items-center gap-1 bg-black/30 border border-white/5 px-2 py-0.5 rounded text-[10px] font-mono text-white/80">
+            {item.icon} {formatNumber(building[item.key])} {item.label}
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  // ✅ Cálculo de inflação e mão de obra para o modal
+  let inflation = 0
+  let inflatedCost = 0
+  let laborCost = 0
+  
+  if (selectedBuilding) {
+    inflation = Number(economy?.inflation || 0)
+    const baseCost = Number(selectedBuilding.building.cost_money || 0)
+    inflatedCost = baseCost * (1 + (inflation / 100))
+    laborCost = Number(selectedBuilding.building.labor_cost || 0)
+  }
+
   return (
     <div className="flex flex-col gap-6 pb-24 px-4 sm:px-6 pt-6 max-w-5xl mx-auto w-full relative">
       
@@ -156,7 +248,6 @@ export default function EcoPage() {
             Recursos
           </p>
           
-          {/* ✅ RELÓGIO DO CICLO */}
           <div className="flex items-center gap-1.5 bg-surface-input border border-surface-border px-2.5 py-1 rounded-md text-primary font-mono text-sm font-bold shadow-inner">
             <IoTimeOutline size={16} />
             <span>{timeLeft}</span>
@@ -175,13 +266,43 @@ export default function EcoPage() {
           <ResourceBox label="Energia" value={economy.energy || 0} />
           <ResourceBox label="Dinheiro" value={economy.money || 0} isMoney />
         </div>
+
+        {/* ✅ NOVOS DADOS: IDH, CRESCIMENTO E INFLAÇÃO */}
+        <div className="col-span-3 sm:col-span-5 grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-surface-border">
+          <div className="text-center p-2 bg-surface-input border border-surface-border rounded-lg">
+            <p className="text-[9px] font-bold text-white/40 uppercase tracking-wider flex items-center justify-center gap-1">
+              <IoStatsChart size={10} /> IDH
+            </p>
+            <p className="text-xs font-bold mt-1 font-mono text-blue-400">{Number((economy as any).idh || 0).toFixed(3)}</p>
+          </div>
+          <div className="text-center p-2 bg-surface-input border border-surface-border rounded-lg">
+            <p className="text-[9px] font-bold text-white/40 uppercase tracking-wider flex items-center justify-center gap-1">
+              <IoPeople size={10} /> Cresc. Pop.
+            </p>
+            <p className="text-xs font-bold mt-1 font-mono text-green-400">+{Number((economy as any).population_growth || 0).toFixed(1)}%</p>
+          </div>
+          <div className="text-center p-2 bg-surface-input border border-surface-border rounded-lg">
+            <p className="text-[9px] font-bold text-white/40 uppercase tracking-wider flex items-center justify-center gap-1">
+              <IoTrendingUp size={10} /> Inflação
+            </p>
+            <p className={`text-xs font-bold mt-1 font-mono ${Number((economy as any).inflation || 0) > 10 ? 'text-red-400' : 'text-yellow-400'}`}>
+              {Number((economy as any).inflation || 0).toFixed(1)}%
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* ✅ NOVO: ALERTA DE EDIFÍCIOS PARALISADOS */}
+      {/* ✅ ALERTAS */}
       {hasParalyzedBuildings && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-[11px] font-mono font-bold uppercase tracking-widest text-center flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-pulse">
           <IoWarning size={18} />
-          ALERTA: EXISTEM EDIFÍCIOS PARALISADOS POR FALTA DE RECURSOS OU ENERGIA!
+          ALERTA: EDIFÍCIOS PARALISADOS POR FALTA DE RECURSOS/ENERGIA!
+        </div>
+      )}
+      {hasParalyzedPowerPlants && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-3 rounded-lg text-[11px] font-mono font-bold uppercase tracking-widest text-center flex items-center justify-center gap-2">
+          <IoFlash size={18} />
+          AVISO: USINAS PARALISADAS NÃO ESTÃO GERANDO ENERGIA!
         </div>
       )}
 
@@ -195,12 +316,38 @@ export default function EcoPage() {
         </p>
       </div>
 
-      {/* FEEDBACK GERAL DA PÁGINA */}
       {pageFeedback && (
         <div className="p-3 rounded-lg text-sm border bg-green-500/10 border-green-500/30 text-green-400 text-center font-mono">
           {pageFeedback}
         </div>
       )}
+
+      {/* DASHBOARD MEUS EDIFÍCIOS */}
+      <div>
+        <div className="flex items-center gap-2 mb-2 pl-1">
+          <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+          <p className="text-xs font-bold tracking-widest text-white uppercase">Meus Edifícios</p>
+        </div>
+        <div className="bg-surface-card border border-surface-border rounded-lg p-4 shadow-lg">
+          {Object.keys(myBuildingsSummary).length === 0 ? (
+            <p className="text-white/40 text-xs font-mono text-center uppercase">Nenhum edifício construído</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {Object.values(myBuildingsSummary).map((item: any, idx) => (
+                <div key={idx} className={`border rounded-lg p-2.5 flex items-center justify-between ${item.isParalyzed ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-primary/10 border-primary/30 text-primary'}`}>
+                  <div className="flex items-center gap-2 truncate">
+                    <IoBusiness size={16} className="shrink-0" />
+                    <span className="text-xs font-semibold truncate">{item.name}</span>
+                  </div>
+                  <span className="font-bold font-mono text-sm ml-2 bg-black/30 px-2 py-0.5 rounded">
+                    {item.totalQty}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* REGIÕES */}
       <div>
@@ -217,7 +364,7 @@ export default function EcoPage() {
                 <div>Região</div>
                 <div className="text-right">Edifícios</div>
               </div>
-              <div className="max-h-64 overflow-y-auto">
+              <div className="max-h-[500px] overflow-y-auto">
                 {regions.map((region) => (
                   <div key={region.id}>
                     <button
@@ -238,31 +385,65 @@ export default function EcoPage() {
                     </button>
 
                     {expandedRegion === region.id && (
-                      <div className="bg-surface-input px-4 py-4 border-t border-surface-border space-y-4">
-                        {Object.entries(groupedByCategory).length === 0 ? (
-                          <p className="text-xs text-white/40 font-mono">Nenhum edifício disponível</p>
-                        ) : (
-                          Object.entries(groupedByCategory).map(([category, items]) => (
-                            <div key={category}>
-                              <p className="text-[10px] font-bold text-white/50 uppercase font-mono tracking-widest mb-2">{category}</p>
-                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                {(items as any[]).map(building => (
-                                  <button
-                                    key={building.type}
-                                    onClick={() => {
-                                      setSelectedBuilding({ regionId: region.id, building })
-                                      setModalFeedback('')
-                                    }}
-                                    className="relative bg-surface-card hover:bg-[#1A263F] border border-surface-border hover:border-primary/50 rounded-lg p-3 transition-all text-left flex flex-col justify-between"
-                                  >
-                                    <p className="text-xs font-bold text-white truncate">{building.name}</p>
-                                    <p className="text-[10px] text-white/50 mt-1 font-mono">{formatMoney(building.cost_money)}</p>
-                                  </button>
-                                ))}
-                              </div>
+                      <div className="bg-surface-input px-4 py-4 border-t border-surface-border space-y-5">
+                        
+                        {/* Edifícios Construídos NESTA Região */}
+                        <div>
+                          <p className="text-[10px] font-bold text-primary uppercase font-mono tracking-widest mb-2 flex items-center gap-2">
+                            <IoCheckmarkCircle size={14} /> Construídos nesta Região
+                          </p>
+                          {buildings.filter(b => b.region_id === region.id && b.is_built).length === 0 ? (
+                            <p className="text-xs text-white/40 font-mono italic">Nenhum edifício construído aqui ainda.</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {buildings.filter(b => b.region_id === region.id && b.is_built).map((b, idx) => (
+                                <button 
+                                  key={idx} 
+                                  onClick={() => {
+                                    const catItem = catalog.find(c => c.type === b.building_type)
+                                    if (catItem) setSelectedBuilding({ regionId: region.id, building: catItem })
+                                  }}
+                                  className={`border rounded-md px-2 py-1 flex items-center gap-2 text-[10px] transition-colors ${b.is_paralyzed ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20' : 'bg-surface-card border-surface-border text-white/80 hover:bg-white/10'}`}
+                                >
+                                  {b.is_paralyzed && <IoWarning size={12} />}
+                                  <span>{b.building_catalog?.name || b.building_type}</span>
+                                  <span className="font-bold font-mono bg-black/30 px-1.5 rounded">x{b.quantity}</span>
+                                </button>
+                              ))}
                             </div>
-                          ))
-                        )}
+                          )}
+                        </div>
+
+                        {/* CATÁLOGO DE CONSTRUÇÃO */}
+                        <div>
+                          <p className="text-[10px] font-bold text-white/50 uppercase font-mono tracking-widest mb-2 border-t border-surface-border pt-3">
+                            Construir Novo Edifício
+                          </p>
+                          {Object.entries(groupedByCategory).length === 0 ? (
+                            <p className="text-xs text-white/40 font-mono">Nenhum edifício disponível no catálogo</p>
+                          ) : (
+                            Object.entries(groupedByCategory).map(([category, items]) => (
+                              <div key={category} className="mb-4">
+                                <p className="text-[9px] font-bold text-white/40 uppercase font-mono tracking-widest mb-2">{category}</p>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                  {(items as any[]).map(building => (
+                                    <button
+                                      key={building.type}
+                                      onClick={() => {
+                                        setSelectedBuilding({ regionId: region.id, building })
+                                        setModalFeedback('')
+                                      }}
+                                      className="relative bg-surface-card hover:bg-[#1A263F] border border-surface-border hover:border-primary/50 rounded-lg p-2.5 transition-all text-left flex flex-col justify-between"
+                                    >
+                                      <p className="text-[11px] font-bold text-white truncate">{building.name}</p>
+                                      <p className="text-[10px] text-white/50 mt-1 font-mono">{formatMoney(building.cost_money)}</p>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -273,7 +454,7 @@ export default function EcoPage() {
         </div>
       </div>
 
-      {/* EQUIPAMENTOS MILITARES */}
+      {/* EQUIPAMENTOS MILITARES (Mantido) */}
       <div>
         <div className="flex items-center gap-2 mb-2 pl-1">
           <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
@@ -310,12 +491,9 @@ export default function EcoPage() {
             )
           })}
         </div>
-        <p className="text-[10px] text-red-400/70 font-mono mt-3 uppercase tracking-wider">
-          💡 Construa os edifícios necessários para desbloquear equipamentos militares
-        </p>
       </div>
 
-      {/* MODAL DE CONSTRUÇÃO */}
+      {/* MODAL DE CONSTRUÇÃO / DESTRUIÇÃO */}
       {selectedBuilding && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-opacity">
           <div className="bg-surface-card border border-surface-border rounded-xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -347,41 +525,85 @@ export default function EcoPage() {
                 <p className="text-xl font-bold text-white mb-1 uppercase tracking-wider">
                   {selectedBuilding.building.name}
                 </p>
-                <p className="text-xs text-white/60 mb-5 font-mono uppercase tracking-widest">
-                  Custo:{' '}
-                  <span className="text-primary font-bold text-sm">
-                    {formatMoney(selectedBuilding.building.cost_money)}
-                  </span>
-                </p>
+                
+                {/* ✅ NOVO CUSTO COM INFLAÇÃO */}
+                <div className="mb-5 font-mono uppercase tracking-widest">
+                  <p className="text-xs text-white/60">Custo Base:</p>
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                    {inflation > 0 ? (
+                      <>
+                        <span className="line-through text-white/40 text-sm">{formatMoney(selectedBuilding.building.cost_money)}</span>
+                        <span className="text-primary font-bold text-sm">{formatMoney(inflatedCost)}</span>
+                        <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded text-[10px] border border-red-500/20 font-bold flex items-center gap-1">
+                          <IoWarning size={10} /> Inflação: +{inflation.toFixed(1)}%
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-primary font-bold text-sm">{formatMoney(selectedBuilding.building.cost_money)}</span>
+                    )}
+                  </div>
 
-                <div className="space-y-3 text-sm text-white/80 border-t border-surface-border pt-4 mb-6">
-                  {selectedBuilding.building.produces && selectedBuilding.building.produces !== 'energy' && (
-                    <p className="font-mono text-xs">
-                      📦 Produz:{' '}
-                      <span className="text-yellow-400 font-bold">
-                        {selectedBuilding.building.produces_qty || 0}x {selectedBuilding.building.produces}/15min
-                      </span>
-                    </p>
+                  {laborCost > 0 && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-xs text-white/60 flex items-center gap-1"><IoPerson size={12}/> Mão de Obra:</span>
+                      <span className="text-blue-400 font-bold text-sm">{formatNumber(laborCost)} pop</span>
+                    </div>
                   )}
-                  {selectedBuilding.building.produces === 'energy' && (
-                    <p className="font-mono text-xs">
-                      ⚡ Energia:{' '}
-                      <span className="text-blue-400 font-bold">
-                        +{selectedBuilding.building.produces_qty || 0}/15min
-                      </span>
+                </div>
+
+                <div className="space-y-4 border-t border-surface-border pt-4 mb-6 mt-4">
+                  
+                  {/* Produção e Consumo */}
+                  <div className="bg-surface-input border border-surface-border rounded-lg p-3">
+                    <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-1">
+                      <IoConstruct size={12} /> Funcionamento (a cada 15min)
                     </p>
-                  )}
-                  {selectedBuilding.building.energy_cost > 0 && (
-                    <p className="font-mono text-xs">
-                      🔌 Consome:{' '}
-                      <span className="text-red-400 font-bold">
-                        {selectedBuilding.building.energy_cost} energia
-                      </span>
+                    {selectedBuilding.building.produces ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-white/70">Produz:</span>
+                        <span className="text-yellow-400 font-bold font-mono bg-yellow-400/10 px-2 py-0.5 rounded">
+                          +{selectedBuilding.building.produces_qty || 0} {selectedBuilding.building.produces}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-white/40 italic">Não produz recursos.</span>
+                    )}
+
+                    {selectedBuilding.building.energy_cost > 0 && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-white/70">Consome Energia:</span>
+                        <span className="text-red-400 font-bold font-mono bg-red-400/10 px-2 py-0.5 rounded flex items-center gap-1">
+                          <IoFlash size={10} /> -{selectedBuilding.building.energy_cost}
+                        </span>
+                      </div>
+                    )}
+
+                    {selectedBuilding.building.profit_money > 0 && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-white/70">Rende (Lucro):</span>
+                        <span className="text-green-400 font-bold font-mono bg-green-400/10 px-2 py-0.5 rounded">
+                          +{formatMoney(selectedBuilding.building.profit_money)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Custo de Construção */}
+                  <div className="bg-surface-input border border-surface-border rounded-lg p-3">
+                    <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-1">
+                      <IoTime size={12} /> Custo de Construção (por unidade)
                     </p>
-                  )}
-                  <p className="text-white/40 italic mt-3 text-[10px] font-mono">
-                    MANUTENÇÃO: {formatMoney(selectedBuilding.building.maint_money)}/CICLO
-                  </p>
+                    {renderCostList(selectedBuilding.building, 'cost')}
+                  </div>
+
+                  {/* Manutenção */}
+                  <div className="bg-surface-input border border-surface-border rounded-lg p-3">
+                    <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-1">
+                      <IoWarning size={12} /> Manutenção (por ciclo)
+                    </p>
+                    {renderCostList(selectedBuilding.building, 'maint')}
+                  </div>
+
                 </div>
               </div>
 
@@ -409,6 +631,19 @@ export default function EcoPage() {
                   >
                     {submitting ? 'Construindo...' : 'Construir'}
                   </button>
+                  
+                  {/* Botão Destruir: Aparece apenas se o prédio já existir na região */}
+                  {buildings.some(b => b.region_id === selectedBuilding.regionId && b.building_type === selectedBuilding.building.type) && (
+                    <button
+                      type="button"
+                      onClick={() => handleDestroy(selectedBuilding.regionId, selectedBuilding.building.type)}
+                      disabled={submitting}
+                      className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center"
+                      title="Destruir Edifício"
+                    >
+                      <IoTrash size={18} />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -417,7 +652,7 @@ export default function EcoPage() {
         </div>
       )}
 
-      {/* MODAL MILITAR */}
+      {/* MODAL MILITAR (Mantido) */}
       {selectedMilitary && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-opacity">
           <div className="bg-surface-card border border-surface-border rounded-xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">

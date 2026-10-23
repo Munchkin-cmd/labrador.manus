@@ -240,6 +240,15 @@ export default function PassaportePage() {
           <Row label="Regiões"         value={`${regionsCount}`} />
         </Section>
 
+        {/* ✅ NOVA SEÇÃO: INDICADORES SOCIOECONÔMICOS */}
+        <Section title="INDICADORES SOCIOECONÔMICOS">
+          <div className="bg-surface-input border border-surface-border rounded-lg p-3">
+            <Row label="IDH" value={Number((economy as any)?.idh || 0).toFixed(3)} />
+            <Row label="Cresc. Populacional" value={`+${Number((economy as any)?.population_growth || 0).toFixed(1)}%`} />
+            <Row label="Inflação" value={`${Number((economy as any)?.inflation || 0).toFixed(1)}%`} />
+          </div>
+        </Section>
+
         <Section title="STATUS">
           <div className="flex flex-col gap-4 pt-1 pb-1">
             <TrustBar trust={data.trust}           label="Confiança"   color="bg-green-500" />

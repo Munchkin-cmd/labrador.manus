@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react'
 import { useEco } from '@/hooks/useEco'
 import { useAuthStore } from '@/store/authStore'
 import { formatMoney, formatNumber } from '@/utils/format'
-import { Coins, Sprout, Pickaxe, Factory, Droplet, Landmark, Zap, ArrowRightLeft } from 'lucide-react'
+import { 
+  Coins, Sprout, Pickaxe, Factory, Droplet, Landmark, Zap, ArrowRightLeft,
+  Users, TrendingUp, AlertTriangle
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 
 export default function OrcamentoPage() {
@@ -30,20 +33,9 @@ export default function OrcamentoPage() {
   }, [country?.id])
 
   if (loading || loadingTax) return <Loading />
+  if (!economy) return null
 
-  // ✅ CORREÇÃO: Só bloqueia a tela se a economia ou os prédios não carregarem. 
-  // Se os impostos falharem, ele usa valores 0 por padrão.
-  if (!economy) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-white/50 p-6 text-center">
-        <p className="text-sm font-mono uppercase">Dados da economia não encontrados.</p>
-        <p className="text-xs mt-2">Tente recarregar a página.</p>
-      </div>
-    )
-  }
-
-  // ─── 1. RECEITAS BRUTAS (APENAS Renda, Propriedade e Manufatura) ──
-  // ✅ Usa 'taxes?.campo || 0' para evitar erro caso a tabela esteja vazia
+  // ─── 1. RECEITAS BRUTAS ──
   const incomeTax = Number(taxes?.income_tax || 0)
   const propertyTax = Number(taxes?.property_tax || 0)
   const manufacturingTax = Number(taxes?.manufacturing_tax || 0)
@@ -65,7 +57,7 @@ export default function OrcamentoPage() {
 
   const totalTurnRevenue = Object.values(turnValues).reduce((a, b) => a + b, 0)
 
-  // ─── 2. DESPESAS BRUTAS ──────────────────────────────────────
+  // ─── 2. DESPESAS BRUTAS ──
   const militaryMaintenance = Number(economy.expenses || 0) * 0.6
   const infraMaintenance = Number(economy.expenses || 0) * 0.4
 
@@ -76,15 +68,15 @@ export default function OrcamentoPage() {
 
   const totalTurnExpenses = Object.values(turnExpenses).reduce((a, b) => a + b, 0)
 
-  // ─── 3. COMÉRCIO EXTERIOR (Balança Comercial) ──────────────
+  // ─── 3. COMÉRCIO EXTERIOR ──
   const exports = Number(economy.exports || 0)
   const imports = Number(economy.imports || 0)
   const tradeBalance = exports - imports
 
-  // ─── 4. RESULTADO LÍQUIDO ────────────────────────────────────
+  // ─── 4. RESULTADO LÍQUIDO ──
   const netTurn = totalTurnRevenue - totalTurnExpenses
 
-  // ─── 5. BALANÇO DE RECURSOS (Produção vs. Consumo) ──────────
+  // ─── 5. BALANÇO DE RECURSOS ──
   const resources = {
     food: { label: 'Comida', icon: <Sprout size={16} />, prod: 0, cons: 0 },
     gold: { label: 'Ouro', icon: <Coins size={16} />, prod: 0, cons: 0 },
@@ -101,14 +93,13 @@ export default function OrcamentoPage() {
 
   ;(buildings || []).filter(b => b.is_built && b.is_active).forEach(b => {
     const cat = b.building_catalog as any
-    if (!cat) return; // ✅ Evita que a página quebre se o catálogo sumir
+    if (!cat) return; 
     
     const qty = Number(b.quantity || 1)
 
-    // ✅ Lê a coluna 'produces' e verifica se é energia ou recurso normal
+    // Produção
     if (cat.produces && cat.produces_qty > 0) {
       const resKey = cat.produces.toLowerCase()
-      
       if (resKey === 'energy' || resKey === 'energia') {
         energyProd += cat.produces_qty * qty
       } 
@@ -117,16 +108,10 @@ export default function OrcamentoPage() {
       }
     }
 
-    // ✅ Mapeamento de manutenção para TODOS os recursos
+    // Consumo (Manutenção)
     const maintenanceMap: Record<string, keyof typeof resources> = {
-      maint_food: 'food',
-      maint_gold: 'gold',
-      maint_iron: 'iron',
-      maint_wood: 'wood',
-      maint_uranium: 'uranium',
-      maint_steel: 'steel',
-      maint_coal: 'coal',
-      maint_oil: 'oil',
+      maint_food: 'food', maint_gold: 'gold', maint_iron: 'iron', maint_wood: 'wood',
+      maint_uranium: 'uranium', maint_steel: 'steel', maint_coal: 'coal', maint_oil: 'oil',
     }
 
     Object.entries(maintenanceMap).forEach(([dbField, resKey]) => {
@@ -136,27 +121,70 @@ export default function OrcamentoPage() {
       }
     })
 
-    // ✅ Consumo de energia e custo de energia em óleo/carvão
     if (cat.energy_cost > 0) {
-      resources.oil.cons += cat.energy_cost * qty * 0.5
-      resources.coal.cons += cat.energy_cost * qty * 0.5
       energyCons += cat.energy_cost * qty
     }
   })
 
   const energyBalance = energyProd - energyCons
 
-  // ─── RENDER ──────────────────────────────────────────────────
+  // ✅ VARIÁVEIS MACROECONÔMICAS
+  const idh = Number((economy as any).idh || 0)
+  const growth = Number((economy as any).population_growth || 0)
+  const inflation = Number((economy as any).inflation || 0)
+
+  // ─── RENDER ──
   return (
     <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6">
       
-      {/* TÍTULO PRINCIPAL */}
       <div className="flex items-center gap-2 mb-2 pl-1">
         <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
         <p className="text-xs font-bold tracking-widest text-white uppercase font-mono">Orçamento</p>
       </div>
 
-      {/* ─── RECEITAS BRUTAS ──────────────────────────────────── */}
+      {/* ✅ NOVA SEÇÃO: INDICADORES MACROECONÔMICOS */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-surface-card border border-surface-border rounded-lg p-4 shadow-lg flex items-center justify-between">
+          <div>
+            <p className="text-[10px] text-white/40 uppercase font-mono tracking-widest mb-1">IDH</p>
+            <p className="text-xl font-bold font-mono text-blue-400">{idh.toFixed(3)}</p>
+          </div>
+          <div className="p-2 bg-blue-500/10 rounded-lg">
+            <TrendingUp size={20} className="text-blue-400" />
+          </div>
+        </div>
+
+        <div className="bg-surface-card border border-surface-border rounded-lg p-4 shadow-lg flex items-center justify-between">
+          <div>
+            <p className="text-[10px] text-white/40 uppercase font-mono tracking-widest mb-1">Cresc. Populacional</p>
+            <p className="text-xl font-bold font-mono text-green-400">+{growth.toFixed(1)}%</p>
+          </div>
+          <div className="p-2 bg-green-500/10 rounded-lg">
+            <Users size={20} className="text-green-400" />
+          </div>
+        </div>
+
+        <div className="bg-surface-card border border-surface-border rounded-lg p-4 shadow-lg flex items-center justify-between">
+          <div>
+            <p className="text-[10px] text-white/40 uppercase font-mono tracking-widest mb-1">Inflação</p>
+            <p className={`text-xl font-bold font-mono ${inflation > 10 ? 'text-red-400' : 'text-yellow-400'}`}>
+              {inflation.toFixed(1)}%
+            </p>
+          </div>
+          <div className={`p-2 rounded-lg ${inflation > 10 ? 'bg-red-500/10' : 'bg-yellow-500/10'}`}>
+            <AlertTriangle size={20} className={inflation > 10 ? 'text-red-400' : 'text-yellow-400'} />
+          </div>
+        </div>
+      </div>
+
+      {/* ✅ AVISO DE IMPACTO DA INFLAÇÃO */}
+      {inflation > 0 && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-3 rounded-lg text-xs font-mono text-center flex items-center justify-center gap-2">
+          <AlertTriangle size={16} />
+          A inflação atual está encarecendo a construção civil em <strong>+{inflation.toFixed(1)}%</strong>.
+        </div>
+      )}
+
       <Section title="Receitas Brutas" color="bg-blue-500">
         <TableRow label="Imposto de Renda" value={turnValues.incomeTax} />
         <TableRow label="Imposto sobre Propriedade" value={turnValues.propertyTax} />
@@ -167,7 +195,6 @@ export default function OrcamentoPage() {
         </div>
       </Section>
 
-      {/* ─── DESPESAS BRUTAS ──────────────────────────────────── */}
       <Section title="Despesas Brutas" color="bg-red-500">
         <TableRow label="Manutenção Militar" value={turnExpenses.military} />
         <TableRow label="Manutenção de Infraestrutura" value={turnExpenses.infra} />
@@ -176,7 +203,6 @@ export default function OrcamentoPage() {
         </div>
       </Section>
 
-      {/* ─── COMÉRCIO EXTERIOR ─────────────────────────────────── */}
       <Section title="Comércio Exterior" color="bg-indigo-500">
         <TableRow label="Exportações" value={exports} icon={<ArrowRightLeft size={16} />} />
         <TableRow label="Importações" value={imports} />
@@ -190,7 +216,6 @@ export default function OrcamentoPage() {
         </div>
       </Section>
 
-      {/* ─── RESULTADO LÍQUIDO ────────────────────────────────── */}
       <Section title="Resultado Líquido" color="bg-green-500">
         <TableRow 
           label="Dinheiro" 
@@ -200,7 +225,6 @@ export default function OrcamentoPage() {
         />
       </Section>
 
-      {/* ─── BALANÇO DE RECURSOS (Produção vs. Consumo) ────────── */}
       <Section title="Utilização de Recursos (por turno)" color="bg-purple-500">
         {Object.entries(resources).map(([key, data]) => {
           const balance = data.prod - data.cons
