@@ -159,18 +159,18 @@ export default function NovoArtigoPage() {
       const fileName = `article_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`
       const filePath = `articles/${fileName}`
 
-      // 1. Faz o upload
+      // 1. Faz o upload para o Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('media')
         .upload(filePath, file, { cacheControl: '3600', upsert: false })
 
       if (uploadError) throw uploadError
 
-      // 2. Pega a URL pública
+      // 2. Pega a URL pública do arquivo
       const { data: urlData } = supabase.storage.from('media').getPublicUrl(filePath)
       const publicUrl = urlData.publicUrl
 
-      // 3. Define a tag HTML de acordo com o tipo
+      // 3. Define a tag HTML com base no tipo
       let htmlTag = ''
       if (uploadingType === 'image') {
         htmlTag = `\n<img src="${publicUrl}" alt="Imagem" class="rounded-lg max-w-full my-4 border border-white/10" />\n`
@@ -182,7 +182,7 @@ export default function NovoArtigoPage() {
         htmlTag = `\n<a href="${publicUrl}" target="_blank" class="text-primary underline my-4 inline-block font-bold">📄 Baixar Arquivo Anexado</a>\n`
       }
 
-      // 4. Insere no texto onde o cursor está
+      // 4. Insere a tag no texto onde o cursor está
       insertText(htmlTag, '')
       
     } catch (err: any) {
@@ -190,7 +190,7 @@ export default function NovoArtigoPage() {
     } finally {
       setUploadingMedia(false)
       setUploadingType(null)
-      // Limpa o input para permitir subir o mesmo arquivo de novo se quiser
+      // Limpa o input para permitir subir o mesmo arquivo de novo
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
@@ -204,8 +204,8 @@ export default function NovoArtigoPage() {
     setLoading(true); setError(''); setSuccess('')
     
     try {
-      // Como a mídia agora está dentro do texto (HTML), não precisamos mais das colunas image_url, etc.
-      // Mas se o seu banco exige elas, enviamos null.
+      // ✅ A mídia está dentro do content (HTML). 
+      // As colunas antigas recebem null para não dar erro.
       const payload: any = {
         country_id: country.id,
         title: form.title,
