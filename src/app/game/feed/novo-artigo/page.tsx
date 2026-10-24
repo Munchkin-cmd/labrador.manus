@@ -9,14 +9,14 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
-import LinkPreview from '@/components/LinkPreview' // ✅ IMPORT DO CARTÃO DE LINK
+import LinkPreview from '@/components/LinkPreview'
 import {
   ArrowLeft, Eye, Send, Bold, Italic, Underline,
   List, ListOrdered, Link as LinkIcon,
   Image, Video, Music, FileText, X, Loader2, Palette
 } from 'lucide-react'
 
-// ✅ Permite que o rehype-sanitize aceite as tags de cor, sublinhado e links
+// ✅ PERMITE TAGS DE MÍDIA E CORES NO SANITIZE
 const sanitizeSchema = {
   ...defaultSchema,
   attributes: {
@@ -24,8 +24,12 @@ const sanitizeSchema = {
     span: [...(defaultSchema?.attributes?.span || []), 'className', 'style'],
     u: [],
     a: [...(defaultSchema?.attributes?.a || []), 'target', 'rel', 'href'],
+    img: [...(defaultSchema?.attributes?.img || []), 'src', 'alt', 'width', 'height'],
+    video: [...(defaultSchema?.attributes?.video || []), 'src', 'controls', 'width', 'height'],
+    audio: [...(defaultSchema?.attributes?.audio || []), 'src', 'controls'],
+    source: [...(defaultSchema?.attributes?.source || []), 'src', 'type'],
   },
-  tagNames: [...(defaultSchema?.tagNames || []), 'u', 'span'],
+  tagNames: [...(defaultSchema?.tagNames || []), 'u', 'span', 'img', 'video', 'audio', 'source'],
 }
 
 export default function NovoArtigoPage() {
@@ -63,7 +67,7 @@ export default function NovoArtigoPage() {
     { name: 'Rosa', class: 'text-pink-400' },
   ]
 
-  // ─── FUNÇÕES DO EDITOR ──────────────────────────────────
+  // ─── FUNÇÕES DO EDITOR (CORRIGIDAS) ──────────────────────────────────
   function insertText(prefix: string = '', suffix: string = '') {
     const textarea = textareaRef.current
     if (!textarea) return
@@ -72,6 +76,8 @@ export default function NovoArtigoPage() {
     const end = textarea.selectionEnd
     const text = textarea.value
     const selected = text.substring(start, end)
+    
+    // Calcula o novo texto com base na seleção
     let newText = ''
     let cursorPos = 0
 
@@ -83,8 +89,10 @@ export default function NovoArtigoPage() {
       cursorPos = start + prefix.length
     }
 
-    setForm({ ...form, content: newText })
+    // ✅ CORREÇÃO: Usa prev para não perder o estado e atualiza o valor
+    setForm(prev => ({ ...prev, content: newText }))
 
+    // Devolve o foco e a posição do cursor
     setTimeout(() => {
       textarea.focus()
       textarea.selectionStart = cursorPos
@@ -95,6 +103,7 @@ export default function NovoArtigoPage() {
   function insertBold() { insertText('**', '**') }
   function insertItalic() { insertText('*', '*') }
   function insertUnderline() { insertText('<u>', '</u>') }
+  function insertQuote() { insertText('> ', '') }
 
   function insertHeading() {
     const textarea = textareaRef.current
@@ -106,11 +115,10 @@ export default function NovoArtigoPage() {
     const currentLine = text.substring(lineStart, lineEnd)
     const newLine = currentLine.startsWith('## ') ? currentLine.substring(3) : '## ' + currentLine
     const newText = text.substring(0, lineStart) + newLine + text.substring(lineEnd)
-    setForm({ ...form, content: newText })
+    
+    setForm(prev => ({ ...prev, content: newText }))
     setTimeout(() => { textarea.focus(); textarea.selectionStart = textarea.selectionEnd = lineStart + newLine.length }, 10)
   }
-
-  function insertQuote() { insertText('> ', '') }
 
   function insertList() {
     const textarea = textareaRef.current
@@ -121,7 +129,8 @@ export default function NovoArtigoPage() {
     const currentLine = text.substring(lineStart, start)
     const newLine = currentLine.trim().startsWith('- ') ? currentLine : `- ${currentLine}`
     const newText = text.substring(0, lineStart) + '\n' + newLine + text.substring(start)
-    setForm({ ...form, content: newText })
+    
+    setForm(prev => ({ ...prev, content: newText }))
     setTimeout(() => { textarea.focus(); }, 10)
   }
 
@@ -134,7 +143,8 @@ export default function NovoArtigoPage() {
     const currentLine = text.substring(lineStart, start)
     const newLine = currentLine.trim().match(/^\d+\. /) ? currentLine : `1. ${currentLine}`
     const newText = text.substring(0, lineStart) + '\n' + newLine + text.substring(start)
-    setForm({ ...form, content: newText })
+    
+    setForm(prev => ({ ...prev, content: newText }))
     setTimeout(() => { textarea.focus(); }, 10)
   }
 
@@ -162,11 +172,11 @@ export default function NovoArtigoPage() {
       const { data: urlData } = supabase.storage.from('media').getPublicUrl(filePath)
       const publicUrl = urlData.publicUrl
 
-      setForm({
-        ...form,
+      setForm(prev => ({
+        ...prev,
         [columnName]: publicUrl,
         media_type: mediaType as 'image' | 'video' | 'audio' | 'file',
-      })
+      }))
       setMediaModal(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao fazer upload')
@@ -177,7 +187,7 @@ export default function NovoArtigoPage() {
 
   function insertMediaDirectly(url: string, type: 'image' | 'video' | 'audio' | 'file') {
     const columnName = type === 'image' ? 'image_url' : type === 'video' ? 'video_url' : type === 'audio' ? 'audio_url' : 'file_url'
-    setForm({ ...form, [columnName]: url, media_type: type })
+    setForm(prev => ({ ...prev, [columnName]: url, media_type: type }))
   }
 
   // ─── MODAL DE MÍDIA ────────────────────────────────────
@@ -216,6 +226,7 @@ export default function NovoArtigoPage() {
         image_url: form.image_url || null,
         video_url: form.video_url || null,
         file_url: form.file_url || null,
+        // Se a tabela tiver audio_url, adicione aqui. Se não tiver, precisará criar.
         media_type: form.media_type,
         likes: 0, dislikes: 0,
       })
@@ -267,18 +278,20 @@ export default function NovoArtigoPage() {
         <div>
           <label className="text-white/60 text-sm font-semibold block mb-1.5">Conteúdo</label>
           <div className="flex flex-wrap gap-1 mb-2 bg-[#0a0a0a] border border-white/10 rounded-xl p-2">
-            <button onClick={insertBold} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Negrito"><Bold size={18} /></button>
-            <button onClick={insertItalic} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Itálico"><Italic size={18} /></button>
-            <button onClick={insertUnderline} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Sublinhado"><Underline size={18} /></button>
+            {/* ✅ CORREÇÃO: onMouseDown previne a perda de foco do textarea */}
+            <button onMouseDown={(e) => e.preventDefault()} onClick={insertBold} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Negrito"><Bold size={18} /></button>
+            <button onMouseDown={(e) => e.preventDefault()} onClick={insertItalic} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Itálico"><Italic size={18} /></button>
+            <button onMouseDown={(e) => e.preventDefault()} onClick={insertUnderline} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Sublinhado"><Underline size={18} /></button>
             <div className="w-px bg-white/10 mx-1" />
-            <button onClick={insertHeading} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white text-xs font-bold" title="Título">H</button>
-            <button onClick={insertQuote} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Citação"><FileText size={18} /></button>
+            <button onMouseDown={(e) => e.preventDefault()} onClick={insertHeading} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white text-xs font-bold" title="Título">H</button>
+            <button onMouseDown={(e) => e.preventDefault()} onClick={insertQuote} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Citação"><FileText size={18} /></button>
             <div className="w-px bg-white/10 mx-1" />
-            <button onClick={insertList} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Lista"><List size={18} /></button>
-            <button onClick={insertNumberedList} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Lista Numerada"><ListOrdered size={18} /></button>
+            <button onMouseDown={(e) => e.preventDefault()} onClick={insertList} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Lista"><List size={18} /></button>
+            <button onMouseDown={(e) => e.preventDefault()} onClick={insertNumberedList} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Lista Numerada"><ListOrdered size={18} /></button>
             <div className="w-px bg-white/10 mx-1" />
-            <button onClick={() => setMediaModal('image')} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white"><Image size={18} /></button>
-            <button onClick={insertLink} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Inserir link"><LinkIcon size={18} /></button>
+            <button onMouseDown={(e) => e.preventDefault()} onClick={() => setMediaModal('image')} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Inserir Imagem"><Image size={18} /></button>
+            <button onMouseDown={(e) => e.preventDefault()} onClick={() => setMediaModal('audio')} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Inserir Áudio"><Music size={18} /></button>
+            <button onMouseDown={(e) => e.preventDefault()} onClick={insertLink} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white" title="Inserir link"><LinkIcon size={18} /></button>
           </div>
 
           <textarea ref={textareaRef} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="Escreva aqui..." className="w-full bg-[#0a0a0a] border border-white/10 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-primary resize-y min-h-[300px] font-mono text-sm" />
@@ -290,6 +303,11 @@ export default function NovoArtigoPage() {
             <div className="bg-black/30 rounded-lg p-4 max-h-96 overflow-y-auto">
               <h2 className="text-xl font-bold text-white mb-2">{form.title || 'Título'}</h2>
               
+              {/* ✅ NOVO: Exibe a mídia anexada antes do texto */}
+              {form.image_url && <img src={form.image_url} className="max-w-full rounded-lg my-4 border border-white/10" alt="Preview" />}
+              {form.video_url && <video src={form.video_url} controls className="max-w-full rounded-lg my-4 border border-white/10" />}
+              {form.audio_url && <audio src={form.audio_url} controls className="max-w-full rounded-lg my-4 border border-white/10" />}
+
               {/* ✅ PREVIEW COM CORES, LISTAS E CARTÃO DE LINK */}
               <ReactMarkdown 
                 remarkPlugins={[remarkGfm]} 
