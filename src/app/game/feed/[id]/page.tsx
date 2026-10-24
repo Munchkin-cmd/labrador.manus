@@ -20,7 +20,6 @@ import { Grid } from '@giphy/react-components'
 
 const gf = new GiphyFetch(process.env.NEXT_PUBLIC_GIPHY_API_KEY || '')
 
-// ✅ Permite HTML no artigo (cores, sublinhado, links)
 const sanitizeSchema = {
   ...defaultSchema,
   attributes: {
@@ -32,7 +31,6 @@ const sanitizeSchema = {
   tagNames: [...(defaultSchema.tagNames || []), 'u', 'span'],
 }
 
-// ✅ Função auxiliar para extrair o link da bandeira
 function getFlagUrl(countryData: any) {
   if (!countryData?.users) return null;
   if (Array.isArray(countryData.users)) return countryData.users[0]?.flag_url;
@@ -182,7 +180,6 @@ export default function ArtigoPage() {
   return (
     <div className="max-w-4xl mx-auto pb-24 px-2 sm:px-4 pt-4">
       
-      {/* Cabeçalho */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <Link href="/game/feed" className="text-white/50 hover:text-white bg-white/5 hover:bg-white/10 p-2 rounded-full transition-colors -ml-1">
@@ -202,11 +199,9 @@ export default function ArtigoPage() {
         )}
       </div>
 
-      {/* Conteúdo do artigo */}
       <div className="bg-white/[0.03] backdrop-blur-md rounded-2xl p-5 sm:p-6 border border-white/[0.06] shadow-xl">
         <div className="flex items-center gap-3 mb-4">
           
-          {/* Avatar da Bandeira */}
           <div className="w-9 h-9 rounded-full overflow-hidden border border-white/10 shrink-0 flex items-center justify-center bg-black/50 shadow-sm">
             {getFlagUrl(article.countries) ? (
               <img src={getFlagUrl(article.countries)!} alt="Flag" className="w-full h-full object-cover" />
@@ -227,42 +222,27 @@ export default function ArtigoPage() {
         
         <h2 className="text-white font-black text-2xl sm:text-3xl leading-snug mb-5">{article.title}</h2>
         
-        {/* ✅ NOVO: RENDERIZAÇÃO DA MÍDIA ANEXADA */}
+        {/* ✅ NOVO: RENDERIZAÇÃO COMPLETA DA MÍDIA (IMAGEM, VÍDEO, ÁUDIO, ARQUIVO) */}
         <div className="mb-6 flex flex-col gap-4">
           {article.image_url && (
-            <img 
-              src={article.image_url} 
-              alt="Imagem do Artigo" 
-              className="w-full rounded-xl border border-white/10 shadow-lg object-cover max-h-[500px]" 
-            />
+            <img src={article.image_url} alt="Imagem do Artigo" className="w-full rounded-xl border border-white/10 shadow-lg object-cover max-h-[500px]" />
           )}
           {article.video_url && (
-            <video 
-              src={article.video_url} 
-              controls 
-              className="w-full rounded-xl border border-white/10 shadow-lg max-h-[500px]" 
-            />
+            <video src={article.video_url} controls className="w-full rounded-xl border border-white/10 shadow-lg max-h-[500px]" />
           )}
           {article.audio_url && (
-            <audio 
-              src={article.audio_url} 
-              controls 
-              className="w-full rounded-xl border border-white/10 shadow-lg" 
-            />
+            <div className="bg-surface-input border border-surface-border rounded-xl p-3 shadow-lg">
+              <p className="text-[10px] text-white/50 uppercase font-mono tracking-widest mb-2 flex items-center gap-2">🎵 Áudio do Artigo</p>
+              <audio src={article.audio_url} controls className="w-full" />
+            </div>
           )}
           {article.file_url && (
-            <a 
-              href={article.file_url} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="inline-flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary font-bold py-3 px-4 rounded-xl border border-primary/20 transition-colors w-fit"
-            >
+            <a href={article.file_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary font-bold py-3 px-4 rounded-xl border border-primary/20 transition-colors w-fit">
               <FileText size={18} /> Baixar Arquivo Anexado
             </a>
           )}
         </div>
 
-        {/* Renderiza HTML (cores, links) */}
         <div className="text-slate-200 text-sm sm:text-base max-w-none prose prose-invert prose-p:leading-relaxed">
           <ReactMarkdown 
             remarkPlugins={[remarkGfm]} 
@@ -291,7 +271,7 @@ export default function ArtigoPage() {
         </div>
       </div>
 
-      {/* ─── COMENTÁRIOS ────────────────────────────────────── */}
+      {/* COMENTÁRIOS (MANTIDO) */}
       <div className="mt-6 bg-white/[0.03] backdrop-blur-md rounded-2xl p-5 sm:p-6 border border-white/[0.06] shadow-xl">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-sm font-bold tracking-widest text-white/60 uppercase">Comentários ({comments.length})</h3>
@@ -356,7 +336,7 @@ export default function ArtigoPage() {
         </div>
       </div>
 
-      {/* ─── MODAL DE GIF (GIPHY SDK) ────────────────────────── */}
+      {/* MODAL DE GIF (MANTIDO) */}
       {showGifModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#0f172a] border border-white/10 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -409,7 +389,6 @@ function CommentItem({ comment, onReply, isReply = false }: {
     <div className={`flex flex-col gap-2 ${isReply ? 'ml-4 sm:ml-6 border-l-2 border-primary/20 pl-3 sm:pl-4' : ''}`}>
       <div className="flex gap-3">
         
-        {/* Avatar da Bandeira do Comentário */}
         <div className="w-8 h-8 rounded-full overflow-hidden border border-white/10 shrink-0 flex items-center justify-center bg-black/50 mt-0.5 shadow-sm">
           {getFlagUrl(comment.countries) ? (
             <img src={getFlagUrl(comment.countries)!} alt="Flag" className="w-full h-full object-cover" />
