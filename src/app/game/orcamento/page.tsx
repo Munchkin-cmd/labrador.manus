@@ -4,17 +4,13 @@ import { useEffect, useState } from 'react'
 import { useEco } from '@/hooks/useEco'
 import { useAuthStore } from '@/store/authStore'
 import { formatMoney, formatNumber } from '@/utils/format'
-import { 
-  Coins, Sprout, Pickaxe, Factory, Droplet, Landmark, Zap, ArrowRightLeft,
-  Users, TrendingUp, AlertTriangle
-} from 'lucide-react'
+import { Coins, Sprout, Pickaxe, Factory, Droplet, Landmark, Zap, ArrowRightLeft, Users, TrendingUp, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 
 export default function OrcamentoPage() {
   const { country } = useAuthStore()
   const { economy, buildings, loading } = useEco()
 
-  // ─── BUSCAR IMPOSTOS ────────────────────────────────────────
   const [taxes, setTaxes] = useState<any>(null)
   const [loadingTax, setLoadingTax] = useState(true)
 
@@ -35,23 +31,21 @@ export default function OrcamentoPage() {
   if (loading || loadingTax) return <Loading />
   if (!economy) return null
 
-  // ─── 1. RECEITAS BRUTAS ──
+  // ✅ 1. RECEITAS BRUTAS (Regra: 1% = 100 Milhões)
   const incomeTax = Number(taxes?.income_tax || 0)
   const propertyTax = Number(taxes?.property_tax || 0)
   const manufacturingTax = Number(taxes?.manufacturing_tax || 0)
+  
+  const taxMultiplier = 100000000 // 100 Milhões
 
   const grossProfitPerTurn = (buildings || [])
     .filter(b => b.is_built && b.is_active)
     .reduce((acc, b) => acc + (Number((b.building_catalog as any)?.profit_money || 0) * Number(b.quantity || 0)), 0)
 
-  const totalRevenue = Number(economy.revenue || 0)
-  const taxBase = totalRevenue * 0.15
-  const propertyBase = totalRevenue * 0.05
-
   const turnValues = {
-    incomeTax: taxBase * (incomeTax / 100),
-    propertyTax: propertyBase * (propertyTax / 100),
-    manufacturingTax: taxBase * (manufacturingTax / 100),
+    incomeTax: incomeTax * taxMultiplier,
+    propertyTax: propertyTax * taxMultiplier,
+    manufacturingTax: manufacturingTax * taxMultiplier,
     grossProfit: grossProfitPerTurn,
   }
 
@@ -97,7 +91,6 @@ export default function OrcamentoPage() {
     
     const qty = Number(b.quantity || 1)
 
-    // Produção
     if (cat.produces && cat.produces_qty > 0) {
       const resKey = cat.produces.toLowerCase()
       if (resKey === 'energy' || resKey === 'energia') {
@@ -108,7 +101,6 @@ export default function OrcamentoPage() {
       }
     }
 
-    // Consumo (Manutenção)
     const maintenanceMap: Record<string, keyof typeof resources> = {
       maint_food: 'food', maint_gold: 'gold', maint_iron: 'iron', maint_wood: 'wood',
       maint_uranium: 'uranium', maint_steel: 'steel', maint_coal: 'coal', maint_oil: 'oil',
@@ -128,12 +120,11 @@ export default function OrcamentoPage() {
 
   const energyBalance = energyProd - energyCons
 
-  // ✅ VARIÁVEIS MACROECONÔMICAS
+  // Indicadores Macroeconômicos
   const idh = Number((economy as any).idh || 0)
   const growth = Number((economy as any).population_growth || 0)
   const inflation = Number((economy as any).inflation || 0)
 
-  // ─── RENDER ──
   return (
     <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6">
       
@@ -142,7 +133,7 @@ export default function OrcamentoPage() {
         <p className="text-xs font-bold tracking-widest text-white uppercase font-mono">Orçamento</p>
       </div>
 
-      {/* ✅ NOVA SEÇÃO: INDICADORES MACROECONÔMICOS */}
+      {/* INDICADORES MACROECONÔMICOS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-surface-card border border-surface-border rounded-lg p-4 shadow-lg flex items-center justify-between">
           <div>
@@ -177,7 +168,6 @@ export default function OrcamentoPage() {
         </div>
       </div>
 
-      {/* ✅ AVISO DE IMPACTO DA INFLAÇÃO */}
       {inflation > 0 && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-3 rounded-lg text-xs font-mono text-center flex items-center justify-center gap-2">
           <AlertTriangle size={16} />

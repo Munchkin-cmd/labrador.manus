@@ -523,16 +523,16 @@ export default function StatePage() {
           )}
         </div>
 
-        {/* Nome, Capital e Lema (Direita) */}
+        {/* Nome, Capital e Lema (Direita) - ✅ CORRIGIDO com line-clamp-2 */}
         <div className="flex flex-col items-end text-right flex-1 min-w-0">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white uppercase tracking-wider leading-tight truncate">
+          <h2 className="text-xl sm:text-2xl font-bold text-white uppercase tracking-wider leading-tight line-clamp-2 break-words">
             {data.name}
           </h2>
           <p className="text-white/50 text-[11px] sm:text-xs font-mono tracking-widest mt-1">
             CAPITAL: <span className="text-white/80 font-bold">{data.capital}</span>
           </p>
           {data.motto && (
-            <p className="text-white/30 text-[10px] sm:text-[11px] font-mono italic mt-1 truncate">
+            <p className="text-white/30 text-[10px] sm:text-[11px] font-mono italic mt-1 truncate max-w-full">
               "{data.motto}"
             </p>
           )}
