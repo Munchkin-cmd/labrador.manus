@@ -351,7 +351,6 @@ export default function PaisPage() {
     }
   }
 
-  // ✅ CORREÇÃO: Adicionado preventDefault para garantir que não recarregue
   async function handleSendMoney(e?: React.MouseEvent) {
     if (e) e.preventDefault()
     if (!user || !myCountry || !country || isMyCountry) return
@@ -385,7 +384,6 @@ export default function PaisPage() {
 
       setRelation(prev => prev ? { ...prev, relation_score: newScore } : null)
       
-      // ✅ Mensagem solicitada
       setSuccess(`✅ Doação realizada com sucesso! Relação melhorou (+20).`)
       if (economy) {
         setEconomy({ ...economy, money: (economy.money || 0) - amount })
@@ -806,7 +804,8 @@ export default function PaisPage() {
             <div className="flex items-center gap-2 mb-3 text-white/40 text-xs font-bold tracking-widest uppercase">
               <FileText size={14} /> ARTIGO EM DESTAQUE
             </div>
-            <Link href={`/game/noticias/${topArticle.id}`} className="block group">
+            {/* ✅ CORREÇÃO DO LINK AQUI: Trocado de /game/noticias/ para /game/feed/ */}
+            <Link href={`/game/feed/${topArticle.id}`} className="block group">
               <div className="bg-black/40 rounded-xl p-4 border border-white/5 group-hover:border-primary/50 transition-colors">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded font-bold uppercase tracking-wider">{topArticle.category}</span>
