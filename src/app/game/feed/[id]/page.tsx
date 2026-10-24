@@ -10,7 +10,7 @@ import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import { formatTime } from '@/utils/format'
-import { ArrowLeft, Trash2, Pencil, Image, X, AlertCircle, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Trash2, Pencil, Image, X, AlertCircle, CheckCircle, FileText } from 'lucide-react'
 
 import LinkPreview from '@/components/LinkPreview'
 
@@ -180,7 +180,6 @@ export default function ArtigoPage() {
   if (!article) return <div className="p-8 text-center text-white/40">Artigo não encontrado.</div>
 
   return (
-    // ✅ Layout expandido (px-2 no celular)
     <div className="max-w-4xl mx-auto pb-24 px-2 sm:px-4 pt-4">
       
       {/* Cabeçalho */}
@@ -228,6 +227,41 @@ export default function ArtigoPage() {
         
         <h2 className="text-white font-black text-2xl sm:text-3xl leading-snug mb-5">{article.title}</h2>
         
+        {/* ✅ NOVO: RENDERIZAÇÃO DA MÍDIA ANEXADA */}
+        <div className="mb-6 flex flex-col gap-4">
+          {article.image_url && (
+            <img 
+              src={article.image_url} 
+              alt="Imagem do Artigo" 
+              className="w-full rounded-xl border border-white/10 shadow-lg object-cover max-h-[500px]" 
+            />
+          )}
+          {article.video_url && (
+            <video 
+              src={article.video_url} 
+              controls 
+              className="w-full rounded-xl border border-white/10 shadow-lg max-h-[500px]" 
+            />
+          )}
+          {article.audio_url && (
+            <audio 
+              src={article.audio_url} 
+              controls 
+              className="w-full rounded-xl border border-white/10 shadow-lg" 
+            />
+          )}
+          {article.file_url && (
+            <a 
+              href={article.file_url} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="inline-flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary font-bold py-3 px-4 rounded-xl border border-primary/20 transition-colors w-fit"
+            >
+              <FileText size={18} /> Baixar Arquivo Anexado
+            </a>
+          )}
+        </div>
+
         {/* Renderiza HTML (cores, links) */}
         <div className="text-slate-200 text-sm sm:text-base max-w-none prose prose-invert prose-p:leading-relaxed">
           <ReactMarkdown 
@@ -325,7 +359,6 @@ export default function ArtigoPage() {
       {/* ─── MODAL DE GIF (GIPHY SDK) ────────────────────────── */}
       {showGifModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          {/* ✅ Fundo do modal atualizado para azul escuro */}
           <div className="bg-[#0f172a] border border-white/10 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-white font-bold text-lg">🎨 GIFs & Stickers</h3>
