@@ -94,7 +94,8 @@ export default function MercadoPage() {
   if (loading) return <Loading />
 
   return (
-    <div className="flex flex-col gap-4 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6">
+    // ✅ pt-20 (80px) garante que o conteúdo comece abaixo do Header fixo
+    <div className="flex flex-col gap-4 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-20">
 
       {/* ─── TABS ───────────────────────────────────────────── */}
       <div className="flex border-b border-surface-border mb-2">

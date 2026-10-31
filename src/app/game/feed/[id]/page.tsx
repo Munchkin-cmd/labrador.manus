@@ -8,8 +8,8 @@ import { useAuthStore } from '@/store/authStore'
 import { useFeed, Comment } from '@/hooks/useFeed'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import remarkBreaks from 'remark-breaks' // ✅ RESPEITA OS "ENTER"
-import rehypeRaw from 'rehype-raw' // ✅ PERMITE AS TAGS HTML DE MÍDIA
+import remarkBreaks from 'remark-breaks'
+import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import { formatTime } from '@/utils/format'
 import { ArrowLeft, Trash2, Pencil, Image, X, AlertCircle, CheckCircle } from 'lucide-react'
@@ -190,7 +190,8 @@ export default function ArtigoPage() {
   if (!article) return <div className="p-8 text-center text-white/40">Artigo não encontrado.</div>
 
   return (
-    <div className="max-w-4xl mx-auto pb-24 px-2 sm:px-4 pt-4">
+    // ✅ CORREÇÃO AQUI: pt-4 alterado para pt-20
+    <div className="max-w-4xl mx-auto pb-24 px-2 sm:px-4 pt-20">
       
       {/* HEADER */}
       <div className="flex items-center justify-between mb-4">
@@ -236,7 +237,7 @@ export default function ArtigoPage() {
         {/* TÍTULO */}
         <h2 className="text-white font-black text-2xl sm:text-3xl leading-snug mb-5">{article.title}</h2>
         
-        {/* ✅ TEXTO COM MÍDIA EMBUTIDA (O rehypeRaw vai transformar as tags em imagens/vídeos) */}
+        {/* ✅ TEXTO COM MÍDIA EMBUTIDA */}
         <div className="text-slate-200 text-sm sm:text-base max-w-none prose prose-invert prose-p:leading-relaxed whitespace-pre-wrap">
           <ReactMarkdown 
             remarkPlugins={[remarkGfm, remarkBreaks]}
@@ -248,7 +249,6 @@ export default function ArtigoPage() {
               li: ({node, ...props}) => <li {...props} className="mb-1" />,
               a: ({node, href, children, ...props}) => {
                 if (!href) return <span {...props}>{children}</span>
-                // Links normais viram preview, mas links de mídia (img, video) não passam por aqui no Markdown.
                 return <LinkPreview url={href}>{children}</LinkPreview>
               }
             }}

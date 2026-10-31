@@ -19,6 +19,8 @@ interface CountryInfo {
   capital: string
   terrain: string
   is_active: boolean
+  // ✅ Adicionado para receber a flag personalizada
+  users?: { flag_url: string | null } | { flag_url: string | null }[] | null
 }
  
 const TERRAIN_COLORS: Record<string, string> = {
@@ -46,11 +48,12 @@ export default function MapaPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
  
   useEffect(() => {
+    // ✅ Query atualizada para puxar o flag_url da tabela users
     supabase.from('countries')
-      .select('id, name, slug, flag_emoji, capital, terrain, is_active')
+      .select('id, name, slug, flag_emoji, capital, terrain, is_active, users(flag_url)')
       .order('name')
       .then(({ data }) => { 
-        setCountries(data ?? []); 
+        setCountries((data as any) ?? []); 
         setLoading(false) 
       })
   }, [])
@@ -143,61 +146,77 @@ export default function MapaPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-2 pb-20">
-              {filtered.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => setSelected(selected?.id === c.id ? null : c)}
-                  className={`bg-surface-card border rounded-xl p-3 text-left transition-all
-                              ${selected?.id === c.id 
-                                ? 'border-primary bg-primary/5 shadow-[0_0_15px_rgba(59,130,246,0.15)]' 
-                                : 'border-surface-border hover:border-primary/40 hover:bg-white/5'}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl drop-shadow-md">{c.flag_emoji}</span>
-                    <div className="flex-1 min-w-0">
-                      <Link 
-                        href={`/game/pais/${c.slug}`}
-                        className="text-white font-bold text-xs uppercase tracking-wider truncate hover:text-primary transition-colors block mb-0.5"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {c.name}
-                      </Link>
-                      <p className="text-white/50 text-[10px] font-mono">{c.capital}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5">
-                      <span className={`text-[9px] font-bold font-mono uppercase tracking-widest px-2 py-0.5 rounded border ${TERRAIN_COLORS[c.terrain]}`}>
-                        {c.terrain}
-                      </span>
-                      {c.is_active && (
-                        <span className="text-[9px] text-green-400 font-bold font-mono uppercase tracking-widest flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> ativo
-                        </span>
-                      )}
-                    </div>
-                  </div>
- 
-                  {selected?.id === c.id && (
-                    <div className="mt-3 pt-3 border-t border-surface-border text-[10px] font-mono text-white/60 flex flex-col gap-1.5">
-                      <p>⛏️ RECURSOS: <span className="text-white/80">{TERRAIN_RESOURCES[c.terrain]}</span></p>
-                      <p>⚙️ + AÇO (via Siderúrgica + Ferro em qualquer terreno)</p>
-                      
-                      {c.is_active ? (
-                        <p className="text-green-400 font-bold mt-1 flex items-center gap-1">✅ PAÍS COM JOGADOR ATIVO</p>
+              {filtered.map(c => {
+                // ✅ Lógica para verificar se tem flag_url
+                const userData = c.users;
+                const flagUrl = Array.isArray(userData) ? userData[0]?.flag_url : userData?.flag_url;
+
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelected(selected?.id === c.id ? null : c)}
+                    className={`bg-surface-card border rounded-xl p-3 text-left transition-all
+                                ${selected?.id === c.id 
+                                  ? 'border-primary bg-primary/5 shadow-[0_0_15px_rgba(59,130,246,0.15)]' 
+                                  : 'border-surface-border hover:border-primary/40 hover:bg-white/5'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* ✅ Renderiza a imagem da bandeira ou o emoji */}
+                      {flagUrl ? (
+                        <img 
+                          src={flagUrl} 
+                          alt={c.name} 
+                          className="w-8 h-8 rounded-full object-cover border border-white/20 shadow-md shrink-0" 
+                        />
                       ) : (
-                        <p className="text-white/40 font-bold mt-1 flex items-center gap-1">⚪ DISPONÍVEL PARA JOGADORES</p>
+                        <span className="text-2xl drop-shadow-md shrink-0">{c.flag_emoji}</span>
                       )}
                       
-                      <Link 
-                        href={`/game/pais/${c.slug}`}
-                        className="mt-2 text-primary hover:text-primary-light text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-1 bg-primary/10 border border-primary/20 py-2 rounded-lg"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        👁️ Ver perfil do país →
-                      </Link>
+                      <div className="flex-1 min-w-0">
+                        <Link 
+                          href={`/game/pais/${c.slug}`}
+                          className="text-white font-bold text-xs uppercase tracking-wider truncate hover:text-primary transition-colors block mb-0.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {c.name}
+                        </Link>
+                        <p className="text-white/50 text-[10px] font-mono">{c.capital}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5">
+                        <span className={`text-[9px] font-bold font-mono uppercase tracking-widest px-2 py-0.5 rounded border ${TERRAIN_COLORS[c.terrain]}`}>
+                          {c.terrain}
+                        </span>
+                        {c.is_active && (
+                          <span className="text-[9px] text-green-400 font-bold font-mono uppercase tracking-widest flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> ativo
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </button>
-              ))}
+ 
+                    {selected?.id === c.id && (
+                      <div className="mt-3 pt-3 border-t border-surface-border text-[10px] font-mono text-white/60 flex flex-col gap-1.5">
+                        <p>⛏️ RECURSOS: <span className="text-white/80">{TERRAIN_RESOURCES[c.terrain]}</span></p>
+                        <p>⚙️ + AÇO (via Siderúrgica + Ferro em qualquer terreno)</p>
+                        
+                        {c.is_active ? (
+                          <p className="text-green-400 font-bold mt-1 flex items-center gap-1">✅ PAÍS COM JOGADOR ATIVO</p>
+                        ) : (
+                          <p className="text-white/40 font-bold mt-1 flex items-center gap-1">⚪ DISPONÍVEL PARA JOGADORES</p>
+                        )}
+                        
+                        <Link 
+                          href={`/game/pais/${c.slug}`}
+                          className="mt-2 text-primary hover:text-primary-light text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-1 bg-primary/10 border border-primary/20 py-2 rounded-lg"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          👁️ Ver perfil do país →
+                        </Link>
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>

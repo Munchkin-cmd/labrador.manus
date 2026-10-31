@@ -1,11 +1,30 @@
 // src/app/(auth)/layout.tsx
 'use client'
 
-// 1. Definimos a lista de bandeiras (menos repetição, mais variedade)
+// 1. Lista de bandeiras personalizada
 const FLAGS = [
-  '🇺🇸', '🇧🇷', '🇷🇺', '🇨🇳', '🇩🇪', '🇬🇧', '🇯🇵', '🇨🇦', '🇦🇺', '🇿🇦',
-  '🇫🇷', '🇮🇳', '🇮🇹', '🇪🇸', '🇲🇽', '🇦🇷', '🇰🇷', '🇸🇦', '🇹🇷', '🇮🇩',
-  '🇳🇬', '🇪🇬', '🇮🇷', '🇵🇰', '🇳🇱', '🇨🇭', '🇸🇪', '🇳🇴', '🇵🇱', '🇺🇦'
+  '🇨🇦', // Canadá
+  '🇺🇸', // Estados Unidos
+  '🇬🇧', // Reino Unido
+  '🇫🇷', // França
+  '🇸🇪', // Suécia
+  '🇫🇮', // Finlândia
+  '🇪🇸', // Espanha
+  '🇮🇸', // Islândia
+  '🇮🇪', // Irlanda
+  '🇳🇴', // Noruega
+  '🇰🇷', // Coreia do Sul
+  '🇯🇵', // Japão
+  '🇦🇺', // Austrália
+  '🇳🇿', // Nova Zelândia
+  '🇨🇿', // República Tcheca
+  '🇸🇮', // Eslovênia
+  '🇦🇹', // Áustria
+  '🇨🇭', // Suíça
+  '🇱🇺', // Luxemburgo
+  '🇧🇪', // Bélgica
+  '🇳🇱', // Holanda
+  '🇺🇾'  // Uruguai
 ]
 
 // 2. Geramos as posições FORA do componente. 

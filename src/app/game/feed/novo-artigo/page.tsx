@@ -233,7 +233,8 @@ export default function NovoArtigoPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto pb-24 px-4 pt-4">
+    // ✅ CORREÇÃO AQUI: pt-4 alterado para pt-20 para compensar o Header fixo
+    <div className="max-w-4xl mx-auto pb-24 px-4 pt-20">
       <div className="flex items-center gap-4 mb-6">
         <Link href="/game/feed" className="text-white/50 hover:text-white transition-colors p-2 -ml-2"><ArrowLeft size={24} /></Link>
         <h1 className="text-2xl font-bold text-white">Novo Artigo</h1>

@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
 import { Database } from '@/types/database'
 import { 
-  ArrowLeft, Coins, Shield, Landmark, Flag, Crown, Send, X, Building2,
+  ArrowLeft, Shield, Landmark, Flag, Crown, Send, X, Building2,
   Package, Trophy, Swords, Ban, FileText, ChevronRight
 } from 'lucide-react'
 import { formatMoney, formatNumber } from '@/utils/format'
@@ -33,12 +33,6 @@ const DIPLOMATIC_MESSAGES = [
   { id: 'insult', title: '🤬 Insulto Grave', content: 'Vocês são um bando de incompetentes e a sua liderança é um lixo! Não passam de um país de terceira categoria!', effect_relation: -50, effect_approval: -20, effect_trust: -30 },
   { id: 'threat', title: '⚡ Ameaça de Guerra', content: 'Seu país está brincando com fogo. Se continuar com essa atitude, não hesitaremos em usar todos os meios necessários para proteger nossos interesses.', effect_relation: -40, effect_approval: -15, effect_trust: -20 },
 ]
-
-type RpcResponse = {
-  success: boolean
-  message?: string
-  error?: string
-}
 
 export default function PaisPage() {
   const params = useParams()
@@ -235,6 +229,7 @@ export default function PaisPage() {
           country_b_id, 
           status, 
           sanctions_active,
+          relation_score,
           country_a:countries!diplomacy_country_a_id_fkey(id, name, flag_emoji, slug),
           country_b:countries!diplomacy_country_b_id_fkey(id, name, flag_emoji, slug)
         `)
@@ -248,7 +243,8 @@ export default function PaisPage() {
           const isA = r.country_a_id === countryData.id
           const other = isA ? r.country_b : r.country_a
           
-          if (r.status === 'ally') alliesList.push(other)
+          // ✅ Correção: Considera aliado se o status for 'ally' OU a relação for >= 76
+          if (r.status === 'ally' || (r.relation_score ?? 0) >= 76) alliesList.push(other)
           if (r.sanctions_active) sanctionedList.push(other)
         })
       }
@@ -306,7 +302,10 @@ export default function PaisPage() {
         is_read: false,
       })
 
-      const newScore = Math.max(0, Math.min(100, (relation?.relation_score || 50) + msg.effect_relation))
+      // ✅ Correção: ?? 50 (em vez de ||) e sem Math.max(0) para permitir valores negativos
+      const currentScore = relation?.relation_score ?? 50
+      const newScore = Math.min(100, currentScore + msg.effect_relation)
+      
       await supabase
         .from('diplomacy')
         .upsert({
@@ -323,8 +322,10 @@ export default function PaisPage() {
         .single()
         
       if (fromCountry) {
-        const newApproval = Math.max(0, Math.min(100, (fromCountry.intl_approval || 50) + msg.effect_approval))
-        const newTrust = Math.max(0, Math.min(100, (fromCountry.trust || 50) + msg.effect_trust))
+        // ✅ Correção: ?? 50 e sem Math.max(0)
+        const newApproval = (fromCountry.intl_approval ?? 50) + msg.effect_approval
+        const newTrust = (fromCountry.trust ?? 50) + msg.effect_trust
+        
         await supabase
           .from('countries')
           .update({ intl_approval: newApproval, trust: newTrust })
@@ -351,49 +352,6 @@ export default function PaisPage() {
     }
   }
 
-  async function handleSendMoney(e?: React.MouseEvent) {
-    if (e) e.preventDefault()
-    if (!user || !myCountry || !country || isMyCountry) return
-    setError('')
-    setSuccess('')
-
-    const amount = 1000000000 // 1 Bilhão
-
-    try {
-      const { data, error } = await supabase.rpc('transfer_money', {
-        p_from: myCountry.id,
-        p_to: country.id,
-        p_amount: amount,
-      }) as { data: RpcResponse | null; error: any }
-
-      if (error || !data?.success) {
-        setError(data?.error || error?.message || 'Erro ao transferir dinheiro')
-        return
-      }
-
-      // Aumentar relação diplomática em +20
-      const newScore = Math.max(0, Math.min(100, (relation?.relation_score || 50) + 20))
-      await supabase
-        .from('diplomacy')
-        .upsert({
-          country_a_id: Math.min(myCountry.id, country.id),
-          country_b_id: Math.max(myCountry.id, country.id),
-          relation_score: newScore,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'country_a_id, country_b_id' })
-
-      setRelation(prev => prev ? { ...prev, relation_score: newScore } : null)
-      
-      setSuccess(`✅ Doação realizada com sucesso! Relação melhorou (+20).`)
-      if (economy) {
-        setEconomy({ ...economy, money: (economy.money || 0) - amount })
-      }
-    } catch (err: any) {
-      setError(err.message || 'Erro ao transferir dinheiro')
-    }
-    setTimeout(() => setSuccess(''), 4000)
-  }
-
   async function handleEmbassy(e?: React.MouseEvent) {
     if (e) e.preventDefault()
     if (!user || !myCountry || !country || isMyCountry) return
@@ -418,7 +376,8 @@ export default function PaisPage() {
 
     try {
       const scoreChange = hasEmbassy ? -20 : 10
-      const newScore = Math.max(0, Math.min(100, (relation?.relation_score || 50) + scoreChange))
+      // ✅ Correção: ?? 50 e sem Math.max(0)
+      const newScore = Math.min(100, (relation?.relation_score ?? 50) + scoreChange)
 
       await supabase
         .from('diplomacy')
@@ -460,7 +419,8 @@ export default function PaisPage() {
     )
   }
 
-  const relationScore = relation?.relation_score || 50
+  // ✅ Correção: ?? 50 em vez de || 50 para não resetar o valor quando for 0
+  const relationScore = relation?.relation_score ?? 50
   
   let relColor = 'text-white/70'
   let relBg = 'bg-white/10'
@@ -486,9 +446,10 @@ export default function PaisPage() {
   const isWar = relation?.status === 'war' || isFightingAgainst
 
   return (
-    <div className="max-w-4xl mx-auto pb-24 px-4">
+    // ✅ pt-20 (80px) no container garante que header interno e banner comecem abaixo do Header fixo
+    <div className="max-w-4xl mx-auto pb-24 px-4 pt-20">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-4 pt-4">
+      <div className="flex items-center gap-4 mb-4">
         <button onClick={() => router.back()} className="text-white/50 hover:text-white transition-colors p-2 -ml-2">
           <ArrowLeft size={24} />
         </button>
@@ -557,14 +518,6 @@ export default function PaisPage() {
           
           <button 
             type="button"
-            onClick={handleSendMoney} 
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors border border-green-500/20 flex items-center gap-1"
-          >
-            <Coins size={14} /> Enviar R$ 1B
-          </button>
-          
-          <button 
-            type="button"
             onClick={handleEmbassy} 
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${hasEmbassy ? 'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20'}`}
           >
@@ -589,7 +542,8 @@ export default function PaisPage() {
             </div>
             
             <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden flex relative mb-3">
-              <div className={`h-full ${progressColor} transition-all duration-500`} style={{ width: `${relationScore}%` }} />
+              {/* ✅ Correção: Math.max(0) na barra de progresso para não quebrar o CSS com valores negativos */}
+              <div className={`h-full ${progressColor} transition-all duration-500`} style={{ width: `${Math.max(0, Math.min(100, relationScore))}%` }} />
             </div>
 
             <div className="flex flex-wrap gap-2 mt-2">
@@ -719,15 +673,16 @@ export default function PaisPage() {
           </div>
           {economy ? (
             <div className="grid grid-cols-3 gap-2">
-              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.food || 0}</p><p className="text-white/40 text-[10px]">Comida</p></div>
-              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.gold || 0}</p><p className="text-white/40 text-[10px]">Ouro</p></div>
-              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.iron || 0}</p><p className="text-white/40 text-[10px]">Ferro</p></div>
-              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.oil || 0}</p><p className="text-white/40 text-[10px]">Petróleo</p></div>
-              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.wood || 0}</p><p className="text-white/40 text-[10px]">Madeira</p></div>
-              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.uranium || 0}</p><p className="text-white/40 text-[10px]">Urânio</p></div>
-              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.coal || 0}</p><p className="text-white/40 text-[10px]">Carvão</p></div>
-              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.steel || 0}</p><p className="text-white/40 text-[10px]">Aço</p></div>
-              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{economy.energy || 0}</p><p className="text-white/40 text-[10px]">Energia</p></div>
+              {/* ✅ Correção: Usando formatNumber para exibir K, M, B, etc. */}
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{formatNumber(economy.food || 0)}</p><p className="text-white/40 text-[10px]">Comida</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{formatNumber(economy.gold || 0)}</p><p className="text-white/40 text-[10px]">Ouro</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{formatNumber(economy.iron || 0)}</p><p className="text-white/40 text-[10px]">Ferro</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{formatNumber(economy.oil || 0)}</p><p className="text-white/40 text-[10px]">Petróleo</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{formatNumber(economy.wood || 0)}</p><p className="text-white/40 text-[10px]">Madeira</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{formatNumber(economy.uranium || 0)}</p><p className="text-white/40 text-[10px]">Urânio</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{formatNumber(economy.coal || 0)}</p><p className="text-white/40 text-[10px]">Carvão</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{formatNumber(economy.steel || 0)}</p><p className="text-white/40 text-[10px]">Aço</p></div>
+              <div className="bg-black/40 rounded-xl p-2 text-center"><p className="text-white font-bold text-sm">{formatNumber(economy.energy || 0)}</p><p className="text-white/40 text-[10px]">Energia</p></div>
             </div>
           ) : (
             <p className="text-white/30 text-sm text-center py-2">Sem dados de economia</p>
@@ -804,7 +759,6 @@ export default function PaisPage() {
             <div className="flex items-center gap-2 mb-3 text-white/40 text-xs font-bold tracking-widest uppercase">
               <FileText size={14} /> ARTIGO EM DESTAQUE
             </div>
-            {/* ✅ CORREÇÃO DO LINK AQUI: Trocado de /game/noticias/ para /game/feed/ */}
             <Link href={`/game/feed/${topArticle.id}`} className="block group">
               <div className="bg-black/40 rounded-xl p-4 border border-white/5 group-hover:border-primary/50 transition-colors">
                 <div className="flex items-center gap-2 mb-2">
@@ -812,7 +766,15 @@ export default function PaisPage() {
                   <span className="text-[10px] text-white/40">{new Date(topArticle.created_at).toLocaleDateString('pt-BR')}</span>
                 </div>
                 <h4 className="text-white font-bold text-lg mb-1 group-hover:text-primary transition-colors">{topArticle.title}</h4>
-                <p className="text-white/60 text-sm line-clamp-2">{topArticle.content}</p>
+                
+                {/* ✅ Correção: Mostra a imagem do artigo e limpa as tags HTML do texto de prévia */}
+                {topArticle.image_url && (
+                  <img src={topArticle.image_url} alt={topArticle.title} className="w-full h-40 object-cover rounded-lg mb-3" />
+                )}
+                <p className="text-white/60 text-sm line-clamp-2">
+                  {topArticle.content ? topArticle.content.replace(/<[^>]*>?/gm, '') : ''}
+                </p>
+
                 <div className="flex items-center gap-3 mt-3 text-xs text-white/40 font-mono">
                   <span className="text-green-400">👍 {formatNumber(topArticle.likes)}</span>
                   <span className="text-red-400">👎 {formatNumber(topArticle.dislikes)}</span>

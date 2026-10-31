@@ -51,16 +51,20 @@ export default function OrcamentoPage() {
 
   const totalTurnRevenue = Object.values(turnValues).reduce((a, b) => a + b, 0)
 
-  // ─── 2. DESPESAS BRUTAS ──
-  const militaryMaintenance = Number(economy.expenses || 0) * 0.6
-  const infraMaintenance = Number(economy.expenses || 0) * 0.4
+  // ─── 2. DESPESAS BRUTAS (CORRIGIDO) ──
+  // O banco de dados calcula APENAS a manutenção dos edifícios (infraestrutura).
+  // Como ainda não implementamos custo de exército no banco, a manutenção militar é 0.
+  const totalExpenses = Number(economy.expenses || 0)
+  
+  const infraMaintenance = totalExpenses
+  const militaryMaintenance = 0
 
   const turnExpenses = {
     military: militaryMaintenance,
     infra: infraMaintenance,
   }
 
-  const totalTurnExpenses = Object.values(turnExpenses).reduce((a, b) => a + b, 0)
+  const totalTurnExpenses = totalExpenses
 
   // ─── 3. COMÉRCIO EXTERIOR ──
   const exports = Number(economy.exports || 0)
@@ -126,7 +130,8 @@ export default function OrcamentoPage() {
   const inflation = Number((economy as any).inflation || 0)
 
   return (
-    <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6">
+    // ✅ pt-20 (80px) garante que o conteúdo comece abaixo do Header fixo
+    <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-20">
       
       <div className="flex items-center gap-2 mb-2 pl-1">
         <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />

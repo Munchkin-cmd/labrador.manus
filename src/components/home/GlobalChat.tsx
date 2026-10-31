@@ -13,6 +13,40 @@ import { Grid } from '@giphy/react-components'
 
 const gf = new GiphyFetch(process.env.NEXT_PUBLIC_GIPHY_API_KEY || '')
 
+// ─── HORA RELATIVA PARA O CHAT ─────────────────────────────
+function formatChatTime(dateString: string) {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHours / 24)
+
+  if (diffMins < 1) return 'agora'
+  if (diffMins < 60) return `${diffMins}m`
+  if (diffHours < 24) return `${diffHours}h`
+  if (diffHours < 48) return '+24h'
+  if (diffDays < 7) return `${diffDays}d`
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}sem`
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mês`
+  return `${Math.floor(diffDays / 365)}a`
+}
+
+// ─── PREVIEW DE MENSAGEM (TEXTO OU TIPO DE MÍDIA) ──────────
+function getMessagePreview(
+  msg: { content?: string | null; media_type?: string | null } | null | undefined
+) {
+  if (!msg) return '[Mídia]'
+  if (msg.content && msg.content.trim()) return msg.content
+  if (msg.media_type === 'image') return '[Imagem]'
+  if (msg.media_type === 'video') return '[Vídeo]'
+  if (msg.media_type === 'gif') return '[GIF]'
+  if (msg.media_type === 'sticker') return '[Sticker]'
+  if (msg.media_type === 'audio') return '[Áudio]'
+  if (msg.media_type === 'file') return '[Arquivo]'
+  return '[Mídia]'
+}
+
 // ─── COMPONENTE DE PRÉVIA DE LINK ──────────────────────────
 function LinkPreview({ url }: { url: string }) {
   const [preview, setPreview] = useState<{
@@ -196,7 +230,7 @@ export default function GlobalChat() {
                 <span className="text-white/60 text-[10px] font-mono uppercase tracking-widest">Respondendo a <span className="text-primary font-bold">{replyTo.country?.name || 'Desconhecido'}</span></span>
               </div>
               <span className="text-white/40 text-[10px] font-mono truncate max-w-[200px] mt-0.5">
-                “{replyTo.content.slice(0, 40)}...”
+                “{getMessagePreview(replyTo)}”
               </span>
             </div>
             <button onClick={cancelReply} className="text-white/40 hover:text-red-400 transition-colors">
@@ -417,7 +451,7 @@ function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: Chat
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 flex-wrap">
           <span className="text-[11px] font-bold text-white uppercase tracking-wider truncate max-w-[150px]">{msg.country?.name ?? 'Desconhecido'}</span>
-          <span className="text-white/30 text-[9px] font-mono flex-shrink-0">{formatTime(msg.created_at)}</span>
+          <span className="text-white/30 text-[9px] font-mono flex-shrink-0">{formatChatTime(msg.created_at)}</span>
         </div>
 
         {msg.media_url && (
@@ -468,7 +502,7 @@ function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: Chat
         {msg.reply_to_message && (
           <div className="mt-1.5 pl-2 border-l-2 border-primary/50 bg-surface-input border-t border-r border-b border-surface-border rounded-r p-1.5 text-[10px] text-white/50 font-mono">
             <span className="font-bold text-primary">{msg.reply_to_message.country?.name || 'Desconhecido'}: </span>
-            <span className="italic">“{msg.reply_to_message.content.slice(0, 60)}...”</span>
+            <span className="italic">“{getMessagePreview(msg.reply_to_message)}”</span>
           </div>
         )}
 

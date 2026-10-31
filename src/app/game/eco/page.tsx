@@ -56,9 +56,12 @@ export default function EcoPage() {
   const [expandedRegion, setExpandedRegion] = useState<string | null>(null)
   const [selectedBuilding, setSelectedBuilding] = useState<{ regionId: string; building: any } | null>(null)
   const [selectedMilitary, setSelectedMilitary] = useState<any | null>(null)
+  
+  // ✅ NOVO: Estado para o catálogo de equipamentos
+  const [equipmentCatalog, setEquipmentCatalog] = useState<any[]>([])
 
-  const [buildQty, setBuildQty] = useState(1)
-  const [militaryQty, setMilitaryQty] = useState(1)
+  const [buildQty, setBuildQty] = useState<number | ''>(1)
+  const [militaryQty, setMilitaryQty] = useState<number | ''>(1)
   
   const [modalFeedback, setModalFeedback] = useState('')
   const [pageFeedback, setPageFeedback] = useState('')
@@ -71,7 +74,7 @@ export default function EcoPage() {
     const updateTimer = () => {
       const now = new Date()
       const secondsIntoHour = now.getMinutes() * 60 + now.getSeconds()
-      const cycleDuration = 15 * 60 // 15 minutos em segundos
+      const cycleDuration = 15 * 60 
       const secondsLeft = cycleDuration - (secondsIntoHour % cycleDuration)
       
       const mins = Math.floor(secondsLeft / 60)
@@ -83,6 +86,15 @@ export default function EcoPage() {
     updateTimer()
     const interval = setInterval(updateTimer, 1000)
     return () => clearInterval(interval)
+  }, [])
+
+  // ✅ NOVO: Busca o catálogo de equipamentos militares do banco
+  useEffect(() => {
+    async function fetchEquipmentCatalog() {
+      const { data } = await supabase.from('equipment_catalog').select('*')
+      if (data) setEquipmentCatalog(data)
+    }
+    fetchEquipmentCatalog()
   }, [])
 
   if (loading) return <LoadingSpinner />
@@ -109,11 +121,13 @@ export default function EcoPage() {
     return acc
   }, {})
 
+  // ✅ CORREÇÃO: Contagem correta somando a quantidade de todos os prédios
   const buildingCountByRegion = (regionId: string) => {
-    return buildings.filter(b => b.region_id === regionId).length
+    return buildings
+      .filter(b => b.region_id === regionId)
+      .reduce((sum, b) => sum + Number(b.quantity || 1), 0)
   }
 
-  // Resumo de Edifícios por Tipo no país
   const myBuildingsSummary = buildings.reduce((acc, b) => {
     if (!b.is_built) return acc
     const type = b.building_type
@@ -138,7 +152,8 @@ export default function EcoPage() {
     setModalFeedback('')
     setPageFeedback('')
 
-    const res = await build(regionId, buildingType, buildQty)
+    const qtyToBuild = Number(buildQty) || 1
+    const res = await build(regionId, buildingType, qtyToBuild)
     
     if (res.success) {
       setSelectedBuilding(null)
@@ -179,7 +194,8 @@ export default function EcoPage() {
     setModalFeedback('')
     setPageFeedback('')
 
-    const res = await produceEquipment(key, militaryQty)
+    const qtyToProduce = Number(militaryQty) || 1
+    const res = await produceEquipment(key, qtyToProduce)
     
     if (res.success) {
       setSelectedMilitary(null)
@@ -225,7 +241,6 @@ export default function EcoPage() {
     )
   }
 
-  // ✅ Cálculo de inflação e mão de obra para o modal
   let inflation = 0
   let inflatedCost = 0
   let laborCost = 0
@@ -267,7 +282,7 @@ export default function EcoPage() {
           <ResourceBox label="Dinheiro" value={economy.money || 0} isMoney />
         </div>
 
-        {/* ✅ NOVOS DADOS: IDH, CRESCIMENTO E INFLAÇÃO */}
+        {/* NOVOS DADOS: IDH, CRESCIMENTO E INFLAÇÃO */}
         <div className="col-span-3 sm:col-span-5 grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-surface-border">
           <div className="text-center p-2 bg-surface-input border border-surface-border rounded-lg">
             <p className="text-[9px] font-bold text-white/40 uppercase tracking-wider flex items-center justify-center gap-1">
@@ -292,7 +307,6 @@ export default function EcoPage() {
         </div>
       </div>
 
-      {/* ✅ ALERTAS */}
       {hasParalyzedBuildings && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-[11px] font-mono font-bold uppercase tracking-widest text-center flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-pulse">
           <IoWarning size={18} />
@@ -306,7 +320,6 @@ export default function EcoPage() {
         </div>
       )}
 
-      {/* TERRENO */}
       <div className="bg-surface-input border border-surface-border rounded-lg p-4">
         <p className="text-xs font-bold text-white mb-1 uppercase tracking-widest">
           SEU TERRENO: <span className="text-primary">{countryData.terrain || 'Desconhecido'}</span>
@@ -387,31 +400,44 @@ export default function EcoPage() {
                     {expandedRegion === region.id && (
                       <div className="bg-surface-input px-4 py-4 border-t border-surface-border space-y-5">
                         
-                        {/* Edifícios Construídos NESTA Região */}
+                        {/* ✅ CORREÇÃO: Agrupando prédios iguais para não repetir os cards */}
                         <div>
                           <p className="text-[10px] font-bold text-primary uppercase font-mono tracking-widest mb-2 flex items-center gap-2">
                             <IoCheckmarkCircle size={14} /> Construídos nesta Região
                           </p>
-                          {buildings.filter(b => b.region_id === region.id && b.is_built).length === 0 ? (
-                            <p className="text-xs text-white/40 font-mono italic">Nenhum edifício construído aqui ainda.</p>
-                          ) : (
-                            <div className="flex flex-wrap gap-2">
-                              {buildings.filter(b => b.region_id === region.id && b.is_built).map((b, idx) => (
-                                <button 
-                                  key={idx} 
-                                  onClick={() => {
-                                    const catItem = catalog.find(c => c.type === b.building_type)
-                                    if (catItem) setSelectedBuilding({ regionId: region.id, building: catItem })
-                                  }}
-                                  className={`border rounded-md px-2 py-1 flex items-center gap-2 text-[10px] transition-colors ${b.is_paralyzed ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20' : 'bg-surface-card border-surface-border text-white/80 hover:bg-white/10'}`}
-                                >
-                                  {b.is_paralyzed && <IoWarning size={12} />}
-                                  <span>{b.building_catalog?.name || b.building_type}</span>
-                                  <span className="font-bold font-mono bg-black/30 px-1.5 rounded">x{b.quantity}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                          {(() => {
+                            const cBuildings = buildings.filter(b => b.region_id === region.id && b.is_built)
+                            
+                            // Junta os prédios iguais e soma suas quantidades
+                            const groupedUnique = cBuildings.reduce((acc, b) => {
+                              if (!acc[b.building_type]) acc[b.building_type] = { ...b, quantity: 0 }
+                              acc[b.building_type].quantity += Number(b.quantity || 1)
+                              return acc
+                            }, {} as Record<string, any>)
+
+                            if (Object.keys(groupedUnique).length === 0) {
+                              return <p className="text-xs text-white/40 font-mono italic">Nenhum edifício construído aqui ainda.</p>
+                            }
+
+                            return (
+                              <div className="flex flex-wrap gap-2">
+                                {Object.values(groupedUnique).map((b: any, idx) => (
+                                  <button 
+                                    key={idx} 
+                                    onClick={() => {
+                                      const catItem = catalog.find(c => c.type === b.building_type)
+                                      if (catItem) setSelectedBuilding({ regionId: region.id, building: catItem })
+                                    }}
+                                    className={`border rounded-md px-2 py-1 flex items-center gap-2 text-[10px] transition-colors ${b.is_paralyzed ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20' : 'bg-surface-card border-surface-border text-white/80 hover:bg-white/10'}`}
+                                  >
+                                    {b.is_paralyzed && <IoWarning size={12} />}
+                                    <span>{b.building_catalog?.name || b.building_type}</span>
+                                    <span className="font-bold font-mono bg-black/30 px-1.5 rounded">x{b.quantity}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )
+                          })()}
                         </div>
 
                         {/* CATÁLOGO DE CONSTRUÇÃO */}
@@ -454,7 +480,7 @@ export default function EcoPage() {
         </div>
       </div>
 
-      {/* EQUIPAMENTOS MILITARES (Mantido) */}
+      {/* EQUIPAMENTOS MILITARES */}
       <div>
         <div className="flex items-center gap-2 mb-2 pl-1">
           <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
@@ -494,238 +520,280 @@ export default function EcoPage() {
       </div>
 
       {/* MODAL DE CONSTRUÇÃO / DESTRUIÇÃO */}
-      {selectedBuilding && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-opacity">
-          <div className="bg-surface-card border border-surface-border rounded-xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            
-            <button
-              onClick={() => setSelectedBuilding(null)}
-              className="absolute top-3 right-3 z-50 text-white bg-black/60 hover:bg-red-600 rounded-full p-2 transition-colors cursor-pointer border border-surface-border shadow-lg"
-            >
-              <IoClose size={20} />
-            </button>
+      {selectedBuilding && (() => {
+        // ✅ Cálculo do limite atingido (7 por região)
+        const totalQtyInRegion = buildings
+          .filter(b => b.region_id === selectedBuilding.regionId && b.building_type === selectedBuilding.building.type)
+          .reduce((sum, b) => sum + Number(b.quantity || 1), 0)
 
-            <div className="overflow-y-auto w-full h-full custom-scrollbar rounded-xl">
+        const isMaxed = totalQtyInRegion >= 7
+
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-opacity">
+            <div className="bg-surface-card border border-surface-border rounded-xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
               
-              <div className="w-full h-48 sm:h-64 bg-gradient-to-br from-slate-800 to-[#0A0F1C] relative flex items-center justify-center border-b border-surface-border">
-                <div className="absolute inset-0 flex flex-col items-center justify-center opacity-30">
-                  <span className="text-6xl mb-1">🏭</span>
-                </div>
-                {BUILDING_IMAGES[selectedBuilding.building.type] && (
-                  <img
-                    src={BUILDING_IMAGES[selectedBuilding.building.type]}
-                    alt={selectedBuilding.building.name}
-                    className="w-full h-full object-cover relative z-10"
-                    onError={(e) => { e.currentTarget.style.display = 'none' }}
-                  />
-                )}
-              </div>
+              <button
+                onClick={() => setSelectedBuilding(null)}
+                className="absolute top-3 right-3 z-50 text-white bg-black/60 hover:bg-red-600 rounded-full p-2 transition-colors cursor-pointer border border-surface-border shadow-lg"
+              >
+                <IoClose size={20} />
+              </button>
 
-              <div className="p-5 sm:p-6 pb-2">
-                <p className="text-xl font-bold text-white mb-1 uppercase tracking-wider">
-                  {selectedBuilding.building.name}
-                </p>
+              <div className="overflow-y-auto w-full h-full custom-scrollbar rounded-xl">
                 
-                {/* ✅ NOVO CUSTO COM INFLAÇÃO */}
-                <div className="mb-5 font-mono uppercase tracking-widest">
-                  <p className="text-xs text-white/60">Custo Base:</p>
-                  <div className="flex flex-wrap items-center gap-2 mt-1">
-                    {inflation > 0 ? (
-                      <>
-                        <span className="line-through text-white/40 text-sm">{formatMoney(selectedBuilding.building.cost_money)}</span>
-                        <span className="text-primary font-bold text-sm">{formatMoney(inflatedCost)}</span>
-                        <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded text-[10px] border border-red-500/20 font-bold flex items-center gap-1">
-                          <IoWarning size={10} /> Inflação: +{inflation.toFixed(1)}%
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-primary font-bold text-sm">{formatMoney(selectedBuilding.building.cost_money)}</span>
+                <div className="w-full h-48 sm:h-64 bg-gradient-to-br from-slate-800 to-[#0A0F1C] relative flex items-center justify-center border-b border-surface-border">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center opacity-30">
+                    <span className="text-6xl mb-1">🏭</span>
+                  </div>
+                  {BUILDING_IMAGES[selectedBuilding.building.type] && (
+                    <img
+                      src={BUILDING_IMAGES[selectedBuilding.building.type]}
+                      alt={selectedBuilding.building.name}
+                      className="w-full h-full object-cover relative z-10"
+                      onError={(e) => { e.currentTarget.style.display = 'none' }}
+                    />
+                  )}
+                </div>
+
+                <div className="p-5 sm:p-6 pb-2">
+                  <p className="text-xl font-bold text-white mb-1 uppercase tracking-wider">
+                    {selectedBuilding.building.name}
+                  </p>
+                  
+                  <div className="mb-5 font-mono uppercase tracking-widest">
+                    <p className="text-xs text-white/60">Custo Base:</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      {inflation > 0 ? (
+                        <>
+                          <span className="line-through text-white/40 text-sm">{formatMoney(selectedBuilding.building.cost_money)}</span>
+                          <span className="text-primary font-bold text-sm">{formatMoney(inflatedCost)}</span>
+                          <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded text-[10px] border border-red-500/20 font-bold flex items-center gap-1">
+                            <IoWarning size={10} /> Inflação: +{inflation.toFixed(1)}%
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-primary font-bold text-sm">{formatMoney(selectedBuilding.building.cost_money)}</span>
+                      )}
+                    </div>
+
+                    {laborCost > 0 && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-white/60 flex items-center gap-1"><IoPerson size={12}/> Mão de Obra:</span>
+                        <span className="text-blue-400 font-bold text-sm">{formatNumber(laborCost)} pop</span>
+                      </div>
                     )}
                   </div>
 
-                  {laborCost > 0 && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-xs text-white/60 flex items-center gap-1"><IoPerson size={12}/> Mão de Obra:</span>
-                      <span className="text-blue-400 font-bold text-sm">{formatNumber(laborCost)} pop</span>
+                  <div className="space-y-4 border-t border-surface-border pt-4 mb-6 mt-4">
+                    
+                    <div className="bg-surface-input border border-surface-border rounded-lg p-3">
+                      <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-1">
+                        <IoConstruct size={12} /> Funcionamento (a cada 15min)
+                      </p>
+                      {selectedBuilding.building.produces ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-white/70">Produz:</span>
+                          <span className="text-yellow-400 font-bold font-mono bg-yellow-400/10 px-2 py-0.5 rounded">
+                            +{selectedBuilding.building.produces_qty || 0} {selectedBuilding.building.produces}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-white/40 italic">Não produz recursos.</span>
+                      )}
+
+                      {selectedBuilding.building.energy_cost > 0 && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs text-white/70">Consome Energia:</span>
+                          <span className="text-red-400 font-bold font-mono bg-red-400/10 px-2 py-0.5 rounded flex items-center gap-1">
+                            <IoFlash size={10} /> -{selectedBuilding.building.energy_cost}
+                          </span>
+                        </div>
+                      )}
+
+                      {selectedBuilding.building.profit_money > 0 && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs text-white/70">Rende (Lucro):</span>
+                          <span className="text-green-400 font-bold font-mono bg-green-400/10 px-2 py-0.5 rounded">
+                            +{formatMoney(selectedBuilding.building.profit_money)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-surface-input border border-surface-border rounded-lg p-3">
+                      <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-1">
+                        <IoTime size={12} /> Custo de Construção (por unidade)
+                      </p>
+                      {renderCostList(selectedBuilding.building, 'cost')}
+                    </div>
+
+                    <div className="bg-surface-input border border-surface-border rounded-lg p-3">
+                      <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-1">
+                        <IoWarning size={12} /> Manutenção (por ciclo)
+                      </p>
+                      {renderCostList(selectedBuilding.building, 'maint')}
+                    </div>
+
+                  </div>
+                </div>
+
+                <div className="p-4 sm:p-5 bg-surface-input border-t border-surface-border flex flex-col gap-3">
+                  {modalFeedback && (
+                    <div className="p-3 rounded-lg text-xs font-mono border bg-red-500/10 border-red-500/30 text-red-400 text-center font-bold">
+                      ⚠️ {modalFeedback}
                     </div>
                   )}
-                </div>
 
-                <div className="space-y-4 border-t border-surface-border pt-4 mb-6 mt-4">
-                  
-                  {/* Produção e Consumo */}
-                  <div className="bg-surface-input border border-surface-border rounded-lg p-3">
-                    <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-1">
-                      <IoConstruct size={12} /> Funcionamento (a cada 15min)
-                    </p>
-                    {selectedBuilding.building.produces ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-white/70">Produz:</span>
-                        <span className="text-yellow-400 font-bold font-mono bg-yellow-400/10 px-2 py-0.5 rounded">
-                          +{selectedBuilding.building.produces_qty || 0} {selectedBuilding.building.produces}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-white/40 italic">Não produz recursos.</span>
-                    )}
-
-                    {selectedBuilding.building.energy_cost > 0 && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs text-white/70">Consome Energia:</span>
-                        <span className="text-red-400 font-bold font-mono bg-red-400/10 px-2 py-0.5 rounded flex items-center gap-1">
-                          <IoFlash size={10} /> -{selectedBuilding.building.energy_cost}
-                        </span>
-                      </div>
-                    )}
-
-                    {selectedBuilding.building.profit_money > 0 && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs text-white/70">Rende (Lucro):</span>
-                        <span className="text-green-400 font-bold font-mono bg-green-400/10 px-2 py-0.5 rounded">
-                          +{formatMoney(selectedBuilding.building.profit_money)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Custo de Construção */}
-                  <div className="bg-surface-input border border-surface-border rounded-lg p-3">
-                    <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-1">
-                      <IoTime size={12} /> Custo de Construção (por unidade)
-                    </p>
-                    {renderCostList(selectedBuilding.building, 'cost')}
-                  </div>
-
-                  {/* Manutenção */}
-                  <div className="bg-surface-input border border-surface-border rounded-lg p-3">
-                    <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-1">
-                      <IoWarning size={12} /> Manutenção (por ciclo)
-                    </p>
-                    {renderCostList(selectedBuilding.building, 'maint')}
-                  </div>
-
-                </div>
-              </div>
-
-              <div className="p-4 sm:p-5 bg-surface-input border-t border-surface-border flex flex-col gap-3">
-                {modalFeedback && (
-                  <div className="p-3 rounded-lg text-xs font-mono border bg-red-500/10 border-red-500/30 text-red-400 text-center font-bold">
-                    ⚠️ {modalFeedback}
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  <input
-                    type="number"
-                    min={1}
-                    max={7}
-                    value={buildQty}
-                    onChange={e => setBuildQty(Number(e.target.value))}
-                    className="input-field w-20 text-sm py-2 text-center bg-[#0A0F1C]"
-                    placeholder="Qtd"
-                  />
-                  <button
-                    onClick={() => handleBuild(selectedBuilding.regionId, selectedBuilding.building.type)}
-                    disabled={submitting}
-                    className="flex-1 bg-primary hover:bg-primary-dark disabled:opacity-30 text-white font-bold py-2.5 rounded-lg text-sm transition-colors shadow-lg uppercase tracking-wider"
-                  >
-                    {submitting ? 'Construindo...' : 'Construir'}
-                  </button>
-                  
-                  {/* Botão Destruir: Aparece apenas se o prédio já existir na região */}
-                  {buildings.some(b => b.region_id === selectedBuilding.regionId && b.building_type === selectedBuilding.building.type) && (
+                  <div className="flex gap-3">
+                    <input
+                      type="number"
+                      min={1}
+                      max={7 - totalQtyInRegion}
+                      // ✅ CORREÇÃO: Zero chato pro usuário
+                      value={buildQty === 0 ? '' : buildQty}
+                      onChange={e => {
+                        const val = e.target.value === '' ? '' : Number(e.target.value)
+                        setBuildQty(val)
+                      }}
+                      className="input-field w-20 text-sm py-2 text-center bg-[#0A0F1C]"
+                      placeholder="Qtd"
+                      disabled={isMaxed}
+                    />
+                    
+                    {/* ✅ CORREÇÃO: Botão desabilitado se atingiu o limite */}
                     <button
-                      type="button"
-                      onClick={() => handleDestroy(selectedBuilding.regionId, selectedBuilding.building.type)}
-                      disabled={submitting}
-                      className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center"
-                      title="Destruir Edifício"
+                      onClick={() => handleBuild(selectedBuilding.regionId, selectedBuilding.building.type)}
+                      disabled={submitting || isMaxed || buildQty === '' || buildQty === 0}
+                      className={`flex-1 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-lg text-sm transition-colors shadow-lg uppercase tracking-wider ${
+                        isMaxed ? 'bg-surface-border text-white/50' : 'bg-primary hover:bg-primary-dark'
+                      }`}
                     >
-                      <IoTrash size={18} />
+                      {submitting ? 'Construindo...' : isMaxed ? 'Limite Atingido' : 'Construir'}
                     </button>
+                    
+                    {totalQtyInRegion > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleDestroy(selectedBuilding.regionId, selectedBuilding.building.type)}
+                        disabled={submitting}
+                        className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center"
+                        title="Destruir Edifício"
+                      >
+                        <IoTrash size={18} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* MODAL MILITAR */}
+      {selectedMilitary && (() => {
+        // ✅ Busca as informações de custo no catálogo de equipamentos
+        const eqCatalog = equipmentCatalog.find(e => e.type === selectedMilitary.key)
+
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-opacity">
+            <div className="bg-surface-card border border-surface-border rounded-xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              
+              <button
+                onClick={() => setSelectedMilitary(null)}
+                className="absolute top-3 right-3 z-50 text-white bg-black/60 hover:bg-red-600 rounded-full p-2 transition-colors cursor-pointer border border-surface-border shadow-lg"
+              >
+                <IoClose size={20} />
+              </button>
+
+              <div className="overflow-y-auto w-full h-full custom-scrollbar rounded-xl">
+                
+                <div className="w-full h-48 sm:h-64 bg-gradient-to-br from-slate-800 to-[#0A0F1C] relative flex items-center justify-center border-b border-surface-border">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center opacity-30">
+                    <span className="text-6xl mb-1">🎖️</span>
+                  </div>
+                  {MILITARY_IMAGES[selectedMilitary.key] && (
+                    <img
+                      src={MILITARY_IMAGES[selectedMilitary.key]}
+                      alt={selectedMilitary.label}
+                      className="w-full h-full object-cover relative z-10"
+                      onError={e => (e.currentTarget.style.display = 'none')}
+                    />
                   )}
                 </div>
-              </div>
 
-            </div>
-          </div>
-        </div>
-      )}
+                <div className="p-5 sm:p-6 pb-2">
+                  <p className="text-xl font-bold text-white mb-2 uppercase tracking-wider">{selectedMilitary.label}</p>
+                  <p className="text-xs text-white/60 mb-5 font-mono">{selectedMilitary.description}</p>
 
-      {/* MODAL MILITAR (Mantido) */}
-      {selectedMilitary && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-opacity">
-          <div className="bg-surface-card border border-surface-border rounded-xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            
-            <button
-              onClick={() => setSelectedMilitary(null)}
-              className="absolute top-3 right-3 z-50 text-white bg-black/60 hover:bg-red-600 rounded-full p-2 transition-colors cursor-pointer border border-surface-border shadow-lg"
-            >
-              <IoClose size={20} />
-            </button>
+                  <div className="border-t border-surface-border pt-4 mb-4">
+                    <p className="text-[10px] font-bold text-white/50 uppercase mb-3 tracking-widest">Pré-requisitos:</p>
+                    <div className="space-y-1">
+                      {selectedMilitary.requires.map((req: string) => (
+                        <p key={req} className="text-xs text-primary font-mono">
+                          ✓ {req}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
 
-            <div className="overflow-y-auto w-full h-full custom-scrollbar rounded-xl">
-              
-              <div className="w-full h-48 sm:h-64 bg-gradient-to-br from-slate-800 to-[#0A0F1C] relative flex items-center justify-center border-b border-surface-border">
-                <div className="absolute inset-0 flex flex-col items-center justify-center opacity-30">
-                  <span className="text-6xl mb-1">🎖️</span>
+                  {/* ✅ NOVO: INFORMAÇÕES DE CUSTO E MANUTENÇÃO */}
+                  {eqCatalog ? (
+                    <div className="space-y-4">
+                      <div className="bg-surface-input border border-surface-border rounded-lg p-3">
+                        <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-1">
+                          <IoTime size={12} /> Custo de Fabricação (por unidade)
+                        </p>
+                        {renderCostList(eqCatalog, 'cost')}
+                      </div>
+                      <div className="bg-surface-input border border-surface-border rounded-lg p-3">
+                        <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-1">
+                          <IoWarning size={12} /> Manutenção (por ciclo)
+                        </p>
+                        {renderCostList(eqCatalog, 'maint')}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-white/40 italic">Sem informações de custo disponíveis.</p>
+                  )}
                 </div>
-                {MILITARY_IMAGES[selectedMilitary.key] && (
-                  <img
-                    src={MILITARY_IMAGES[selectedMilitary.key]}
-                    alt={selectedMilitary.label}
-                    className="w-full h-full object-cover relative z-10"
-                    onError={e => (e.currentTarget.style.display = 'none')}
-                  />
-                )}
-              </div>
 
-              <div className="p-5 sm:p-6 pb-2">
-                <p className="text-xl font-bold text-white mb-2 uppercase tracking-wider">{selectedMilitary.label}</p>
-                <p className="text-xs text-white/60 mb-5 font-mono">{selectedMilitary.description}</p>
+                <div className="p-4 sm:p-5 bg-surface-input border-t border-surface-border flex flex-col gap-3">
+                  {modalFeedback && (
+                    <div className="p-3 rounded-lg text-xs font-mono border bg-red-500/10 border-red-500/30 text-red-400 text-center font-bold">
+                      ⚠️ {modalFeedback}
+                    </div>
+                  )}
 
-                <div className="border-t border-surface-border pt-4 mb-6">
-                  <p className="text-[10px] font-bold text-white/50 uppercase mb-3 tracking-widest">Pré-requisitos:</p>
-                  <div className="space-y-1">
-                    {selectedMilitary.requires.map((req: string) => (
-                      <p key={req} className="text-xs text-primary font-mono">
-                        ✓ {req}
-                      </p>
-                    ))}
+                  <div className="flex gap-3">
+                    <input
+                      type="number"
+                      min={1}
+                      // ✅ CORREÇÃO: Zero chato pro usuário
+                      value={militaryQty === 0 ? '' : militaryQty}
+                      onChange={e => {
+                        const val = e.target.value === '' ? '' : Number(e.target.value)
+                        setMilitaryQty(val)
+                      }}
+                      className="input-field w-20 text-sm py-2 text-center bg-[#0A0F1C]"
+                      placeholder="Qtd"
+                    />
+                    <button
+                      onClick={() => handleProduceMilitary(selectedMilitary.key)}
+                      disabled={submitting || militaryQty === '' || militaryQty === 0}
+                      className="flex-1 bg-primary hover:bg-primary-dark disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-lg text-sm transition-colors shadow-lg uppercase tracking-wider"
+                    >
+                      {submitting ? 'Produzindo...' : 'Produzir'}
+                    </button>
                   </div>
                 </div>
+
               </div>
-
-              <div className="p-4 sm:p-5 bg-surface-input border-t border-surface-border flex flex-col gap-3">
-                {modalFeedback && (
-                  <div className="p-3 rounded-lg text-xs font-mono border bg-red-500/10 border-red-500/30 text-red-400 text-center font-bold">
-                    ⚠️ {modalFeedback}
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  <input
-                    type="number"
-                    min={1}
-                    value={militaryQty}
-                    onChange={e => setMilitaryQty(Number(e.target.value))}
-                    className="input-field w-20 text-sm py-2 text-center bg-[#0A0F1C]"
-                    placeholder="Qtd"
-                  />
-                  <button
-                    onClick={() => handleProduceMilitary(selectedMilitary.key)}
-                    disabled={submitting}
-                    className="flex-1 bg-primary hover:bg-primary-dark disabled:opacity-30 text-white font-bold py-2.5 rounded-lg text-sm transition-colors shadow-lg uppercase tracking-wider"
-                  >
-                    {submitting ? 'Produzindo...' : 'Produzir'}
-                  </button>
-                </div>
-              </div>
-
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

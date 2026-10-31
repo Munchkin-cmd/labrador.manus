@@ -61,7 +61,8 @@ export default function ArmazemPage() {
 
   return (
     // ✅ Adicionado limite de largura (max-w-4xl) e margens consistentes com o resto do jogo
-    <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6">
+    // ✅ pt-20 (80px) garante que o conteúdo comece abaixo do Header fixo
+    <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-20">
       
       {/* Cabeçalho estilo jogo */}
       <div className="flex items-center gap-2 mb-2 pl-1">

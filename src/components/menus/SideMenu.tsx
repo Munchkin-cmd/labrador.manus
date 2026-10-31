@@ -12,7 +12,8 @@ import {
   Store, 
   Settings, 
   LogOut,
-  X
+  X,
+  Trophy // ✅ Adicionado o ícone de troféu
 } from 'lucide-react'
 
 // Configuração do menu com ícones da Lucide
@@ -23,6 +24,7 @@ const MENU_ITEMS = [
   { label: 'PASSAPORTE',    href: '/game/passaporte',    icon: FileText },
   { label: 'BRIEFING',      href: '/game/briefing',      icon: Bell },
   { label: 'MERCADO',       href: '/game/mercado',       icon: Store },
+  { label: 'RANKING',      href: '/game/rankings',      icon: Trophy }, // ✅ Nova rota adicionada
   { label: 'CONFIGURAÇÕES', href: '/game/configuracoes', icon: Settings },
 ]
 
