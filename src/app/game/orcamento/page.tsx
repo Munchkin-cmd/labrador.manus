@@ -31,12 +31,12 @@ export default function OrcamentoPage() {
   if (loading || loadingTax) return <Loading />
   if (!economy) return null
 
-  // ✅ 1. RECEITAS BRUTAS (Regra: 1% = 100 Milhões)
+  // ✅ 1. RECEITAS BRUTAS (Regra: 1% = 10 Milhões)
   const incomeTax = Number(taxes?.income_tax || 0)
   const propertyTax = Number(taxes?.property_tax || 0)
   const manufacturingTax = Number(taxes?.manufacturing_tax || 0)
   
-  const taxMultiplier = 100000000 // 100 Milhões
+  const taxMultiplier = 10000000 // ✅ 10 Milhões
 
   const grossProfitPerTurn = (buildings || [])
     .filter(b => b.is_built && b.is_active)
@@ -51,11 +51,8 @@ export default function OrcamentoPage() {
 
   const totalTurnRevenue = Object.values(turnValues).reduce((a, b) => a + b, 0)
 
-  // ─── 2. DESPESAS BRUTAS (CORRIGIDO) ──
-  // O banco de dados calcula APENAS a manutenção dos edifícios (infraestrutura).
-  // Como ainda não implementamos custo de exército no banco, a manutenção militar é 0.
+  // ─── 2. DESPESAS BRUTAS ──
   const totalExpenses = Number(economy.expenses || 0)
-  
   const infraMaintenance = totalExpenses
   const militaryMaintenance = 0
 
@@ -128,10 +125,12 @@ export default function OrcamentoPage() {
   const idh = Number((economy as any).idh || 0)
   const growth = Number((economy as any).population_growth || 0)
   const inflation = Number((economy as any).inflation || 0)
+  
+  // ✅ NOVO: Como a inflação agora encarece 10x mais (1% de inflação = 10% de custo), mostramos isso na tela
+  const inflationImpact = inflation * 10
 
   return (
-    // ✅ pt-20 (80px) garante que o conteúdo comece abaixo do Header fixo
-    <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-20">
+    <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6">
       
       <div className="flex items-center gap-2 mb-2 pl-1">
         <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
@@ -176,7 +175,7 @@ export default function OrcamentoPage() {
       {inflation > 0 && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-3 rounded-lg text-xs font-mono text-center flex items-center justify-center gap-2">
           <AlertTriangle size={16} />
-          A inflação atual está encarecendo a construção civil em <strong>+{inflation.toFixed(1)}%</strong>.
+          A inflação atual está encarecendo a construção civil em <strong>+{inflationImpact.toFixed(1)}%</strong>.
         </div>
       )}
 
