@@ -314,24 +314,29 @@ function WarCard({
     return countryData.users.flag_url;
   };
 
-  const FlagAvatar = ({ country, borderColor }: { country: any, borderColor: string }) => {
+  // ✅ CORREÇÃO AQUI: FlagAvatar agora aceita o parâmetro 'size' para não distorcer
+  const FlagAvatar = ({ country, borderColor, size = 'md' }: { country: any, borderColor: string, size?: 'sm' | 'md' }) => {
     const flagUrl = getFlag(country);
     const initials = country?.name ? country.name.substring(0, 2).toUpperCase() : '🌐';
     
+    const sizeClasses = size === 'sm' ? 'w-7 h-7' : 'w-12 h-12';
+    const textSizeClasses = size === 'sm' ? 'text-[10px]' : 'text-sm';
+    const emojiSizeClasses = size === 'sm' ? 'text-lg' : 'text-2xl';
+    const borderClasses = size === 'sm' ? 'border' : 'border-2';
+
     return (
-      <div className={`w-12 h-12 rounded-full border-2 ${borderColor} overflow-hidden bg-black/50 shadow-lg shrink-0 flex items-center justify-center`}>
+      <div className={`${sizeClasses} rounded-full ${borderClasses} ${borderColor} overflow-hidden bg-black/50 shadow-lg shrink-0 flex items-center justify-center`}>
         {flagUrl ? (
-          <img src={flagUrl} alt={country.name} className="w-full h-full object-cover" />
+          <img src={flagUrl} alt={country?.name || 'Bandeira'} className="w-full h-full object-cover" />
         ) : country?.flag_emoji ? (
-          <span className="text-2xl">{country.flag_emoji}</span>
+          <span className={emojiSizeClasses}>{country.flag_emoji}</span>
         ) : (
-          <span className="text-white/70 font-bold text-sm">{initials}</span>
+          <span className={`text-white/70 font-bold ${textSizeClasses}`}>{initials}</span>
         )}
       </div>
     )
   }
 
-  // ✅ LÓGICA PARA SEPARAR O DANO PRINCIPAL DO DANO DOS ALIADOS
   const attParticipants = war.participants || [];
   const attAllies = attParticipants.filter((p: any) => p.side === 'attacker' && Number(p.country_id) !== Number(war.attacker_id));
   const defAllies = attParticipants.filter((p: any) => p.side === 'defender' && Number(p.country_id) !== Number(war.defender_id));
@@ -339,7 +344,6 @@ function WarCard({
   const attAlliesDmg = attAllies.reduce((sum: number, p: any) => sum + (p.damage_dealt || 0), 0);
   const defAlliesDmg = defAllies.reduce((sum: number, p: any) => sum + (p.damage_dealt || 0), 0);
 
-  // O dano do principal é o total do lado menos o que os aliados causaram
   const mainAttDmg = Math.max(0, attDmg - attAlliesDmg);
   const mainDefDmg = Math.max(0, defDmg - defAlliesDmg);
 
@@ -395,7 +399,7 @@ function WarCard({
 
         <div className="flex justify-between items-center bg-black/20 rounded-xl p-4 border border-surface-border mb-4">
           <div className="flex flex-col items-center gap-2 flex-1">
-            <FlagAvatar country={war.attacker} borderColor="border-red-500/50" />
+            <FlagAvatar country={war.attacker} borderColor="border-red-500/50" size="md" />
             <div className="text-center">
               <p className="text-white font-bold text-sm leading-tight">{war.attacker?.name}</p>
               <p className="text-red-400 text-[10px] uppercase font-bold tracking-wider mt-0.5">Atacante</p>
@@ -408,7 +412,7 @@ function WarCard({
           </div>
 
           <div className="flex flex-col items-center gap-2 flex-1">
-            <FlagAvatar country={war.defender} borderColor="border-blue-500/50" />
+            <FlagAvatar country={war.defender} borderColor="border-blue-500/50" size="md" />
             <div className="text-center">
               <p className="text-white font-bold text-sm leading-tight">{war.defender?.name}</p>
               <p className="text-blue-400 text-[10px] uppercase font-bold tracking-wider mt-0.5">Defensor</p>
@@ -429,15 +433,11 @@ function WarCard({
           <div className="bg-black/40 rounded-xl p-3 border border-surface-border mb-4 animate-in slide-in-from-top-2 duration-200">
             <div className="grid grid-cols-2 gap-3">
               
-              {/* ✅ LADO DO ATACANTE */}
               <div className="space-y-3 border-r border-surface-border pr-3">
                 <p className="text-red-400/80 text-[10px] font-bold uppercase mb-1">Forças do Atacante</p>
                 
-                {/* Principal */}
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-red-500/50">
-                    <FlagAvatar country={war.attacker} borderColor="border-transparent" />
-                  </div>
+                  <FlagAvatar country={war.attacker} borderColor="border-red-500/50" size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="text-white text-[11px] font-bold truncate">
                       {war.attacker?.name} <span className="text-[9px] text-red-400 font-normal">(Principal)</span>
@@ -446,12 +446,9 @@ function WarCard({
                   </div>
                 </div>
 
-                {/* Aliados */}
                 {attAllies.map((ally: any, idx: number) => (
                   <div key={idx} className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-red-500/30 opacity-70">
-                      <FlagAvatar country={ally.country} borderColor="border-transparent" />
-                    </div>
+                    <FlagAvatar country={ally.country} borderColor="border-red-500/30" size="sm" />
                     <div className="min-w-0 flex-1">
                       <p className="text-white/90 text-[11px] font-semibold truncate">{ally.country?.name}</p>
                       <p className="text-green-400/80 text-[10px]">{formatNumber(ally.damage_dealt || 0)} dano</p>
@@ -461,15 +458,11 @@ function WarCard({
                 {attAllies.length === 0 && <p className="text-white/20 text-[10px] italic">Sem aliados</p>}
               </div>
 
-              {/* ✅ LADO DO DEFENSOR */}
               <div className="space-y-3 pl-1">
                 <p className="text-blue-400/80 text-[10px] font-bold uppercase mb-1">Forças do Defensor</p>
                 
-                {/* Principal */}
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-blue-500/50">
-                    <FlagAvatar country={war.defender} borderColor="border-transparent" />
-                  </div>
+                  <FlagAvatar country={war.defender} borderColor="border-blue-500/50" size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="text-white text-[11px] font-bold truncate">
                       {war.defender?.name} <span className="text-[9px] text-blue-400 font-normal">(Principal)</span>
@@ -478,12 +471,9 @@ function WarCard({
                   </div>
                 </div>
 
-                {/* Aliados */}
                 {defAllies.map((ally: any, idx: number) => (
                   <div key={idx} className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-blue-500/30 opacity-70">
-                      <FlagAvatar country={ally.country} borderColor="border-transparent" />
-                    </div>
+                    <FlagAvatar country={ally.country} borderColor="border-blue-500/30" size="sm" />
                     <div className="min-w-0 flex-1">
                       <p className="text-white/90 text-[11px] font-semibold truncate">{ally.country?.name}</p>
                       <p className="text-green-400/80 text-[10px]">{formatNumber(ally.damage_dealt || 0)} dano</p>
@@ -498,7 +488,7 @@ function WarCard({
 
         {canAttack ? (
           <>
-            {enemyProposedPeace && (
+            {canProposePeace && enemyProposedPeace && (
               <div className="mb-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-center">
                 <p className="text-yellow-400 font-bold text-sm mb-2">🕊️ O inimigo propôs PAZ!</p>
                 <div className="flex gap-2">
