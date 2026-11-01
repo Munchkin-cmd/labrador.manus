@@ -36,10 +36,12 @@ export default function OrcamentoPage() {
     async function fetchMilitaryData() {
       if (!country?.id) return
       const [milRes, catRes] = await Promise.all([
-        supabase.from('military').select('*').eq('country_id', country.id).maybeSingle(),
+        // ✅ CORREÇÃO AQUI: Troca maybeSingle() por limit(1) para não quebrar se houver linhas duplicadas
+        supabase.from('military').select('*').eq('country_id', country.id).limit(1),
         supabase.from('equipment_catalog').select('type, maint_money')
       ])
-      setMilitary(milRes.data)
+      // ✅ CORREÇÃO AQUI: Pega o primeiro item do array (se existir)
+      setMilitary(milRes.data?.[0] || null)
       if (catRes.data) setEquipmentCatalog(catRes.data)
       setLoadingMilitary(false)
     }
@@ -73,11 +75,12 @@ export default function OrcamentoPage() {
   const inflation = Number((economy as any).inflation || 0)
   const inflationMultiplier = 1 + (inflation / 10)
 
-  // ✅ CORREÇÃO: Aplica a inflação na manutenção dos prédios para bater com o SQL
+  // ✅ CORREÇÃO: Calcula a infraestrutura com inflação igual ao SQL
   const infraMaintenance = (buildings || [])
     .filter(b => b.is_built && b.is_active)
     .reduce((acc, b) => acc + (Number((b.building_catalog as any)?.maint_money || 0) * Number(b.quantity || 0) * inflationMultiplier), 0)
 
+  // ✅ CORREÇÃO: Lógica militar idêntica ao Ranking
   let militaryMaintenance = 0
   if (military && equipmentCatalog.length > 0) {
     Object.keys(military).forEach(key => {
@@ -146,7 +149,7 @@ export default function OrcamentoPage() {
     Object.entries(maintenanceMap).forEach(([dbField, resKey]) => {
       const cost = Number(cat[dbField] || 0)
       if (cost > 0) {
-        resources[resKey].cons += cost * qty * inflationMultiplier // ✅ Inflação nos recursos também
+        resources[resKey].cons += cost * qty * inflationMultiplier
       }
     })
 

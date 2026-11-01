@@ -12,7 +12,7 @@ import remarkBreaks from 'remark-breaks'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import { formatTime } from '@/utils/format'
-import { ArrowLeft, Trash2, Pencil, Image, X, AlertCircle, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Trash2, Image, X, AlertCircle, CheckCircle } from 'lucide-react'
 
 import LinkPreview from '@/components/LinkPreview'
 
@@ -22,7 +22,6 @@ import { Grid } from '@giphy/react-components'
 
 const gf = new GiphyFetch(process.env.NEXT_PUBLIC_GIPHY_API_KEY || '')
 
-// ✅ PERMITE TAGS DE MÍDIA E FORMATAÇÃO NO ARTIGO
 const sanitizeSchema = {
   ...defaultSchema,
   attributes: {
@@ -127,15 +126,33 @@ export default function ArtigoPage() {
     setArticle({ ...article, likes: newLikes, dislikes: newDislikes })
   }
 
+  // ✅ CORREÇÃO AQUI: Verifica se o artigo foi realmente apagado
   async function handleDelete() {
     if (!confirm('Tem certeza que deseja excluir este artigo?')) return
     setDeleting(true)
-    const { error } = await supabase.from('articles').delete().eq('id', id)
-    if (!error) {
-      router.push('/game/feed')
-    } else {
-      alert('Erro ao excluir o artigo.')
+    
+    // O .select() força o Supabase a retornar os dados apagados. 
+    // Se retornar vazio, significa que o RLS bloqueou a exclusão.
+    const { data, error } = await supabase
+      .from('articles')
+      .delete()
+      .eq('id', id)
+      .select()
+
+    if (error) {
+      alert(`Erro ao excluir o artigo: ${error.message}`)
+      setDeleting(false)
+      return
     }
+
+    if (!data || data.length === 0) {
+      alert('Não foi possível excluir. O banco de dados bloqueou a ação (verifique as permissões RLS).')
+      setDeleting(false)
+      return
+    }
+
+    // Se chegou aqui, apagou de verdade
+    router.push('/game/feed')
     setDeleting(false)
   }
 
@@ -190,7 +207,6 @@ export default function ArtigoPage() {
   if (!article) return <div className="p-8 text-center text-white/40">Artigo não encontrado.</div>
 
   return (
-    // ✅ CORREÇÃO AQUI: pt-4 alterado para pt-20
     <div className="max-w-4xl mx-auto pb-24 px-2 sm:px-4 pt-20">
       
       {/* HEADER */}
@@ -201,12 +217,10 @@ export default function ArtigoPage() {
           </Link>
           <h1 className="text-xl font-bold text-white tracking-tight">Artigo</h1>
         </div>
+        {/* ✅ CORREÇÃO: Botão de editar removido. Apenas excluir mantido */}
         {isAuthor && (
           <div className="flex gap-2">
-            <Link href={`/game/feed/editar/${id}`} className="p-2 text-white/50 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-colors">
-              <Pencil size={18} />
-            </Link>
-            <button onClick={handleDelete} disabled={deleting} className="p-2 text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded-full transition-colors disabled:opacity-50">
+            <button onClick={handleDelete} disabled={deleting} className="p-2 text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded-full transition-colors disabled:opacity-50" title="Excluir Artigo">
               <Trash2 size={18} />
             </button>
           </div>

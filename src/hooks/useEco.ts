@@ -142,10 +142,12 @@ export function useEco() {
       if (catError) throw catError
       setCatalog(catData || [])
 
+      // ✅ CORREÇÃO AQUI: Adicionado .limit(10000) para buscar todos os prédios
       const { data: bData, error: bError } = await supabase
         .from('buildings')
         .select('*')
         .eq('country_id', countryId)
+        .limit(10000) 
 
       if (bError) throw bError
 
@@ -203,10 +205,12 @@ export function useEco() {
 
         if (eData) setEconomy(eData)
 
+        // ✅ CORREÇÃO AQUI: Adicionado .limit(10000) no polling também
         const { data: bData } = await supabase
           .from('buildings')
           .select('*')
           .eq('country_id', countryId)
+          .limit(10000)
 
         if (bData) {
           const updatedBuildings = (bData || []).map((building: BuildingRow) => {

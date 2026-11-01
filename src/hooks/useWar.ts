@@ -99,9 +99,11 @@ export function useWar() {
       `;
 
       const [activeWarsData, endedWarsData, militaryData, combatXPData] = await Promise.all([
-        supabase.from('wars').select(selectQuery).in('status', ['active', 'paused']).order('started_at', { ascending: false }),
+        // ✅ CORREÇÃO: Busca active, paused E ended (para mostrar vitórias recentes nas suas guerras)
+        supabase.from('wars').select(selectQuery).in('status', ['active', 'paused', 'ended']).order('started_at', { ascending: false }),
         supabase.from('wars').select(selectQuery).in('status', ['ended', 'peace']).order('started_at', { ascending: false }).limit(30),
-        supabase.from('military').select('*').eq('country_id', country.id).maybeSingle(),
+        // ✅ CORREÇÃO: Troca maybeSingle() por limit(1) para não quebrar se houver duplicata
+        supabase.from('military').select('*').eq('country_id', country.id).limit(1),
         supabase.from('combat_xp').select('*').eq('country_id', country.id).maybeSingle(),
       ])
 
@@ -121,7 +123,8 @@ export function useWar() {
       setMyWars(myWarsFiltered)
       setWorldWars(worldWarsFiltered)
       setEndedWars(ended)
-      setMilitary(militaryData?.data ?? null)
+      // ✅ CORREÇÃO: Pega o primeiro item do array
+      setMilitary(militaryData?.data?.[0] || null)
       setCombatXP(combatXPData?.data ? (combatXPData.data as CombatXP) : null)
 
       lastLoadedIdRef.current = country.id
@@ -155,7 +158,6 @@ export function useWar() {
   async function declareWar(targetId: number): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
     const { data, error } = await supabase.rpc('declare_war', { p_attacker_id: country.id, p_defender_id: targetId })
-    // ✅ CORREÇÃO: Força o recarregamento após declarar guerra
     await fetchAll(true, true)
     if (error) return { success: false, error: error.message }
     return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
@@ -214,7 +216,6 @@ export function useWar() {
 
     if (error) return { success: false, error: error.message }
     
-    // ✅ CORREÇÃO: Força o recarregamento para a tela ver a nova lei e tentar mostrar os botões
     await fetchAll(true, true) 
     
     return { success: true, message: `Proposta enviada ao parlamento para lutar pelo lado ${side === 'attacker' ? 'Atacante' : 'Defensor'}!` }
@@ -228,10 +229,22 @@ export function useWar() {
     return { success: true, message: 'Você se retirou da guerra. Seu dano anterior foi mantido no placar.' }
   }
 
+  // ✅ NOVO: Função para anexar o território
+  async function annexTerritory(warId: string): Promise<RpcSimpleResult> {
+    if (!country?.id) return { success: false, error: 'País não encontrado' }
+    const { data, error } = await supabase.rpc('annex_war_territory', { 
+      p_war_id: warId, 
+      p_winner_id: country.id 
+    })
+    await fetchAll(true, true)
+    if (error) return { success: false, error: error.message }
+    return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
+  }
+
   return {
     myWars, worldWars, endedWars, military, combatXP, loading, error,
     declareWar, attack, proposePeace, acceptPeace, rejectPeace,
-    proposeJoinWar, leaveWar,
+    proposeJoinWar, leaveWar, annexTerritory, // ✅ Adicionado ao retorno
     refetch: () => fetchAll(false, true),
   }
 }
