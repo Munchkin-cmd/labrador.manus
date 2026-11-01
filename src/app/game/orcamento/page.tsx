@@ -13,6 +13,11 @@ export default function OrcamentoPage() {
 
   const [taxes, setTaxes] = useState<any>(null)
   const [loadingTax, setLoadingTax] = useState(true)
+  
+  // ✅ NOVOS ESTADOS PARA CUSTO MILITAR
+  const [military, setMilitary] = useState<any>(null)
+  const [equipmentCatalog, setEquipmentCatalog] = useState<any[]>([])
+  const [loadingMilitary, setLoadingMilitary] = useState(true)
 
   useEffect(() => {
     async function fetchTaxes() {
@@ -28,7 +33,22 @@ export default function OrcamentoPage() {
     fetchTaxes()
   }, [country?.id])
 
-  if (loading || loadingTax) return <Loading />
+  // ✅ BUSCA OS DADOS MILITARES E O CATÁLOGO DE CUSTOS
+  useEffect(() => {
+    async function fetchMilitaryData() {
+      if (!country?.id) return
+      const [milRes, catRes] = await Promise.all([
+        supabase.from('military').select('*').eq('country_id', country.id).maybeSingle(),
+        supabase.from('equipment_catalog').select('type, maint_money')
+      ])
+      setMilitary(milRes.data)
+      if (catRes.data) setEquipmentCatalog(catRes.data)
+      setLoadingMilitary(false)
+    }
+    fetchMilitaryData()
+  }, [country?.id])
+
+  if (loading || loadingTax || loadingMilitary) return <Loading />
   if (!economy) return null
 
   // ✅ 1. RECEITAS BRUTAS (Regra: 1% = 10 Milhões)
@@ -54,14 +74,30 @@ export default function OrcamentoPage() {
   // ─── 2. DESPESAS BRUTAS ──
   const totalExpenses = Number(economy.expenses || 0)
   const infraMaintenance = totalExpenses
-  const militaryMaintenance = 0
+
+  // ✅ CALCULA O CUSTO MILITAR DINAMICAMENTE
+  let militaryMaintenance = 0
+  if (military && equipmentCatalog.length > 0) {
+    Object.keys(military).forEach(key => {
+      // Ignora colunas que não são unidades militares
+      if (['id', 'country_id', 'created_at', 'updated_at'].includes(key)) return
+      
+      const qty = Number(military[key] || 0)
+      if (qty > 0) {
+        const catalogItem = equipmentCatalog.find(e => e.type === key)
+        if (catalogItem) {
+          militaryMaintenance += qty * Number(catalogItem.maint_money || 0)
+        }
+      }
+    })
+  }
 
   const turnExpenses = {
     military: militaryMaintenance,
     infra: infraMaintenance,
   }
 
-  const totalTurnExpenses = totalExpenses
+  const totalTurnExpenses = infraMaintenance + militaryMaintenance
 
   // ─── 3. COMÉRCIO EXTERIOR ──
   const exports = Number(economy.exports || 0)
@@ -126,7 +162,6 @@ export default function OrcamentoPage() {
   const growth = Number((economy as any).population_growth || 0)
   const inflation = Number((economy as any).inflation || 0)
   
-  // ✅ NOVO: Como a inflação agora encarece 10x mais (1% de inflação = 10% de custo), mostramos isso na tela
   const inflationImpact = inflation * 10
 
   return (

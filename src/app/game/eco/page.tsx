@@ -57,7 +57,6 @@ export default function EcoPage() {
   const [selectedBuilding, setSelectedBuilding] = useState<{ regionId: string; building: any } | null>(null)
   const [selectedMilitary, setSelectedMilitary] = useState<any | null>(null)
   
-  // ✅ NOVO: Estado para o catálogo de equipamentos
   const [equipmentCatalog, setEquipmentCatalog] = useState<any[]>([])
 
   const [buildQty, setBuildQty] = useState<number | ''>(1)
@@ -67,7 +66,6 @@ export default function EcoPage() {
   const [pageFeedback, setPageFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  // ⏱️ ESTADO DO RELÓGIO DE CICLO (15 MINUTOS)
   const [timeLeft, setTimeLeft] = useState('15:00')
 
   useEffect(() => {
@@ -88,7 +86,6 @@ export default function EcoPage() {
     return () => clearInterval(interval)
   }, [])
 
-  // ✅ NOVO: Busca o catálogo de equipamentos militares do banco
   useEffect(() => {
     async function fetchEquipmentCatalog() {
       const { data } = await supabase.from('equipment_catalog').select('*')
@@ -110,7 +107,6 @@ export default function EcoPage() {
     )
   }
 
-  // ✅ ALERTAS
   const paralyzedBuildings = buildings.filter((b: any) => b.is_paralyzed === true)
   const hasParalyzedBuildings = paralyzedBuildings.length > 0
   const hasParalyzedPowerPlants = paralyzedBuildings.some((b: any) => b.building_catalog?.produces === 'energy')
@@ -121,7 +117,6 @@ export default function EcoPage() {
     return acc
   }, {})
 
-  // ✅ CORREÇÃO: Contagem correta somando a quantidade de todos os prédios
   const buildingCountByRegion = (regionId: string) => {
     return buildings
       .filter(b => b.region_id === regionId)
@@ -248,7 +243,8 @@ export default function EcoPage() {
   if (selectedBuilding) {
     inflation = Number(economy?.inflation || 0)
     const baseCost = Number(selectedBuilding.building.cost_money || 0)
-    inflatedCost = baseCost * (1 + (inflation / 100))
+    // ✅ CORREÇÃO: 1% de inflação encarece em 10% o custo (multiplicador de 10x)
+    inflatedCost = baseCost * (1 + ((inflation * 10) / 100))
     laborCost = Number(selectedBuilding.building.labor_cost || 0)
   }
 
@@ -282,7 +278,6 @@ export default function EcoPage() {
           <ResourceBox label="Dinheiro" value={economy.money || 0} isMoney />
         </div>
 
-        {/* NOVOS DADOS: IDH, CRESCIMENTO E INFLAÇÃO */}
         <div className="col-span-3 sm:col-span-5 grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-surface-border">
           <div className="text-center p-2 bg-surface-input border border-surface-border rounded-lg">
             <p className="text-[9px] font-bold text-white/40 uppercase tracking-wider flex items-center justify-center gap-1">
@@ -400,7 +395,6 @@ export default function EcoPage() {
                     {expandedRegion === region.id && (
                       <div className="bg-surface-input px-4 py-4 border-t border-surface-border space-y-5">
                         
-                        {/* ✅ CORREÇÃO: Agrupando prédios iguais para não repetir os cards */}
                         <div>
                           <p className="text-[10px] font-bold text-primary uppercase font-mono tracking-widest mb-2 flex items-center gap-2">
                             <IoCheckmarkCircle size={14} /> Construídos nesta Região
@@ -408,7 +402,6 @@ export default function EcoPage() {
                           {(() => {
                             const cBuildings = buildings.filter(b => b.region_id === region.id && b.is_built)
                             
-                            // Junta os prédios iguais e soma suas quantidades
                             const groupedUnique = cBuildings.reduce((acc, b) => {
                               if (!acc[b.building_type]) acc[b.building_type] = { ...b, quantity: 0 }
                               acc[b.building_type].quantity += Number(b.quantity || 1)
@@ -440,7 +433,6 @@ export default function EcoPage() {
                           })()}
                         </div>
 
-                        {/* CATÁLOGO DE CONSTRUÇÃO */}
                         <div>
                           <p className="text-[10px] font-bold text-white/50 uppercase font-mono tracking-widest mb-2 border-t border-surface-border pt-3">
                             Construir Novo Edifício
@@ -521,7 +513,6 @@ export default function EcoPage() {
 
       {/* MODAL DE CONSTRUÇÃO / DESTRUIÇÃO */}
       {selectedBuilding && (() => {
-        // ✅ Cálculo do limite atingido (7 por região)
         const totalQtyInRegion = buildings
           .filter(b => b.region_id === selectedBuilding.regionId && b.building_type === selectedBuilding.building.type)
           .reduce((sum, b) => sum + Number(b.quantity || 1), 0)
@@ -567,8 +558,9 @@ export default function EcoPage() {
                         <>
                           <span className="line-through text-white/40 text-sm">{formatMoney(selectedBuilding.building.cost_money)}</span>
                           <span className="text-primary font-bold text-sm">{formatMoney(inflatedCost)}</span>
+                          {/* ✅ CORREÇÃO: Mostra o impacto real da inflação (10x) */}
                           <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded text-[10px] border border-red-500/20 font-bold flex items-center gap-1">
-                            <IoWarning size={10} /> Inflação: +{inflation.toFixed(1)}%
+                            <IoWarning size={10} /> Inflação: +{(inflation * 10).toFixed(1)}%
                           </span>
                         </>
                       ) : (
@@ -649,7 +641,6 @@ export default function EcoPage() {
                       type="number"
                       min={1}
                       max={7 - totalQtyInRegion}
-                      // ✅ CORREÇÃO: Zero chato pro usuário
                       value={buildQty === 0 ? '' : buildQty}
                       onChange={e => {
                         const val = e.target.value === '' ? '' : Number(e.target.value)
@@ -660,7 +651,6 @@ export default function EcoPage() {
                       disabled={isMaxed}
                     />
                     
-                    {/* ✅ CORREÇÃO: Botão desabilitado se atingiu o limite */}
                     <button
                       onClick={() => handleBuild(selectedBuilding.regionId, selectedBuilding.building.type)}
                       disabled={submitting || isMaxed || buildQty === '' || buildQty === 0}
@@ -693,7 +683,6 @@ export default function EcoPage() {
 
       {/* MODAL MILITAR */}
       {selectedMilitary && (() => {
-        // ✅ Busca as informações de custo no catálogo de equipamentos
         const eqCatalog = equipmentCatalog.find(e => e.type === selectedMilitary.key)
 
         return (
@@ -738,7 +727,6 @@ export default function EcoPage() {
                     </div>
                   </div>
 
-                  {/* ✅ NOVO: INFORMAÇÕES DE CUSTO E MANUTENÇÃO */}
                   {eqCatalog ? (
                     <div className="space-y-4">
                       <div className="bg-surface-input border border-surface-border rounded-lg p-3">
@@ -770,7 +758,6 @@ export default function EcoPage() {
                     <input
                       type="number"
                       min={1}
-                      // ✅ CORREÇÃO: Zero chato pro usuário
                       value={militaryQty === 0 ? '' : militaryQty}
                       onChange={e => {
                         const val = e.target.value === '' ? '' : Number(e.target.value)
