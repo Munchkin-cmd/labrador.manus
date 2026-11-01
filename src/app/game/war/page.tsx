@@ -105,7 +105,6 @@ export default function WarPage() {
   }
 
   return (
-    // ✅ CORREÇÃO AQUI: pt-4 alterado para pt-20
     <div className="flex flex-col gap-6 pb-24 min-h-screen pt-20 max-w-4xl mx-auto w-full px-4">
       
       <div className="flex items-center justify-between">
@@ -126,7 +125,6 @@ export default function WarPage() {
       <div>
         <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Suas Guerras</p>
         {myWars.length === 0 ? (
-          // ✅ Borda alterada aqui
           <div className="bg-surface-card rounded-xl p-8 text-center border border-surface-border">
             <p className="text-5xl mb-3">🕊️</p>
             <p className="text-white/40 text-sm">Você não está em nenhuma guerra ativa.</p>
@@ -155,7 +153,6 @@ export default function WarPage() {
       <div>
         <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Guerras no Mundo ({worldWars.length})</p>
         {worldWars.length === 0 ? (
-          // ✅ Borda alterada aqui
           <div className="bg-surface-card rounded-xl p-4 text-center border border-surface-border">
             <p className="text-white/40 text-sm">Nenhuma guerra ativa no momento.</p>
           </div>
@@ -183,7 +180,6 @@ export default function WarPage() {
 
       <button 
         onClick={() => setShowHistory(true)}
-        // ✅ Borda alterada aqui
         className="mt-4 flex items-center justify-center gap-2 w-full py-4 bg-surface-card hover:bg-white/5 border border-surface-border rounded-xl transition-colors text-white font-bold text-sm"
       >
         <History size={18} className="text-white/60" />
@@ -192,7 +188,6 @@ export default function WarPage() {
 
       {showHistory && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          {/* ✅ Borda alterada aqui */}
           <div className="bg-[#1a1a2e] border border-surface-border rounded-2xl p-5 sm:p-6 w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl relative">
             
             <button onClick={() => setShowHistory(false)} className="absolute top-4 right-4 text-white/40 hover:text-white bg-black/20 p-2 rounded-full transition-colors">
@@ -212,9 +207,7 @@ export default function WarPage() {
                   const isDefenderWinner = Number(war.winner_id) === Number(war.defender_id);
                   
                   return (
-                    // ✅ Borda alterada aqui
                     <div key={war.id} className="bg-black/30 border border-surface-border rounded-xl p-4 flex flex-col gap-3">
-                      {/* ✅ Borda alterada aqui */}
                       <div className="flex justify-between items-center text-[10px] text-white/40 uppercase font-bold border-b border-surface-border pb-2">
                         <span>{new Date(war.started_at).toLocaleDateString('pt-BR')}</span>
                         <span className="text-green-400 bg-green-500/10 px-2 py-0.5 rounded">Encerrada</span>
@@ -255,7 +248,6 @@ export default function WarPage() {
 
       {attackWarId && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center sm:items-center">
-          {/* ✅ Borda alterada aqui */}
           <div className="w-full max-w-lg bg-[#1a1a2e] rounded-t-2xl sm:rounded-2xl p-6 border border-surface-border max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-white font-bold text-lg flex items-center gap-2">
@@ -339,11 +331,19 @@ function WarCard({
     )
   }
 
-  const attParticipants = war.participants?.filter((p: any) => p.side === 'attacker') || [];
-  const defParticipants = war.participants?.filter((p: any) => p.side === 'defender') || [];
+  // ✅ LÓGICA PARA SEPARAR O DANO PRINCIPAL DO DANO DOS ALIADOS
+  const attParticipants = war.participants || [];
+  const attAllies = attParticipants.filter((p: any) => p.side === 'attacker' && Number(p.country_id) !== Number(war.attacker_id));
+  const defAllies = attParticipants.filter((p: any) => p.side === 'defender' && Number(p.country_id) !== Number(war.defender_id));
+
+  const attAlliesDmg = attAllies.reduce((sum: number, p: any) => sum + (p.damage_dealt || 0), 0);
+  const defAlliesDmg = defAllies.reduce((sum: number, p: any) => sum + (p.damage_dealt || 0), 0);
+
+  // O dano do principal é o total do lado menos o que os aliados causaram
+  const mainAttDmg = Math.max(0, attDmg - attAlliesDmg);
+  const mainDefDmg = Math.max(0, defDmg - defAlliesDmg);
 
   return (
-    // ✅ Borda alterada aqui
     <div className="relative bg-[#151526] rounded-2xl overflow-hidden border border-surface-border shadow-2xl transition-all duration-300">
       <div className="absolute inset-0 bg-gradient-to-b from-[#2a2a4a] to-[#0f0f1a] opacity-80" />
       <div className="absolute inset-0 bg-black/40" />
@@ -365,7 +365,6 @@ function WarCard({
             </h3>
             <p className="text-white/40 text-[10px] uppercase font-semibold mt-1">Terreno: {war.terrain || 'Desconhecido'}</p>
           </div>
-          {/* ✅ Borda alterada aqui */}
           <div className="bg-black/60 px-3 py-1.5 rounded-lg text-white/70 text-[10px] font-mono flex items-center gap-1.5 border border-surface-border">
             <Clock size={12} className="text-white/40" /> Ativa
           </div>
@@ -394,7 +393,6 @@ function WarCard({
           </div>
         </div>
 
-        {/* ✅ Borda alterada aqui */}
         <div className="flex justify-between items-center bg-black/20 rounded-xl p-4 border border-surface-border mb-4">
           <div className="flex flex-col items-center gap-2 flex-1">
             <FlagAvatar country={war.attacker} borderColor="border-red-500/50" />
@@ -428,15 +426,30 @@ function WarCard({
         </button>
 
         {isExpanded && (
-          // ✅ Borda alterada aqui
           <div className="bg-black/40 rounded-xl p-3 border border-surface-border mb-4 animate-in slide-in-from-top-2 duration-200">
             <div className="grid grid-cols-2 gap-3">
-              {/* ✅ Borda alterada aqui */}
-              <div className="space-y-2 border-r border-surface-border pr-3">
-                <p className="text-red-400/80 text-[10px] font-bold uppercase mb-2">Aliados do Atacante</p>
-                {attParticipants.map((ally: any, idx: number) => (
+              
+              {/* ✅ LADO DO ATACANTE */}
+              <div className="space-y-3 border-r border-surface-border pr-3">
+                <p className="text-red-400/80 text-[10px] font-bold uppercase mb-1">Forças do Atacante</p>
+                
+                {/* Principal */}
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-red-500/50">
+                    <FlagAvatar country={war.attacker} borderColor="border-transparent" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white text-[11px] font-bold truncate">
+                      {war.attacker?.name} <span className="text-[9px] text-red-400 font-normal">(Principal)</span>
+                    </p>
+                    <p className="text-green-400/80 text-[10px]">{formatNumber(mainAttDmg)} dano</p>
+                  </div>
+                </div>
+
+                {/* Aliados */}
+                {attAllies.map((ally: any, idx: number) => (
                   <div key={idx} className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-red-500/30">
+                    <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-red-500/30 opacity-70">
                       <FlagAvatar country={ally.country} borderColor="border-transparent" />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -445,14 +458,30 @@ function WarCard({
                     </div>
                   </div>
                 ))}
-                {attParticipants.length === 0 && <p className="text-white/20 text-[10px] italic">Nenhum</p>}
+                {attAllies.length === 0 && <p className="text-white/20 text-[10px] italic">Sem aliados</p>}
               </div>
 
-              <div className="space-y-2 pl-1">
-                <p className="text-blue-400/80 text-[10px] font-bold uppercase mb-2">Aliados do Defensor</p>
-                {defParticipants.map((ally: any, idx: number) => (
+              {/* ✅ LADO DO DEFENSOR */}
+              <div className="space-y-3 pl-1">
+                <p className="text-blue-400/80 text-[10px] font-bold uppercase mb-1">Forças do Defensor</p>
+                
+                {/* Principal */}
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-blue-500/50">
+                    <FlagAvatar country={war.defender} borderColor="border-transparent" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white text-[11px] font-bold truncate">
+                      {war.defender?.name} <span className="text-[9px] text-blue-400 font-normal">(Principal)</span>
+                    </p>
+                    <p className="text-green-400/80 text-[10px]">{formatNumber(mainDefDmg)} dano</p>
+                  </div>
+                </div>
+
+                {/* Aliados */}
+                {defAllies.map((ally: any, idx: number) => (
                   <div key={idx} className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-blue-500/30">
+                    <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-blue-500/30 opacity-70">
                       <FlagAvatar country={ally.country} borderColor="border-transparent" />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -461,7 +490,7 @@ function WarCard({
                     </div>
                   </div>
                 ))}
-                {defParticipants.length === 0 && <p className="text-white/20 text-[10px] italic">Nenhum</p>}
+                {defAllies.length === 0 && <p className="text-white/20 text-[10px] italic">Sem aliados</p>}
               </div>
             </div>
           </div>
@@ -485,7 +514,6 @@ function WarCard({
               </button>
               
               {canProposePeace ? (
-                // ✅ Borda alterada aqui
                 <button onClick={onProposePeace} disabled={iProposedPeace || enemyProposedPeace || peaceLoading} className="flex-1 bg-white/5 border border-surface-border disabled:opacity-30 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
                   <Check size={18} /> {iProposedPeace ? '⏳ Enviado' : enemyProposedPeace ? '⚠️ Responder' : '🕊️ Propor Paz'}
                 </button>

@@ -38,7 +38,6 @@ export interface War {
 type CombatXPRow = Database['public']['Tables']['combat_xp']['Row']
 export interface CombatXP extends CombatXPRow {}
 
-// ✅ CORREÇÃO AQUI: Adicionado 'message?: string'
 type RpcAttackResult = {
   success: boolean
   damage_dealt: number
@@ -62,7 +61,7 @@ export function useWar() {
   const { country } = useAuthStore()
   const [myWars, setMyWars] = useState<War[]>([])
   const [worldWars, setWorldWars] = useState<War[]>([])
-  const [endedWars, setEndedWars] = useState<War[]>([]) // ✅ Estado do histórico
+  const [endedWars, setEndedWars] = useState<War[]>([])
   const [military, setMilitary] = useState<any>(null)
   const [combatXP, setCombatXP] = useState<CombatXP | null>(null)
   const [loading, setLoading] = useState(true)
@@ -71,7 +70,6 @@ export function useWar() {
   const fetchingRef = useRef(false)
   const lastLoadedIdRef = useRef<number | null>(null)
 
-  // ✅ Função com 'isBackground' para não piscar a tela durante o polling
   const fetchAll = useCallback(async (isBackground = false, force = false) => {
     if (!country?.id) {
       setMyWars([]); setWorldWars([]); setEndedWars([]); setMilitary(null); setCombatXP(null); setLoading(false)
@@ -82,7 +80,6 @@ export function useWar() {
 
     fetchingRef.current = true
     
-    // Só mostra o spinner de carregamento se NÃO for uma atualização em segundo plano
     if (!isBackground) setLoading(true)
     setError(null)
 
@@ -101,7 +98,6 @@ export function useWar() {
         )
       `;
 
-      // Busca Guerras Ativas, Encerradas e dados do jogador em paralelo
       const [activeWarsData, endedWarsData, militaryData, combatXPData] = await Promise.all([
         supabase.from('wars').select(selectQuery).in('status', ['active', 'paused']).order('started_at', { ascending: false }),
         supabase.from('wars').select(selectQuery).in('status', ['ended', 'peace']).order('started_at', { ascending: false }).limit(30),
@@ -159,6 +155,7 @@ export function useWar() {
   async function declareWar(targetId: number): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
     const { data, error } = await supabase.rpc('declare_war', { p_attacker_id: country.id, p_defender_id: targetId })
+    // ✅ CORREÇÃO: Força o recarregamento após declarar guerra
     await fetchAll(true, true)
     if (error) return { success: false, error: error.message }
     return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
@@ -216,6 +213,10 @@ export function useWar() {
     })
 
     if (error) return { success: false, error: error.message }
+    
+    // ✅ CORREÇÃO: Força o recarregamento para a tela ver a nova lei e tentar mostrar os botões
+    await fetchAll(true, true) 
+    
     return { success: true, message: `Proposta enviada ao parlamento para lutar pelo lado ${side === 'attacker' ? 'Atacante' : 'Defensor'}!` }
   }
 

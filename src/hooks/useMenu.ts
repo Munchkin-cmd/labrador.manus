@@ -11,6 +11,7 @@ export function useEconomy() {
   const { country } = useAuthStore()
   const [economy, setEconomy] = useState<any>(null)
   const [military, setMilitary] = useState<any>(null)
+  const [equipmentCatalog, setEquipmentCatalog] = useState<any[]>([])
   const [buildings, setBuildings] = useState<any[]>([])
   const [taxes, setTaxes] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -21,6 +22,7 @@ export function useEconomy() {
     if (!country?.id) {
       setEconomy(null)
       setMilitary(null)
+      setEquipmentCatalog([])
       setBuildings([])
       setTaxes(null)
       setLoading(false)
@@ -35,17 +37,19 @@ export function useEconomy() {
     setLoading(true)
 
     try {
-      const [e, m, b, t] = await Promise.all([
+      const [e, m, b, t, ec] = await Promise.all([
         supabase.from('economy').select('*').eq('country_id', country.id).maybeSingle(),
         supabase.from('military').select('*').eq('country_id', country.id).maybeSingle(),
         supabase.from('buildings').select('*, building_catalog(maint_money, produces)').eq('country_id', country.id),
         supabase.from('taxes').select('*').eq('country_id', country.id).maybeSingle(),
+        supabase.from('equipment_catalog').select('type, maint_money')
       ])
 
       setEconomy(e.data)
       setMilitary(m.data)
       setBuildings(b.data ?? [])
       setTaxes(t.data)
+      setEquipmentCatalog(ec.data ?? [])
       lastLoadedIdRef.current = country.id
     } catch (err) {
       console.error('Erro ao buscar economia:', err)
@@ -61,6 +65,7 @@ export function useEconomy() {
     } else if (!country?.id) {
       setEconomy(null)
       setMilitary(null)
+      setEquipmentCatalog([])
       setBuildings([])
       setTaxes(null)
       setLoading(false)
@@ -73,18 +78,33 @@ export function useEconomy() {
 
   if (taxes) {
     const taxSum = (taxes.income_tax || 0) + (taxes.property_tax || 0) + (taxes.manufacturing_tax || 0)
-    totalIncome = taxSum * 100_000_000
+    // ✅ CORREÇÃO: Multiplicador de 10 Milhões (igual ao SQL e ao Orçamento)
+    totalIncome = taxSum * 10_000_000
   }
+
+  // ✅ APLICA INFLAMAÇÃO NA MANUTENÇÃO
+  const inflation = Number(economy?.inflation || 0)
+  const inflationMultiplier = 1 + (inflation / 10)
 
   if (buildings && buildings.length > 0) {
     buildings.forEach(b => {
       const cat = b.building_catalog
       if (!cat) return
       const qty = b.quantity || 1
-      totalExpenses += (Number(cat.maint_money) || 0) * qty
+      totalExpenses += (Number(cat.maint_money) || 0) * qty * inflationMultiplier
       if (cat.produces) {
         resourceProduction[cat.produces] = (resourceProduction[cat.produces] || 0) + (300 * qty)
       }
+    })
+  }
+
+  // ✅ NOVO: Custo Militar
+  if (military && equipmentCatalog.length > 0) {
+    Object.keys(military).forEach(key => {
+      if (['id', 'country_id', 'created_at', 'updated_at'].includes(key)) return
+      const qty = Number(military[key] || 0)
+      const cat = equipmentCatalog.find(e => e.type === key)
+      if (cat) totalExpenses += qty * Number(cat.maint_money || 0)
     })
   }
 

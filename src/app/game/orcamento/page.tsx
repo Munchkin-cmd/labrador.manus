@@ -14,7 +14,6 @@ export default function OrcamentoPage() {
   const [taxes, setTaxes] = useState<any>(null)
   const [loadingTax, setLoadingTax] = useState(true)
   
-  // ✅ NOVOS ESTADOS PARA CUSTO MILITAR
   const [military, setMilitary] = useState<any>(null)
   const [equipmentCatalog, setEquipmentCatalog] = useState<any[]>([])
   const [loadingMilitary, setLoadingMilitary] = useState(true)
@@ -33,7 +32,6 @@ export default function OrcamentoPage() {
     fetchTaxes()
   }, [country?.id])
 
-  // ✅ BUSCA OS DADOS MILITARES E O CATÁLOGO DE CUSTOS
   useEffect(() => {
     async function fetchMilitaryData() {
       if (!country?.id) return
@@ -56,7 +54,7 @@ export default function OrcamentoPage() {
   const propertyTax = Number(taxes?.property_tax || 0)
   const manufacturingTax = Number(taxes?.manufacturing_tax || 0)
   
-  const taxMultiplier = 10000000 // ✅ 10 Milhões
+  const taxMultiplier = 10000000
 
   const grossProfitPerTurn = (buildings || [])
     .filter(b => b.is_built && b.is_active)
@@ -72,16 +70,18 @@ export default function OrcamentoPage() {
   const totalTurnRevenue = Object.values(turnValues).reduce((a, b) => a + b, 0)
 
   // ─── 2. DESPESAS BRUTAS ──
-  const totalExpenses = Number(economy.expenses || 0)
-  const infraMaintenance = totalExpenses
+  const inflation = Number((economy as any).inflation || 0)
+  const inflationMultiplier = 1 + (inflation / 10)
 
-  // ✅ CALCULA O CUSTO MILITAR DINAMICAMENTE
+  // ✅ CORREÇÃO: Aplica a inflação na manutenção dos prédios para bater com o SQL
+  const infraMaintenance = (buildings || [])
+    .filter(b => b.is_built && b.is_active)
+    .reduce((acc, b) => acc + (Number((b.building_catalog as any)?.maint_money || 0) * Number(b.quantity || 0) * inflationMultiplier), 0)
+
   let militaryMaintenance = 0
   if (military && equipmentCatalog.length > 0) {
     Object.keys(military).forEach(key => {
-      // Ignora colunas que não são unidades militares
       if (['id', 'country_id', 'created_at', 'updated_at'].includes(key)) return
-      
       const qty = Number(military[key] || 0)
       if (qty > 0) {
         const catalogItem = equipmentCatalog.find(e => e.type === key)
@@ -146,7 +146,7 @@ export default function OrcamentoPage() {
     Object.entries(maintenanceMap).forEach(([dbField, resKey]) => {
       const cost = Number(cat[dbField] || 0)
       if (cost > 0) {
-        resources[resKey].cons += cost * qty
+        resources[resKey].cons += cost * qty * inflationMultiplier // ✅ Inflação nos recursos também
       }
     })
 
@@ -157,10 +157,8 @@ export default function OrcamentoPage() {
 
   const energyBalance = energyProd - energyCons
 
-  // Indicadores Macroeconômicos
   const idh = Number((economy as any).idh || 0)
   const growth = Number((economy as any).population_growth || 0)
-  const inflation = Number((economy as any).inflation || 0)
   
   const inflationImpact = inflation * 10
 
@@ -172,7 +170,6 @@ export default function OrcamentoPage() {
         <p className="text-xs font-bold tracking-widest text-white uppercase font-mono">Orçamento</p>
       </div>
 
-      {/* INDICADORES MACROECONÔMICOS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-surface-card border border-surface-border rounded-lg p-4 shadow-lg flex items-center justify-between">
           <div>

@@ -9,7 +9,6 @@ import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend 
 } from 'recharts'
 
-// ─── TIPOS ──────────────────────────────────────────────
 type RankingType = {
   country_id: number
   name: string
@@ -25,7 +24,6 @@ type SelectOption = {
   value: string
 }
 
-// ─── CONFIGURAÇÃO VISUAL DOS GRUPOS ─────────────────────
 const GROUP_COLORS: Record<string, string> = {
   '📊 Indicadores': 'border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20',
   '💰 Economia': 'border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20',
@@ -38,7 +36,6 @@ const GROUP_COLORS: Record<string, string> = {
   '🔻 Consumo de Recursos': 'border-pink-500/30 bg-pink-500/10 text-pink-400 hover:bg-pink-500/20',
 }
 
-// ✅ FUNÇÃO DE FORMATAÇÃO LOCAL COM 3 CASAS DECIMAIS
 const formatRankingValue = (value: number, isMoney: boolean = false) => {
   const suffixes = [
     { value: 1e33, symbol: 'D' }, { value: 1e30, symbol: 'N' }, { value: 1e27, symbol: 'O' },
@@ -58,25 +55,23 @@ const formatRankingValue = (value: number, isMoney: boolean = false) => {
 export default function RankingsPage() {
   const [loading, setLoading] = useState(true)
   const [rawData, setRawData] = useState<any>({
-    countries: [], economies: [], militaries: [], buildings: [], catalog: [], 
+    countries: [], economies: [], militaries: [], buildings: [], catalog: [], equipmentCatalog: [],
     regions: [], taxes: []
   })
   
-  // Estados de UI
   const [viewMode, setViewMode] = useState<'list' | 'chart'>('list')
   const [activeGroup, setActiveGroup] = useState<string>('📊 Indicadores')
   const [selectedMetric, setSelectedMetric] = useState<string>('idh')
   const [rankings, setRankings] = useState<RankingType[]>([])
   
-  // Estados do Gráfico
   const [compareCountryA, setCompareCountryA] = useState<number | ''>('')
   const [compareCountryB, setCompareCountryB] = useState<number | ''>('')
 
-  // ─── OPÇÕES DO MENU ──────────────────────────────────────
   const options: SelectOption[] = [
     { group: '📊 Indicadores', label: 'IDH', value: 'idh' },
     { group: '📊 Indicadores', label: 'Cresc. Populacional', value: 'population_growth' },
     { group: '📊 Indicadores', label: 'Inflação', value: 'inflation' },
+    { group: '📊 Indicadores', label: 'Poluição', value: 'pollution' }, // ✅ NOVO
     { group: '📊 Indicadores', label: 'População', value: 'population' },
     
     { group: '💰 Economia', label: 'Dinheiro', value: 'money' },
@@ -85,16 +80,16 @@ export default function RankingsPage() {
     { group: '💰 Economia', label: 'Exportação', value: 'exports' },
     { group: '💰 Economia', label: 'Importação', value: 'imports' },
     { group: '💰 Economia', label: 'Lucro Bruto', value: 'gross_profit' },
-    // ✅ NOVAS OPÇÕES DE MANUTENÇÃO
     { group: '💰 Economia', label: 'Manut. de Infraestrutura', value: 'infra_maintenance' },
     { group: '💰 Economia', label: 'Manut. Militar (Est.)', value: 'military_maintenance' },
     
     { group: '🏙️ Edifícios e Regiões', label: 'Total de Edifícios', value: 'total_buildings' },
     { group: '🏙️ Edifícios e Regiões', label: 'Total de Regiões', value: 'total_regions' },
     
-    { group: '📈 Taxas', label: 'Imposto de Renda (%)', value: 'tax_income' },
-    { group: '📈 Taxas', label: 'Imposto Propriedade (%)', value: 'tax_property' },
-    { group: '📈 Taxas', label: 'Imposto Manufatura (%)', value: 'tax_manufacturing' },
+    // ✅ CORREÇÃO: Valores exatos das colunas da tabela `taxes`
+    { group: '📈 Taxas', label: 'Imposto de Renda (%)', value: 'income_tax' },
+    { group: '📈 Taxas', label: 'Imposto Propriedade (%)', value: 'property_tax' },
+    { group: '📈 Taxas', label: 'Imposto Manufatura (%)', value: 'manufacturing_tax' },
 
     { group: '⚔️ Militar', label: 'Soldados', value: 'soldiers' },
     { group: '⚔️ Militar', label: 'Tanques', value: 'tanks' },
@@ -122,20 +117,18 @@ export default function RankingsPage() {
     options.push({ group: `🔻 Consumo de Recursos`, label: `Consumo de ${res.label}`, value: `cons_${res.key}` })
   })
 
-  // Agrupa os filtros
   const groupedOptions = options.reduce((acc, opt) => {
     if (!acc[opt.group]) acc[opt.group] = []
     acc[opt.group].push(opt)
     return acc
   }, {} as Record<string, SelectOption[]>)
 
-  // ─── BUSCAR DADOS (MANUAL E INICIAL) ───────────────────
   const fetchAllData = useCallback(async () => {
     setLoading(true)
     
     const [
       { data: countries }, { data: economies }, { data: militaries },
-      { data: buildings }, { data: catalog }, { data: regions },
+      { data: buildings }, { data: catalog }, { data: equipmentCatalog }, { data: regions },
       { data: articles }, { data: taxes }
     ] = await Promise.all([
       supabase.from('countries').select('id, name, flag_emoji, slug'),
@@ -143,6 +136,7 @@ export default function RankingsPage() {
       supabase.from('military').select('*'),
       supabase.from('buildings').select('country_id, building_type, quantity'),
       supabase.from('building_catalog').select('type, profit_money, produces, produces_qty, maint_food, maint_gold, maint_iron, maint_oil, maint_wood, maint_uranium, maint_coal, maint_steel, maint_money, energy_cost'),
+      supabase.from('equipment_catalog').select('type, maint_money'),
       supabase.from('regions').select('country_id'),
       supabase.from('articles').select('country_id, likes'),
       supabase.from('taxes').select('country_id, income_tax, property_tax, manufacturing_tax')
@@ -150,8 +144,8 @@ export default function RankingsPage() {
 
     setRawData({
       countries: countries || [], economies: economies || [], militaries: militaries || [],
-      buildings: buildings || [], catalog: catalog || [], regions: regions || [],
-      articles: articles || [], taxes: taxes || []
+      buildings: buildings || [], catalog: catalog || [], equipmentCatalog: equipmentCatalog || [],
+      regions: regions || [], articles: articles || [], taxes: taxes || []
     })
     setLoading(false)
   }, [])
@@ -160,11 +154,10 @@ export default function RankingsPage() {
     fetchAllData()
   }, [fetchAllData])
 
-  // ─── CALCULAR RANKING ───────────────────────────────────
   useEffect(() => {
     if (loading || rawData.countries.length === 0) return
 
-    const { countries, economies, militaries, buildings, catalog, regions, articles, taxes } = rawData
+    const { countries, economies, militaries, buildings, catalog, equipmentCatalog, regions, articles, taxes } = rawData
 
     const calculated = countries.map((c: any) => {
       const eco = economies.find((e: any) => Number(e.country_id) === Number(c.id)) || {}
@@ -173,8 +166,8 @@ export default function RankingsPage() {
       
       const cBuildings = buildings.filter((b: any) => Number(b.country_id) === Number(c.id))
       const cRegions = regions.filter((r: any) => Number(r.country_id) === Number(c.id))
-      
       const cArticles = articles.filter((a: any) => Number(a.country_id) === Number(c.id))
+      
       const total_articles = cArticles.length
       const total_likes = cArticles.reduce((acc: number, a: any) => acc + (a.likes || 0), 0)
 
@@ -182,7 +175,11 @@ export default function RankingsPage() {
       let cons: any = { food: 0, gold: 0, iron: 0, oil: 0, wood: 0, uranium: 0, coal: 0, steel: 0, energy: 0 }
       let gross_profit = 0
       let total_buildings = 0
-      let infra_maintenance = 0 // ✅ Nova variável
+      let infra_maintenance = 0
+
+      // ✅ APLICA INFLAMAÇÃO NO RANKING
+      const inflation = Number(eco.inflation || 0)
+      const inflationMultiplier = 1 + (inflation / 10)
 
       cBuildings.forEach((b: any) => {
         const cat = catalog.find((k: any) => k.type === b.building_type)
@@ -190,7 +187,7 @@ export default function RankingsPage() {
         const qty = Number(b.quantity || 1)
         total_buildings += qty
         gross_profit += (cat.profit_money || 0) * qty
-        infra_maintenance += (cat.maint_money || 0) * qty // ✅ Soma a manutenção de dinheiro do prédio
+        infra_maintenance += (cat.maint_money || 0) * qty * inflationMultiplier
 
         if (cat.produces && cat.produces_qty > 0) {
           const resKey = cat.produces.toLowerCase()
@@ -204,18 +201,22 @@ export default function RankingsPage() {
         }
         
         ;['food','gold','iron','oil','wood','uranium','coal','steel'].forEach(res => {
-          if (cat[`maint_${res}`] > 0) cons[res] += cat[`maint_${res}`] * qty
+          if (cat[`maint_${res}`] > 0) cons[res] += cat[`maint_${res}`] * qty * inflationMultiplier
         })
       })
 
-      // ✅ Estimativa de Manutenção Militar (já que o banco não cobra ainda)
-      // Exemplo: Cada soldado custa $10 de manutenção. Sinta-se livre para mudar o multiplicador.
-      const military_maintenance = (Number(mil.soldiers) || 0) * 10
+      let military_maintenance = 0
+      equipmentCatalog.forEach((eq: any) => {
+        const qty = Number(mil[eq.type] || 0)
+        if (qty > 0) military_maintenance += qty * Number(eq.maint_money || 0)
+      })
 
+      // ✅ O `...tax` traz income_tax, property_tax, manufacturing_tax
+      // ✅ O `...eco` traz a coluna pollution
       const merged: any = { 
         ...c, ...eco, ...mil, ...tax,
         total_articles, total_likes, total_buildings, total_regions: cRegions.length, gross_profit,
-        infra_maintenance, military_maintenance // Adiciona ao objeto
+        infra_maintenance, military_maintenance
       }
 
       resources.forEach(r => {
@@ -231,14 +232,14 @@ export default function RankingsPage() {
       let val = Number(c[selectedMetric] || 0)
       let formatted = formatRankingValue(val)
 
-      // Formata como dinheiro se for algum desses
       if (['money', 'revenue', 'expenses', 'exports', 'imports', 'gross_profit', 'infra_maintenance', 'military_maintenance'].includes(selectedMetric)) {
         formatted = formatRankingValue(val, true)
       } else if (selectedMetric === 'population') {
         formatted = `${formatRankingValue(val)} hab`
       } else if (['idh'].includes(selectedMetric)) {
         formatted = val.toFixed(3)
-      } else if (['inflation', 'population_growth', 'tax_income', 'tax_property', 'tax_manufacturing'].includes(selectedMetric)) {
+      } else if (['inflation', 'population_growth', 'pollution', 'income_tax', 'property_tax', 'manufacturing_tax'].includes(selectedMetric)) {
+        // ✅ FORMATA COMO PORCENTAGEM (inflação, poluição, taxas)
         formatted = `${val.toFixed(1)}%`
       }
 
@@ -253,7 +254,6 @@ export default function RankingsPage() {
 
   }, [selectedMetric, rawData, loading])
 
-  // ─── PREPARAR DADOS DO GRÁFICO ───────────────────────────
   const lineChartData = rankings.slice(0, 10).map(r => ({
     name: r.name,
     value: r.value,
@@ -294,14 +294,11 @@ export default function RankingsPage() {
     }
   }
 
-  // ─── RENDER ──────────────────────────────────────────────
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
 
   return (
-    // ✅ pt-20 (80px) garante que o conteúdo comece abaixo do Header fixo
     <div className="max-w-5xl mx-auto pb-24 px-4 sm:px-6 pt-20">
       
-      {/* HEADER E TOGGLE */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
           <Link href="/game/home" className="text-white/50 hover:text-white bg-white/5 hover:bg-white/10 p-2 rounded-full transition-colors">
@@ -341,7 +338,6 @@ export default function RankingsPage() {
         </div>
       </div>
 
-      {/* QUADRADOS DE FILTRO (GRUPO) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-4">
         {Object.keys(groupedOptions).map(group => (
           <button
@@ -358,7 +354,6 @@ export default function RankingsPage() {
         ))}
       </div>
 
-      {/* QUADRADOS DE FILTRO (MÉTRICA ESPECÍFICA) */}
       {activeGroup && (
         <div className="bg-surface-card border border-surface-border rounded-xl p-4 mb-6 shadow-lg">
           <p className="text-[10px] text-white/40 font-mono uppercase tracking-widest mb-3">Selecione a métrica</p>
@@ -380,7 +375,6 @@ export default function RankingsPage() {
         </div>
       )}
 
-      {/* ─── VISÃO DE LISTA ─────────────────────────────────── */}
       {viewMode === 'list' && (
         <div className="bg-surface-card border border-surface-border rounded-xl overflow-hidden shadow-2xl animate-in fade-in">
           <div className="grid grid-cols-[50px_1fr_100px] sm:grid-cols-[60px_1fr_150px] gap-2 px-4 py-3 bg-surface-input border-b border-surface-border font-bold text-[10px] text-white/50 uppercase tracking-widest">
@@ -415,11 +409,9 @@ export default function RankingsPage() {
         </div>
       )}
 
-      {/* ─── VISÃO DE GRÁFICO ───────────────────────────────── */}
       {viewMode === 'chart' && (
         <div className="bg-surface-card border border-surface-border rounded-xl p-4 sm:p-6 shadow-2xl animate-in fade-in">
           
-          {/* Gráfico de Linha (Normal) */}
           <div className="mb-8">
             <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-4 flex items-center gap-2">
               <BarChart3 size={16} className="text-primary"/> Top 10 - {options.find(o => o.value === selectedMetric)?.label}
@@ -429,15 +421,12 @@ export default function RankingsPage() {
                 <LineChart data={lineChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2A2A4A" vertical={false} />
                   <XAxis dataKey="name" stroke="#64748B" tick={{ fill: '#64748B', fontSize: 10 }} interval={0} angle={-45} textAnchor="end" height={60} />
-                  
                   <YAxis stroke="#64748B" tick={{ fill: '#64748B', fontSize: 10 }} tickFormatter={(val: any) => formatRankingValue(Number(val))} />
-                  
                   <RechartsTooltip 
                     contentStyle={{ backgroundColor: '#1A1A2E', borderColor: '#2A2A4A', borderRadius: '8px' }}
                     itemStyle={{ color: '#fff' }}
                     formatter={(value: any) => [formatRankingValue(Number(value)), 'Valor']}
                   />
-                  
                   <Line 
                     type="monotone" 
                     dataKey="value" 
@@ -451,7 +440,6 @@ export default function RankingsPage() {
             </div>
           </div>
 
-          {/* Comparação Direta (Radar) */}
           <div className="border-t border-surface-border pt-6 mt-6">
             <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-4 flex items-center gap-2">
               <LineChartIcon size={16} className="text-emerald-400"/> Comparar Países

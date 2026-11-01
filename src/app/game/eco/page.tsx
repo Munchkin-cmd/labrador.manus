@@ -236,17 +236,40 @@ export default function EcoPage() {
     )
   }
 
+  // ✅ CÁLCULO DO PREÇO PROGRESSIVO E POLUIÇÃO NO MODAL
   let inflation = 0
   let inflatedCost = 0
   let laborCost = 0
-  
+  let progressiveMult = 1
+  let pollutionAdd = 0
+  let pollutionReduce = 0
+  let existingQtyInRegion = 0
+
   if (selectedBuilding) {
     inflation = Number(economy?.inflation || 0)
     const baseCost = Number(selectedBuilding.building.cost_money || 0)
-    // ✅ CORREÇÃO: 1% de inflação encarece em 10% o custo (multiplicador de 10x)
-    inflatedCost = baseCost * (1 + ((inflation * 10) / 100))
+    
+    // Busca quantos prédios deste tipo já existem NESTA região
+    existingQtyInRegion = buildings
+      .filter(b => b.region_id === selectedBuilding.regionId && b.building_type === selectedBuilding.building.type)
+      .reduce((sum, b) => sum + Number(b.quantity || 1), 0)
+
+    // ✅ PROGRESSÃO: Cada prédio já existente aumenta o custo em 20%
+    progressiveMult = 1 + (existingQtyInRegion * 0.2) 
+    
+    // Custo Final = Base * Inflação (10x) * Progressão
+    inflatedCost = baseCost * (1 + ((inflation * 10) / 100)) * progressiveMult
+    
     laborCost = Number(selectedBuilding.building.labor_cost || 0)
+    pollutionAdd = Number((selectedBuilding.building as any).pollution_add || 0)
+    pollutionReduce = Number((selectedBuilding.building as any).pollution_reduce || 0)
   }
+
+  // Indicadores Globais (puxados do economy)
+  const globalPollution = Number((economy as any).pollution || 0)
+  const globalInflation = Number((economy as any).inflation || 0)
+  // Penalidade: 1% de poluição = 0.1% de queda (ou seja, 10% poluição = 1% queda)
+  const pollutionPenalty = Math.max(0.1, 1 - (globalPollution * 0.001))
 
   return (
     <div className="flex flex-col gap-6 pb-24 px-4 sm:px-6 pt-6 max-w-5xl mx-auto w-full relative">
@@ -278,7 +301,8 @@ export default function EcoPage() {
           <ResourceBox label="Dinheiro" value={economy.money || 0} isMoney />
         </div>
 
-        <div className="col-span-3 sm:col-span-5 grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-surface-border">
+        {/* INDICADORES: IDH, POP, INFLAÇÃO E POLUIÇÃO */}
+        <div className="col-span-3 sm:col-span-5 grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-surface-border">
           <div className="text-center p-2 bg-surface-input border border-surface-border rounded-lg">
             <p className="text-[9px] font-bold text-white/40 uppercase tracking-wider flex items-center justify-center gap-1">
               <IoStatsChart size={10} /> IDH
@@ -295,13 +319,23 @@ export default function EcoPage() {
             <p className="text-[9px] font-bold text-white/40 uppercase tracking-wider flex items-center justify-center gap-1">
               <IoTrendingUp size={10} /> Inflação
             </p>
-            <p className={`text-xs font-bold mt-1 font-mono ${Number((economy as any).inflation || 0) > 10 ? 'text-red-400' : 'text-yellow-400'}`}>
-              {Number((economy as any).inflation || 0).toFixed(1)}%
+            <p className={`text-xs font-bold mt-1 font-mono ${globalInflation > 10 ? 'text-red-400' : 'text-yellow-400'}`}>
+              {globalInflation.toFixed(1)}%
+            </p>
+          </div>
+          {/* ✅ NOVO: INDICADOR DE POLUIÇÃO */}
+          <div className="text-center p-2 bg-surface-input border border-surface-border rounded-lg">
+            <p className="text-[9px] font-bold text-white/40 uppercase tracking-wider flex items-center justify-center gap-1">
+              <IoWarning size={10} /> Poluição
+            </p>
+            <p className={`text-xs font-bold mt-1 font-mono ${globalPollution > 50 ? 'text-red-400' : 'text-white'}`}>
+              {globalPollution.toFixed(1)}%
             </p>
           </div>
         </div>
       </div>
 
+      {/* ALERTAS */}
       {hasParalyzedBuildings && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-[11px] font-mono font-bold uppercase tracking-widest text-center flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-pulse">
           <IoWarning size={18} />
@@ -312,6 +346,14 @@ export default function EcoPage() {
         <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-3 rounded-lg text-[11px] font-mono font-bold uppercase tracking-widest text-center flex items-center justify-center gap-2">
           <IoFlash size={18} />
           AVISO: USINAS PARALISADAS NÃO ESTÃO GERANDO ENERGIA!
+        </div>
+      )}
+      
+      {/* ✅ NOVO: ALERTA DE POLUIÇÃO */}
+      {globalPollution > 0 && (
+        <div className={`p-3 rounded-lg text-[11px] font-mono font-bold uppercase tracking-widest text-center flex items-center justify-center gap-2 border ${globalPollution > 50 ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-orange-500/10 border-orange-500/30 text-orange-400'}`}>
+          <IoWarning size={18} />
+          A poluição está reduzindo sua produção e lucro em {(100 - (pollutionPenalty * 100)).toFixed(1)}%.
         </div>
       )}
 
@@ -513,11 +555,7 @@ export default function EcoPage() {
 
       {/* MODAL DE CONSTRUÇÃO / DESTRUIÇÃO */}
       {selectedBuilding && (() => {
-        const totalQtyInRegion = buildings
-          .filter(b => b.region_id === selectedBuilding.regionId && b.building_type === selectedBuilding.building.type)
-          .reduce((sum, b) => sum + Number(b.quantity || 1), 0)
-
-        const isMaxed = totalQtyInRegion >= 7
+        const isMaxed = existingQtyInRegion >= 7
 
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-opacity">
@@ -554,14 +592,22 @@ export default function EcoPage() {
                   <div className="mb-5 font-mono uppercase tracking-widest">
                     <p className="text-xs text-white/60">Custo Base:</p>
                     <div className="flex flex-wrap items-center gap-2 mt-1">
-                      {inflation > 0 ? (
+                      {inflation > 0 || progressiveMult > 1 ? (
                         <>
                           <span className="line-through text-white/40 text-sm">{formatMoney(selectedBuilding.building.cost_money)}</span>
                           <span className="text-primary font-bold text-sm">{formatMoney(inflatedCost)}</span>
-                          {/* ✅ CORREÇÃO: Mostra o impacto real da inflação (10x) */}
-                          <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded text-[10px] border border-red-500/20 font-bold flex items-center gap-1">
-                            <IoWarning size={10} /> Inflação: +{(inflation * 10).toFixed(1)}%
-                          </span>
+                          
+                          {inflation > 0 && (
+                            <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded text-[10px] border border-red-500/20 font-bold flex items-center gap-1">
+                              <IoWarning size={10} /> Inflação: +{(inflation * 10).toFixed(1)}%
+                            </span>
+                          )}
+
+                          {progressiveMult > 1 && (
+                            <span className="bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded text-[10px] border border-orange-500/20 font-bold flex items-center gap-1">
+                              <IoStatsChart size={10} /> Progressivo: +{((progressiveMult - 1) * 100).toFixed(0)}%
+                            </span>
+                          )}
                         </>
                       ) : (
                         <span className="text-primary font-bold text-sm">{formatMoney(selectedBuilding.building.cost_money)}</span>
@@ -610,6 +656,22 @@ export default function EcoPage() {
                           </span>
                         </div>
                       )}
+
+                      {/* ✅ EXIBIÇÃO DA POLUIÇÃO NO MODAL */}
+                      {(pollutionAdd > 0 || pollutionReduce > 0) && (
+                        <div className="mt-3 pt-2 border-t border-surface-border flex items-center gap-4">
+                          {pollutionAdd > 0 && (
+                            <span className="text-[10px] font-bold text-red-400 flex items-center gap-1">
+                              <IoWarning size={12}/> Poluição: +{pollutionAdd}
+                            </span>
+                          )}
+                          {pollutionReduce > 0 && (
+                            <span className="text-[10px] font-bold text-green-400 flex items-center gap-1">
+                              <IoCheckmarkCircle size={12}/> Reduz Poluição: -{pollutionReduce}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="bg-surface-input border border-surface-border rounded-lg p-3">
@@ -640,7 +702,7 @@ export default function EcoPage() {
                     <input
                       type="number"
                       min={1}
-                      max={7 - totalQtyInRegion}
+                      max={7 - existingQtyInRegion}
                       value={buildQty === 0 ? '' : buildQty}
                       onChange={e => {
                         const val = e.target.value === '' ? '' : Number(e.target.value)
@@ -661,7 +723,7 @@ export default function EcoPage() {
                       {submitting ? 'Construindo...' : isMaxed ? 'Limite Atingido' : 'Construir'}
                     </button>
                     
-                    {totalQtyInRegion > 0 && (
+                    {existingQtyInRegion > 0 && (
                       <button
                         type="button"
                         onClick={() => handleDestroy(selectedBuilding.regionId, selectedBuilding.building.type)}
