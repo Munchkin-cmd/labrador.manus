@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import { useConfiguracoes } from '@/hooks/useMenu'
 import { useAuthStore } from '@/store/authStore'
 import { supabase } from '@/lib/supabase/client'
-import { Loader2, Upload, X, Plus, AlertTriangle } from 'lucide-react'
+// ✅ Adicionado o ícone Palette e importado o Modal
+import { Loader2, Upload, X, Plus, AlertTriangle, Palette } from 'lucide-react'
+import { ColorPickerModal } from '@/components/ColorPickerModal'
 
 export default function ConfiguracoesPage() {
   const router = useRouter()
@@ -42,6 +44,9 @@ export default function ConfiguracoesPage() {
   // ✅ Estados para o modal de exclusão
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  // ✅ Estado para o modal de cor
+  const [isColorModalOpen, setIsColorModalOpen] = useState(false)
 
   useEffect(() => {
     if (data) {
@@ -152,7 +157,6 @@ export default function ConfiguracoesPage() {
   if (loading) return <Loading />
 
   return (
-    // ✅ pt-20 (80px) garante que o conteúdo comece abaixo do Header fixo
     <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-20">
       
       <div className="flex items-center gap-2 mb-2 pl-1">
@@ -237,6 +241,23 @@ export default function ConfiguracoesPage() {
                 </button>
               </div>
             )}
+          </div>
+        </Field>
+
+        {/* ✅ NOVO: COR DO ESTADO NO MAPA */}
+        <Field label="Cor do Estado no Mapa">
+          <div className="flex items-center gap-3">
+            <div 
+              className="w-10 h-10 rounded-lg border border-surface-border shadow-inner flex-shrink-0"
+              style={{ backgroundColor: data?.color || '#3b82f6' }}
+            />
+            <button
+              onClick={() => setIsColorModalOpen(true)}
+              className="flex-1 bg-surface-input border border-surface-border hover:bg-white/5 rounded-lg py-2.5 px-4 text-white/80 text-xs font-bold font-mono uppercase tracking-wider transition-colors flex items-center justify-center gap-2"
+            >
+              <Palette size={16} />
+              Alterar Cor
+            </button>
           </div>
         </Field>
 
@@ -408,6 +429,16 @@ export default function ConfiguracoesPage() {
           </div>
         </div>
       )}
+
+      {/* ✅ MODAL DE ALTERAR COR */}
+      <ColorPickerModal 
+        isOpen={isColorModalOpen}
+        onClose={() => {
+          setIsColorModalOpen(false)
+          router.refresh() // Atualiza a página para puxar o novo data.color
+        }}
+        currentColor={data?.color || null}
+      />
 
     </div>
   )

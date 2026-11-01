@@ -1,16 +1,17 @@
 'use client'
- 
+
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
- 
-// ✅ Componente do mapa carregado apenas no navegador
-const MapaPlano = dynamic(
-  () => import('@/components/MapaPlano'),
-  { ssr: false, loading: () => <div className="flex items-center justify-center h-full text-white/50 text-xs font-mono uppercase tracking-widest">Carregando mapa...</div> }
+import { ArrowLeft } from 'lucide-react'
+import { supabase } from '@/lib/supabase/client'
+
+// ✅ Importa o novo mapa dinâmico
+const DynamicMap = dynamic(
+  () => import('@/components/DynamicMap'),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-full text-white/50 text-xs font-mono uppercase tracking-widest">Carregando mapa dinâmico...</div> }
 )
- 
+
 interface CountryInfo {
   id: number
   name: string
@@ -19,36 +20,34 @@ interface CountryInfo {
   capital: string
   terrain: string
   is_active: boolean
-  // ✅ Adicionado para receber a flag personalizada
   users?: { flag_url: string | null } | { flag_url: string | null }[] | null
 }
- 
+
 const TERRAIN_COLORS: Record<string, string> = {
   planicie:   'bg-green-500/10 text-green-400 border-green-500/30',
   orogenico:  'bg-surface-input text-white/70 border-surface-border',
   extremista: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
   anfibio:    'bg-blue-500/10 text-blue-400 border-blue-500/30',
 }
- 
+
 const TERRAIN_RESOURCES: Record<string, string> = {
   planicie:   'Madeira · Petróleo · Carvão',
   orogenico:  'Ouro · Ferro · Urânio',
   extremista: 'Petróleo · Urânio',
   anfibio:    'Madeira · Ouro · Petróleo',
 }
- 
-export default function MapaPage() {
+
+export default function MapaTestPage() {
+  // ✅ ESTADOS DA LISTA E FILTROS
   const [countries, setCountries]   = useState<CountryInfo[]>([])
   const [search, setSearch]         = useState('')
   const [filter, setFilter]         = useState('')
   const [selected, setSelected]     = useState<CountryInfo | null>(null)
   const [loading, setLoading]       = useState(true)
-  
-  // ✅ Estado para controlar o menu lateral
   const [isMenuOpen, setIsMenuOpen] = useState(false)
- 
+
+  // ✅ BUSCA OS PAÍSES NO BANCO
   useEffect(() => {
-    // ✅ Query atualizada para puxar o flag_url da tabela users
     supabase.from('countries')
       .select('id, name, slug, flag_emoji, capital, terrain, is_active, users(flag_url)')
       .order('name')
@@ -57,21 +56,22 @@ export default function MapaPage() {
         setLoading(false) 
       })
   }, [])
- 
+
+  // ✅ QUANDO CLICA NO MAPA, SELECIONA O PAÍS NA LISTA
   const handleGlobeClick = (nomePais: string) => {
     const pais = countries.find(c => c.name === nomePais);
     if (pais) {
       setSelected(prev => prev?.id === pais.id ? null : pais);
     }
-    // ✅ Fecha o menu automaticamente ao clicar em um país no mapa
     setIsMenuOpen(false)
   }
- 
+
+  // ✅ LÓGICA DO FILTRO DE BUSCA E TERRENO
   const filtered = countries.filter(c =>
     (!search || c.name.toLowerCase().includes(search.toLowerCase())) &&
     (!filter || c.terrain === filter)
   )
- 
+
   return (
     <div className="relative flex h-screen w-screen overflow-hidden bg-surface">
       
@@ -83,7 +83,7 @@ export default function MapaPage() {
         />
       )}
 
-      {/* ✅ PAINEL LATERAL (Lista de países) */}
+      {/* ✅ PAINEL LATERAL DA LISTA */}
       <div 
         className={`
           fixed inset-y-0 left-0 z-50 w-[85%] max-w-[400px] bg-surface-card border-r border-surface-border shadow-2xl
@@ -91,7 +91,7 @@ export default function MapaPage() {
           ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'} 
         `}
       >
-        {/* ✅ O BOTÃO ÚNICO DE FILTRO (Ele viaja junto com o painel) */}
+        {/* ✅ BOTÃO DE FILTRO (Fica colado na borda do painel) */}
         <button 
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className={`
@@ -104,21 +104,21 @@ export default function MapaPage() {
             }
           `}
         >
-          {/* Ícone de Filtro */}
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
           </svg>
           <span className="text-[9px] font-bold uppercase tracking-widest [writing-mode:vertical-lr] rotate-180">Filtro</span>
         </button>
 
-        {/* Conteúdo da lista */}
+        {/* CONTEÚDO DA LISTA */}
         <div className="flex flex-col h-full overflow-y-auto p-4 custom-scrollbar">
           
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
             <p className="text-xs font-bold tracking-widest text-white uppercase font-mono">Mapa Mundial</p>
           </div>
- 
+
+          {/* ✅ BOTÕES DE FILTRO POR TERRENO */}
           <div className="grid grid-cols-2 gap-2 mb-4">
             {Object.entries(TERRAIN_COLORS).map(([t, cls]) => (
               <button key={t} onClick={() => setFilter(filter === t ? '' : t)}
@@ -128,18 +128,20 @@ export default function MapaPage() {
               </button>
             ))}
           </div>
- 
+
+          {/* ✅ INPUT DE BUSCA */}
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="🔍 Buscar país..."
             className="input-field w-full mb-4 bg-surface-input"
           />
- 
+
           <p className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-4">
             {filtered.filter(c => c.is_active).length} ativos · {filtered.length} total
           </p>
- 
+
+          {/* ✅ RENDERIZAÇÃO DA LISTA DE PAÍSES */}
           {loading ? (
             <div className="flex flex-col gap-2">
               {[1,2,3,4,5].map(i => <div key={i} className="h-16 bg-surface-input border border-surface-border rounded-xl animate-pulse" />)}
@@ -147,7 +149,6 @@ export default function MapaPage() {
           ) : (
             <div className="flex flex-col gap-2 pb-20">
               {filtered.map(c => {
-                // ✅ Lógica para verificar se tem flag_url
                 const userData = c.users;
                 const flagUrl = Array.isArray(userData) ? userData[0]?.flag_url : userData?.flag_url;
 
@@ -161,7 +162,6 @@ export default function MapaPage() {
                                   : 'border-surface-border hover:border-primary/40 hover:bg-white/5'}`}
                   >
                     <div className="flex items-center gap-3">
-                      {/* ✅ Renderiza a imagem da bandeira ou o emoji */}
                       {flagUrl ? (
                         <img 
                           src={flagUrl} 
@@ -193,7 +193,8 @@ export default function MapaPage() {
                         )}
                       </div>
                     </div>
- 
+
+                    {/* ✅ DETALHES EXPANDIDOS AO CLICAR NO PAÍS */}
                     {selected?.id === c.id && (
                       <div className="mt-3 pt-3 border-t border-surface-border text-[10px] font-mono text-white/60 flex flex-col gap-1.5">
                         <p>⛏️ RECURSOS: <span className="text-white/80">{TERRAIN_RESOURCES[c.terrain]}</span></p>
@@ -222,9 +223,19 @@ export default function MapaPage() {
         </div>
       </div>
 
-      {/* 🌍 MAPA PLANO (Fica sempre no fundo, ocupando 100% da tela) */}
+      {/* 🌍 MAPA DINÂMICO (Fica sempre no fundo, ocupando 100% da tela) */}
       <div className="flex-1 h-full relative z-0">
-        <MapaPlano onCountryClick={handleGlobeClick} />
+        <DynamicMap onCountryClick={handleGlobeClick} />
+      </div>
+
+      {/* ✅ BOTÃO VOLTAR */}
+      <div className="absolute top-4 right-4 z-[1000]">
+        <Link 
+          href="/game/home" 
+          className="flex items-center gap-2 bg-black/60 hover:bg-black/90 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors backdrop-blur-md text-xs font-bold uppercase tracking-widest"
+        >
+          <ArrowLeft size={16} /> Voltar
+        </Link>
       </div>
 
     </div>
