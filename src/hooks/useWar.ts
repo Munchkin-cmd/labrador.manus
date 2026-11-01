@@ -18,6 +18,7 @@ export interface War {
   damage_to_attacker: number | null
   damage_to_defender: number | null
   pending_peace_from: number | null
+  is_annexed?: boolean | null // ✅ NOVO: Adicionado para controlar o botão de anexar
   attacker: {
     id: number
     name: string
@@ -99,10 +100,8 @@ export function useWar() {
       `;
 
       const [activeWarsData, endedWarsData, militaryData, combatXPData] = await Promise.all([
-        // ✅ CORREÇÃO: Busca active, paused E ended (para mostrar vitórias recentes nas suas guerras)
         supabase.from('wars').select(selectQuery).in('status', ['active', 'paused', 'ended']).order('started_at', { ascending: false }),
         supabase.from('wars').select(selectQuery).in('status', ['ended', 'peace']).order('started_at', { ascending: false }).limit(30),
-        // ✅ CORREÇÃO: Troca maybeSingle() por limit(1) para não quebrar se houver duplicata
         supabase.from('military').select('*').eq('country_id', country.id).limit(1),
         supabase.from('combat_xp').select('*').eq('country_id', country.id).maybeSingle(),
       ])
@@ -123,7 +122,6 @@ export function useWar() {
       setMyWars(myWarsFiltered)
       setWorldWars(worldWarsFiltered)
       setEndedWars(ended)
-      // ✅ CORREÇÃO: Pega o primeiro item do array
       setMilitary(militaryData?.data?.[0] || null)
       setCombatXP(combatXPData?.data ? (combatXPData.data as CombatXP) : null)
 
@@ -137,15 +135,12 @@ export function useWar() {
     }
   }, [country?.id])
 
-  // Polling a cada 10s e atualização ao focar na aba
   useEffect(() => {
     if (country?.id) {
-      fetchAll(false, true) // Primeira carga com spinner
-      
-      const interval = setInterval(() => fetchAll(true, true), 10000) // Atualiza em background
+      fetchAll(false, true)
+      const interval = setInterval(() => fetchAll(true, true), 10000)
       const onFocus = () => fetchAll(true, true)
       window.addEventListener('focus', onFocus)
-      
       return () => { 
         clearInterval(interval); 
         window.removeEventListener('focus', onFocus) 
@@ -229,13 +224,14 @@ export function useWar() {
     return { success: true, message: 'Você se retirou da guerra. Seu dano anterior foi mantido no placar.' }
   }
 
-  // ✅ NOVO: Função para anexar o território
   async function annexTerritory(warId: string): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
+    
     const { data, error } = await supabase.rpc('annex_war_territory', { 
       p_war_id: warId, 
       p_winner_id: country.id 
     })
+    
     await fetchAll(true, true)
     if (error) return { success: false, error: error.message }
     return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }
@@ -244,7 +240,7 @@ export function useWar() {
   return {
     myWars, worldWars, endedWars, military, combatXP, loading, error,
     declareWar, attack, proposePeace, acceptPeace, rejectPeace,
-    proposeJoinWar, leaveWar, annexTerritory, // ✅ Adicionado ao retorno
+    proposeJoinWar, leaveWar, annexTerritory,
     refetch: () => fetchAll(false, true),
   }
 }

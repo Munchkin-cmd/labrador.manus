@@ -20,7 +20,7 @@ const UNITS = [
 export default function WarPage() {
   const {
     myWars, worldWars, endedWars, military, combatXP, loading,
-    attack, proposePeace, acceptPeace, rejectPeace, proposeJoinWar, leaveWar, annexTerritory, // ✅ Importado
+    attack, proposePeace, acceptPeace, rejectPeace, proposeJoinWar, leaveWar, annexTerritory,
   } = useWar()
   const { country: myCountry } = useAuthStore()
 
@@ -50,14 +50,10 @@ export default function WarPage() {
     if (res.success) {
       if (res.victory) {
         setFeedback(`🏆 ${res.message}`)
-        setTimeout(() => { 
-          setAttackWarId(''); setFeedback(''); setAttackQty(1); setAttackUnit('') 
-        }, 4000)
+        setTimeout(() => { setAttackWarId(''); setFeedback(''); setAttackQty(1); setAttackUnit('') }, 4000)
       } else {
         setFeedback(`✅ Ataque realizado! Dano: ${formatNumber(res.damage_dealt)} | Perdas: ${formatNumber(res.losses_suffered)}`)
-        setTimeout(() => { 
-          setAttackWarId(''); setFeedback(''); setAttackQty(1); setAttackUnit('') 
-        }, 2500)
+        setTimeout(() => { setAttackWarId(''); setFeedback(''); setAttackQty(1); setAttackUnit('') }, 2500)
       }
     } else {
       setFeedback(`❌ ${res.error || 'Erro ao atacar'}`)
@@ -65,7 +61,6 @@ export default function WarPage() {
     setSubmitting(false)
   }
 
-  // ✅ NOVO: Função que chama o RPC de anexar território
   async function handleAnnex(warId: string) {
     if (!confirm('Tem certeza que deseja anexar o território? A ação é irreversível e mudará o mapa.')) return
     setPeaceLoading(warId)
@@ -130,7 +125,6 @@ export default function WarPage() {
         </div>
       </div>
 
-      {/* ─── MINHAS GUERRAS ────────────────────────────────────── */}
       <div>
         <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Suas Guerras</p>
         {myWars.length === 0 ? (
@@ -148,7 +142,7 @@ export default function WarPage() {
                 onAcceptPeace={() => handleAcceptPeace(war.id)}
                 onRejectPeace={() => handleRejectPeace(war.id)}
                 onLeaveWar={() => handleLeaveWar(war.id)}
-                onAnnex={() => handleAnnex(war.id)} // ✅ Passando a função de anexar
+                onAnnex={() => handleAnnex(war.id)}
                 enemyProposedPeace={war.pending_peace_from !== null && Number(war.pending_peace_from) !== Number(myCountry?.id)}
                 iProposedPeace={war.pending_peace_from !== null && Number(war.pending_peace_from) === Number(myCountry?.id)}
                 peaceLoading={peaceLoading === war.id}
@@ -159,7 +153,6 @@ export default function WarPage() {
         )}
       </div>
 
-      {/* ─── GUERRAS DO MUNDO ────────────────────────────────────── */}
       <div>
         <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Guerras no Mundo ({worldWars.length})</p>
         {worldWars.length === 0 ? (
@@ -176,7 +169,7 @@ export default function WarPage() {
                 onAcceptPeace={() => handleAcceptPeace(war.id)}
                 onRejectPeace={() => handleRejectPeace(war.id)}
                 onLeaveWar={() => handleLeaveWar(war.id)}
-                onAnnex={() => handleAnnex(war.id)} // ✅ Passando a função de anexar
+                onAnnex={() => handleAnnex(war.id)}
                 enemyProposedPeace={war.pending_peace_from !== null && Number(war.pending_peace_from) !== Number(myCountry?.id)}
                 iProposedPeace={war.pending_peace_from !== null && Number(war.pending_peace_from) === Number(myCountry?.id)}
                 peaceLoading={peaceLoading === war.id}
@@ -250,11 +243,13 @@ export default function WarPage() {
                         <span>Dano Defensor: <strong className="text-white">{formatNumber(war.damage_to_attacker || 0)}</strong></span>
                       </div>
 
-                      {/* ✅ BOTÃO ANEXAR NO HISTÓRICO */}
-                      {iWon && (
+                      {iWon && !war.is_annexed && (
                         <button onClick={() => handleAnnex(war.id)} disabled={peaceLoading === war.id} className="mt-2 w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2 rounded-lg text-xs uppercase tracking-wider transition-colors shadow-lg">
                           Anexar Território
                         </button>
+                      )}
+                      {iWon && war.is_annexed && (
+                         <p className="text-center text-[10px] text-green-400 font-bold mt-2">✅ Território já anexado</p>
                       )}
                     </div>
                   )
@@ -302,10 +297,6 @@ export default function WarPage() {
   )
 }
 
-// ═══════════════════════════════════════════════════════════════
-// COMPONENTE DO CARD DE GUERRA
-// ═══════════════════════════════════════════════════════════════
-
 function WarCard({ 
   war, myCountryId, onAttack, onProposePeace, onAcceptPeace, onRejectPeace, onLeaveWar, onAnnex,
   enemyProposedPeace, iProposedPeace, peaceLoading, isWorldWar, onJoinAttacker, onJoinDefender, joining
@@ -321,7 +312,6 @@ function WarCard({
   const canAttack = isAttacker || isDefender || isAllyAttacker || isAllyDefender;
   const canProposePeace = isAttacker || isDefender;
   
-  // ✅ Verifica se a guerra terminou
   const hasEnded = war.status === 'ended' || war.status === 'peace';
   const isWinner = Number(war.winner_id) === Number(myCountryId);
 
@@ -508,16 +498,23 @@ function WarCard({
           </div>
         )}
 
-        {/* ✅ NOVO: RENDERIZAÇÃO DE FIM DE GUERRA OU BOTÕES NORMAIS */}
         {hasEnded ? (
           isWinner ? (
-            <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-xl mt-4 text-center">
-              <Trophy className="text-yellow-400 mx-auto mb-2" size={24} />
-              <h3 className="text-white font-bold text-sm mb-2">Você Venceu!</h3>
-              <button onClick={onAnnex} disabled={peaceLoading} className="bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg w-full uppercase tracking-wider text-xs shadow-lg transition-colors">
-                Anexar Território
-              </button>
-            </div>
+            war.is_annexed ? (
+              <div className="bg-surface-input border border-surface-border p-4 rounded-xl mt-4 text-center">
+                <Check className="text-green-400 mx-auto mb-2" size={24} />
+                <h3 className="text-white font-bold text-sm mb-1">Vitória Confirmada</h3>
+                <p className="text-white/60 text-xs">O território já foi anexado ao seu império.</p>
+              </div>
+            ) : (
+              <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-xl mt-4 text-center">
+                <Trophy className="text-yellow-400 mx-auto mb-2" size={24} />
+                <h3 className="text-white font-bold text-sm mb-2">Você Venceu!</h3>
+                <button onClick={onAnnex} disabled={peaceLoading} className="bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg w-full uppercase tracking-wider text-xs shadow-lg transition-colors">
+                  Anexar Território
+                </button>
+              </div>
+            )
           ) : (
             <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl mt-4 text-center">
               <X className="text-red-400 mx-auto mb-2" size={24} />
