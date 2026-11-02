@@ -4,8 +4,6 @@ import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
 import { Database } from '@/types/database'
 
-// ─── TIPOS ──────────────────────────────────────────────
-
 export interface War {
   id: string
   attacker_id: number
@@ -18,7 +16,7 @@ export interface War {
   damage_to_attacker: number | null
   damage_to_defender: number | null
   pending_peace_from: number | null
-  is_annexed?: boolean | null // ✅ NOVO: Adicionado para controlar o botão de anexar
+  is_annexed?: boolean | null
   attacker: {
     id: number
     name: string
@@ -56,8 +54,6 @@ type RpcSimpleResult = {
   error?: string
 }
 
-// ─── HOOK ────────────────────────────────────────────────
-
 export function useWar() {
   const { country } = useAuthStore()
   const [myWars, setMyWars] = useState<War[]>([])
@@ -80,7 +76,6 @@ export function useWar() {
     if (!force && (fetchingRef.current || lastLoadedIdRef.current === country.id)) return
 
     fetchingRef.current = true
-    
     if (!isBackground) setLoading(true)
     setError(null)
 
@@ -100,8 +95,10 @@ export function useWar() {
       `;
 
       const [activeWarsData, endedWarsData, militaryData, combatXPData] = await Promise.all([
-        supabase.from('wars').select(selectQuery).in('status', ['active', 'paused', 'ended']).order('started_at', { ascending: false }),
-        supabase.from('wars').select(selectQuery).in('status', ['ended', 'peace']).order('started_at', { ascending: false }).limit(30),
+        // ✅ 1. Busca APENAS guerras ativas e pausadas
+        supabase.from('wars').select(selectQuery).in('status', ['active', 'paused']).order('started_at', { ascending: false }),
+        // ✅ 2. Busca guerras encerradas para o Histórico
+        supabase.from('wars').select(selectQuery).in('status', ['ended', 'peace']).order('started_at', { ascending: false }).limit(50),
         supabase.from('military').select('*').eq('country_id', country.id).limit(1),
         supabase.from('combat_xp').select('*').eq('country_id', country.id).maybeSingle(),
       ])
@@ -109,19 +106,19 @@ export function useWar() {
       const activeWars = (activeWarsData?.data as any[]) || []
       const ended = (endedWarsData?.data as any[]) || []
 
-      // Filtra Minhas Guerras (Atacante, Defensor ou Aliado)
+      // Filtra Minhas Guerras (Apenas as Ativas)
       const myWarsFiltered = activeWars.filter(w => 
         Number(w.attacker_id) === Number(country.id) || 
         Number(w.defender_id) === Number(country.id) || 
         w.participants?.some((p: any) => Number(p.country_id) === Number(country.id))
       )
 
-      // Todas as guerras ativas vão para a aba do mundo
+      // Todas as guerras ativas do mundo
       const worldWarsFiltered = activeWars.filter(w => w.status === 'active').slice(0, 20)
 
       setMyWars(myWarsFiltered)
       setWorldWars(worldWarsFiltered)
-      setEndedWars(ended)
+      setEndedWars(ended) // Histórico
       setMilitary(militaryData?.data?.[0] || null)
       setCombatXP(combatXPData?.data ? (combatXPData.data as CombatXP) : null)
 

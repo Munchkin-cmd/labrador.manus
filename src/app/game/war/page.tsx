@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useWar, War } from '@/hooks/useWar'
 import { useAuthStore } from '@/store/authStore'
 import { formatNumber } from '@/utils/format'
-import { Swords, Check, X, Clock, MapPin, Users, ChevronDown, ChevronUp, Landmark, History, Trophy } from 'lucide-react'
+import { Swords, Check, X, Clock, MapPin, Users, ChevronDown, ChevronUp, Landmark, History, Trophy, Handshake } from 'lucide-react'
 
 const UNITS = [
   { key: 'soldiers',    label: 'Soldados',    emoji: '⚔️' },
@@ -125,8 +125,9 @@ export default function WarPage() {
         </div>
       </div>
 
+      {/* ─── MINHAS GUERRAS (Apenas Ativas) ────────────────────────────────────── */}
       <div>
-        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Suas Guerras</p>
+        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Suas Guerras Ativas</p>
         {myWars.length === 0 ? (
           <div className="bg-surface-card rounded-xl p-8 text-center border border-surface-border">
             <p className="text-5xl mb-3">🕊️</p>
@@ -153,6 +154,7 @@ export default function WarPage() {
         )}
       </div>
 
+      {/* ─── GUERRAS DO MUNDO ────────────────────────────────────── */}
       <div>
         <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Guerras no Mundo ({worldWars.length})</p>
         {worldWars.length === 0 ? (
@@ -190,6 +192,7 @@ export default function WarPage() {
         HISTÓRICO DE GUERRA
       </button>
 
+      {/* ─── HISTÓRICO (Apenas Encerradas) ────────────────────────────────────── */}
       {showHistory && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-[#1a1a2e] border border-surface-border rounded-2xl p-5 sm:p-6 w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl relative">
@@ -209,17 +212,19 @@ export default function WarPage() {
                 endedWars.map((war: War) => {
                   const isAttackerWinner = Number(war.winner_id) === Number(war.attacker_id);
                   const isDefenderWinner = Number(war.winner_id) === Number(war.defender_id);
-                  const iWon = Number(war.winner_id) === Number(myCountry?.id);
+                  const isPeace = !war.winner_id || war.status === 'peace';
                   
                   return (
                     <div key={war.id} className="bg-black/30 border border-surface-border rounded-xl p-4 flex flex-col gap-3">
                       <div className="flex justify-between items-center text-[10px] text-white/40 uppercase font-bold border-b border-surface-border pb-2">
                         <span>{new Date(war.started_at).toLocaleDateString('pt-BR')}</span>
-                        <span className="text-green-400 bg-green-500/10 px-2 py-0.5 rounded">Encerrada</span>
+                        <span className={isPeace ? "text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded" : "text-green-400 bg-green-500/10 px-2 py-0.5 rounded"}>
+                          {isPeace ? 'Acordo de Paz' : 'Encerrada'}
+                        </span>
                       </div>
                       
                       <div className="flex items-center justify-between">
-                        <div className={`flex flex-col items-center flex-1 ${isAttackerWinner ? 'opacity-100' : 'opacity-50'}`}>
+                        <div className={`flex flex-col items-center flex-1 ${isAttackerWinner ? 'opacity-100' : isPeace ? 'opacity-80' : 'opacity-50'}`}>
                           <span className="text-2xl mb-1">{war.attacker?.flag_emoji}</span>
                           <p className="text-white text-xs font-bold text-center">{war.attacker?.name}</p>
                           {isAttackerWinner && <span className="text-[10px] text-yellow-400 font-bold mt-1 flex items-center gap-1"><Trophy size={10}/> Vencedor</span>}
@@ -227,30 +232,17 @@ export default function WarPage() {
 
                         <div className="px-4 text-white/20 font-black italic text-sm">VS</div>
 
-                        <div className={`flex flex-col items-center flex-1 ${isDefenderWinner ? 'opacity-100' : 'opacity-50'}`}>
+                        <div className={`flex flex-col items-center flex-1 ${isDefenderWinner ? 'opacity-100' : isPeace ? 'opacity-80' : 'opacity-50'}`}>
                           <span className="text-2xl mb-1">{war.defender?.flag_emoji}</span>
                           <p className="text-white text-xs font-bold text-center">{war.defender?.name}</p>
                           {isDefenderWinner && <span className="text-[10px] text-yellow-400 font-bold mt-1 flex items-center gap-1"><Trophy size={10}/> Vencedor</span>}
                         </div>
                       </div>
 
-                      {!war.winner_id && (
-                        <p className="text-center text-xs text-blue-400 font-bold mt-1">🕊️ Acordo de Paz</p>
-                      )}
-
                       <div className="flex justify-between text-[10px] text-white/50 bg-white/5 p-2 rounded mt-1">
                         <span>Dano Atacante: <strong className="text-white">{formatNumber(war.damage_to_defender || 0)}</strong></span>
                         <span>Dano Defensor: <strong className="text-white">{formatNumber(war.damage_to_attacker || 0)}</strong></span>
                       </div>
-
-                      {iWon && !war.is_annexed && (
-                        <button onClick={() => handleAnnex(war.id)} disabled={peaceLoading === war.id} className="mt-2 w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2 rounded-lg text-xs uppercase tracking-wider transition-colors shadow-lg">
-                          Anexar Território
-                        </button>
-                      )}
-                      {iWon && war.is_annexed && (
-                         <p className="text-center text-[10px] text-green-400 font-bold mt-2">✅ Território já anexado</p>
-                      )}
                     </div>
                   )
                 })
@@ -297,6 +289,10 @@ export default function WarPage() {
   )
 }
 
+// ═══════════════════════════════════════════════════════════════
+// COMPONENTE DO CARD DE GUERRA
+// ═══════════════════════════════════════════════════════════════
+
 function WarCard({ 
   war, myCountryId, onAttack, onProposePeace, onAcceptPeace, onRejectPeace, onLeaveWar, onAnnex,
   enemyProposedPeace, iProposedPeace, peaceLoading, isWorldWar, onJoinAttacker, onJoinDefender, joining
@@ -311,9 +307,6 @@ function WarCard({
   
   const canAttack = isAttacker || isDefender || isAllyAttacker || isAllyDefender;
   const canProposePeace = isAttacker || isDefender;
-  
-  const hasEnded = war.status === 'ended' || war.status === 'peace';
-  const isWinner = Number(war.winner_id) === Number(myCountryId);
 
   const attDmg = war.damage_to_defender || 0; 
   const defDmg = war.damage_to_attacker || 0; 
@@ -368,10 +361,10 @@ function WarCard({
         
         <div className="flex justify-between items-start mb-4">
           <div>
-            <span className={`${hasEnded ? (isWinner ? 'bg-green-500/20 border-green-500/30 text-green-400' : 'bg-red-500/20 border-red-500/30 text-red-400') : (canAttack ? 'bg-green-500/20 border-green-500/30 text-green-400' : 'bg-red-500/20 border-red-500/30 text-red-400')} border text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded inline-block mb-2`}>
-              {hasEnded 
-                ? (isWinner ? 'Vitória' : 'Derrota') 
-                : (canAttack ? (isAttacker || isAllyAttacker ? 'Lutando pelo Atacante' : 'Lutando pelo Defensor') : 'Guerra Ativa')}
+            <span className={`${canAttack ? 'bg-green-500/20 border-green-500/30 text-green-400' : 'bg-red-500/20 border-red-500/30 text-red-400'} border text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded inline-block mb-2`}>
+              {canAttack 
+                ? (isAttacker || isAllyAttacker ? 'Lutando pelo Atacante' : 'Lutando pelo Defensor') 
+                : (war.status === 'active' ? 'Guerra Ativa' : 'Golpe de Estado')}
             </span>
             <h3 className="text-lg font-black text-white flex items-center gap-2 drop-shadow-md">
               <MapPin size={18} className="text-emerald-400 shrink-0" />
@@ -382,7 +375,7 @@ function WarCard({
             <p className="text-white/40 text-[10px] uppercase font-semibold mt-1">Terreno: {war.terrain || 'Desconhecido'}</p>
           </div>
           <div className="bg-black/60 px-3 py-1.5 rounded-lg text-white/70 text-[10px] font-mono flex items-center gap-1.5 border border-surface-border">
-            <Clock size={12} className="text-white/40" /> {hasEnded ? 'Encerrada' : 'Ativa'}
+            <Clock size={12} className="text-white/40" /> Ativa
           </div>
         </div>
 
@@ -498,31 +491,7 @@ function WarCard({
           </div>
         )}
 
-        {hasEnded ? (
-          isWinner ? (
-            war.is_annexed ? (
-              <div className="bg-surface-input border border-surface-border p-4 rounded-xl mt-4 text-center">
-                <Check className="text-green-400 mx-auto mb-2" size={24} />
-                <h3 className="text-white font-bold text-sm mb-1">Vitória Confirmada</h3>
-                <p className="text-white/60 text-xs">O território já foi anexado ao seu império.</p>
-              </div>
-            ) : (
-              <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-xl mt-4 text-center">
-                <Trophy className="text-yellow-400 mx-auto mb-2" size={24} />
-                <h3 className="text-white font-bold text-sm mb-2">Você Venceu!</h3>
-                <button onClick={onAnnex} disabled={peaceLoading} className="bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg w-full uppercase tracking-wider text-xs shadow-lg transition-colors">
-                  Anexar Território
-                </button>
-              </div>
-            )
-          ) : (
-            <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl mt-4 text-center">
-              <X className="text-red-400 mx-auto mb-2" size={24} />
-              <h3 className="text-white font-bold text-sm mb-1">Você Perdeu</h3>
-              <p className="text-white/60 text-xs">O território foi tomado pelo inimigo.</p>
-            </div>
-          )
-        ) : canAttack ? (
+        {canAttack ? (
           <>
             {canProposePeace && enemyProposedPeace && (
               <div className="mb-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-center">
