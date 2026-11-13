@@ -9,9 +9,8 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // 🎨 CORES DO JOGO ATUALIZADAS PARA AZUL TECH
         primary: {
-          DEFAULT: '#3B82F6',   // Azul vivo (botões e destaques)
+          DEFAULT: '#3B82F6',
           dark:    '#1D4ED8',
           light:   '#60A5FA',
         },
@@ -19,30 +18,23 @@ const config: Config = {
           DEFAULT: '#1E293B',
           dark:    '#0F172A',
         },
-        coalition: '#10B981',   // Verde coalizão
-        opposition: '#EF4444',  // Vermelho oposição
+        coalition: '#10B981',
+        opposition: '#EF4444',
         gold: '#F59E0B',
 
-        // ✅ SURFACE AGORA É AZUL ESCURO SÓLIDO (Sem vidro)
+        // ✅ Mantemos os nomes das variáveis para as páginas novas não quebrarem
         surface: {
-          DEFAULT: '#060A14',   // Fundo geral da tela (quase preto)
-          card:    '#0E1626',   // Fundo dos cards/painéis (azul escuro)
-          border:  '#1E2D4A',   // Cor das bordas finas
-          input:   '#141F35',   // Fundo dos inputs e áreas internas
+          DEFAULT: 'var(--surface-default)',
+          card:    'var(--surface-card)',
+          border:  'var(--surface-border)',
+          input:   'var(--surface-input)',
         },
 
-        // 🏳️‍🌈 CORES DO ARCO-ÍRIS (EXCLUSIVAS DO ADMIN)
-        pride: {
-          red:    '#E40303',
-          orange: '#FF8C00',
-          yellow: '#FFED00',
-          green:  '#008026',
-          blue:   '#004DFF',
-          purple: '#750787',
-        },
+        // ✅ Força texto branco e overlays pretos
+        white: '255 255 255 / <alpha-value>',
+        black: '0 0 0 / <alpha-value>',
       },
       backgroundImage: {
-        // Gradientes atualizados para tons de azul escuro
         'gradient-primary': 'linear-gradient(135deg, #0F172A, #1E293B)',
         'gradient-header':  'linear-gradient(90deg, #1E3A8A, #0F172A)',
       },

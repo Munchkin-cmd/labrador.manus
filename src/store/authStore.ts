@@ -5,6 +5,7 @@ interface CountrySummary {
   id: number
   name: string
   flag_emoji: string
+  flag_url?: string | null // ✅ Adicionado para suportar bandeira personalizada
 }
 
 interface AuthState {
@@ -13,7 +14,7 @@ interface AuthState {
   loading: boolean
   setUser: (user: AuthState['user']) => void
   setCountry: (country: CountrySummary | null) => void
-  setLoading: (loading: boolean) => void // ✅ ADICIONADO PARA O AuthContext
+  setLoading: (loading: boolean) => void
   fetchUserCountry: () => Promise<void>
   signOut: () => Promise<void>
 }
@@ -25,7 +26,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setUser: (user) => {
     const current = get().user
-    // Evita re-render se os dados forem iguais
     if (user === null && current === null) return
     if (user && current && user.id === current.id && user.email === current.email) return
     set({ user })
@@ -34,11 +34,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setCountry: (country) => {
     const current = get().country
     if (country === null && current === null) return
-    if (country && current && country.id === current.id && country.name === current.name && country.flag_emoji === current.flag_emoji) return
+    if (country && current && country.id === current.id && country.name === current.name && country.flag_emoji === current.flag_emoji && country.flag_url === current.flag_url) return
     set({ country })
   },
 
-  // ✅ ADICIONADO para o AuthContext controlar o estado de carregamento
   setLoading: (loading) => {
     set({ loading })
   },
@@ -53,14 +52,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     console.log('🔍 fetchUserCountry: buscando país para user.id:', user.id)
 
     try {
+      // 1. Busca o country_id e a flag_url na tabela users
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('country_id')
+        .select('country_id, flag_url')
         .eq('user_id', user.id)
         .maybeSingle()
 
       if (userError) {
-        console.error('❌ Erro ao buscar country_id:', userError)
+        console.error('❌ Erro ao buscar dados do usuário:', userError)
         set({ country: null, loading: false })
         return
       }
@@ -71,6 +71,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return
       }
 
+      // 2. Busca os dados básicos do país
       const { data: countryData, error: countryError } = await supabase
         .from('countries')
         .select('id, name, flag_emoji')
@@ -85,8 +86,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (countryData) {
         console.log('✅ País encontrado:', countryData)
-        // Chama o setter que já verifica igualdade
-        get().setCountry(countryData)
+        // Junta os dados do país com a flag_url que estava na tabela users
+        get().setCountry({
+          ...countryData,
+          flag_url: userData.flag_url
+        })
       } else {
         console.warn('⚠️ País não encontrado para country_id:', userData.country_id)
         set({ country: null })

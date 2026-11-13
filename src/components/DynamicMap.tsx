@@ -6,19 +6,42 @@ import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import * as turf from '@turf/turf' 
 import { supabase } from '@/lib/supabase/client' 
-// ✅ Importando os tipos corretos do GeoJSON
 import { Feature, Polygon, MultiPolygon, FeatureCollection } from 'geojson'
 
 interface DynamicMapProps {
   onCountryClick?: (nomePais: string) => void;
+  focusCountryName?: string | null; // ✅ NOVO: Prop para dar zoom
 }
 
-// Tipagem exata que o Turf espera
 type PolyFeature = Feature<Polygon | MultiPolygon>;
 
 function FitBounds({ bounds }: { bounds: L.LatLngBoundsExpression }) {
   const map = useMap();
   useEffect(() => { if (bounds) { map.fitBounds(bounds, { padding: [20, 20], maxZoom: 5 }); } }, [bounds, map]);
+  return null;
+}
+
+// ✅ NOVO: Componente que escuta a mudança do foco externo (vindo do Cadastro)
+function MapFocusController({ focusName, data, onBoundsFound }: { focusName: string | null, data: any, onBoundsFound: (b: any) => void }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!focusName || !data) return;
+    
+    // Procura o território no GeoJSON pelo nome
+    const feature = data.features.find((f: any) => 
+      f.properties?.NAME?.toLowerCase() === focusName.toLowerCase() || 
+      f.properties?.ADMIN?.toLowerCase() === focusName.toLowerCase()
+    );
+
+    if (feature) {
+      const layer = L.geoJSON(feature);
+      const bounds = layer.getBounds();
+      map.fitBounds(bounds, { padding: [20, 20], maxZoom: 4 });
+      onBoundsFound(bounds);
+    }
+  }, [focusName, data, map, onBoundsFound]);
+
   return null;
 }
 
@@ -29,8 +52,7 @@ function gerarCorAutomatica(id: number) {
 
 type TerritoryData = Record<string, { id: number, cor: string, slug: string | null, nome: string }>;
 
-export default function DynamicMap({ onCountryClick }: DynamicMapProps) {
-  // ✅ Tipando o estado corretamente
+export default function DynamicMap({ onCountryClick, focusCountryName }: DynamicMapProps) {
   const [dadosMapa, setDadosMapa] = useState<FeatureCollection<Polygon | MultiPolygon> | null>(null);
   const [territorios, setTerritorios] = useState<TerritoryData>({});
   const [bounds, setBounds] = useState<L.LatLngBoundsExpression | null>(null);
@@ -38,7 +60,6 @@ export default function DynamicMap({ onCountryClick }: DynamicMapProps) {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Esse "as any" é o único aceitável, pois é uma falha conhecida do Leaflet com o TS
       delete (L.Icon.Default.prototype as any)._getIconUrl; 
       L.Icon.Default.mergeOptions({
         iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -55,7 +76,6 @@ export default function DynamicMap({ onCountryClick }: DynamicMapProps) {
         const resMapa = await fetch('/mapa_original.json?t=' + Date.now());
         if (!resMapa.ok) throw new Error('Erro ao carregar o mapa original');
         
-        // Tipando o retorno do fetch
         const dataMapaOriginal = await resMapa.json() as FeatureCollection; 
 
         const { data: dbData, error } = await supabase
@@ -82,18 +102,14 @@ export default function DynamicMap({ onCountryClick }: DynamicMapProps) {
 
         setTerritorios(dict);
 
-        // ✅ Tipando o objeto para guardar apenas Features de Polígonos
         const featuresPorDono: Record<string, PolyFeature[]> = {};
         
         dataMapaOriginal.features.forEach((f) => {
           if (f.geometry?.type !== 'Polygon' && f.geometry?.type !== 'MultiPolygon') return;
 
-          // ✅ Aqui está a correção: como já validamos o tipo acima, dizemos ao TS que isso é um PolyFeature
           const polyFeature = f as PolyFeature;
-
           let nome = polyFeature.properties?.NAME || '';
           
-          // ✅ Unifica o território "FR. S. ANTARCTIC LANDS" com a Antártica no agrupamento
           if (nome.toUpperCase().includes('ANTARCTIC LANDS') || nome === 'Antarctica') {
             nome = 'Antarctica';
             polyFeature.properties = { ...polyFeature.properties, NAME: 'Antarctica' };
@@ -117,7 +133,6 @@ export default function DynamicMap({ onCountryClick }: DynamicMapProps) {
           }
 
           try {
-            // ✅ Agora o TypeScript SABE que 'grupo' contém apenas Polygon/MultiPolygon
             const fc = turf.featureCollection(grupo); 
             const uniao = turf.union(fc);
             
@@ -157,7 +172,6 @@ export default function DynamicMap({ onCountryClick }: DynamicMapProps) {
   const onEachCountry = (feature: Feature, layer: L.Layer) => {
     let nomeGeo = feature.properties?.NAME || 'Desconhecido';
     
-    // ✅ Unifica o território "FR. S. ANTARCTIC LANDS" com a Antártica
     if (nomeGeo.toUpperCase().includes('ANTARCTIC LANDS') || nomeGeo === 'Antarctica') {
       nomeGeo = 'Antarctica';
     }
@@ -173,7 +187,6 @@ export default function DynamicMap({ onCountryClick }: DynamicMapProps) {
     });
 
     if (donoNome && donoSlug) {
-      // ✅ Removido o nome do território. Mostra apenas o nome do país (bloco)
       layer.bindTooltip(`
         <div class="flex flex-col gap-1">
           <a href="/game/pais/${donoSlug}" class="text-amber-400 font-bold text-sm hover:underline hover:text-amber-300 transition-colors">
@@ -182,7 +195,6 @@ export default function DynamicMap({ onCountryClick }: DynamicMapProps) {
         </div>
       `, { sticky: true, className: 'bg-black/90 border border-white/20 rounded px-3 py-2 shadow-xl' });
     } else {
-      // ✅ Se não tiver dono, mostra o nome real do território (sem "Território Neutro")
       layer.bindTooltip(`
         <div class="flex flex-col">
           <span class="text-gray-300 font-bold text-sm tracking-wider uppercase">${nomeGeo}</span>
@@ -216,7 +228,6 @@ export default function DynamicMap({ onCountryClick }: DynamicMapProps) {
 
             let nomePais = feature.properties?.NAME || '';
             
-            // ✅ Unifica no estilo visual também
             if (nomePais.toUpperCase().includes('ANTARCTIC LANDS') || nomePais === 'Antarctica') {
               nomePais = 'Antarctica';
             }
@@ -238,6 +249,10 @@ export default function DynamicMap({ onCountryClick }: DynamicMapProps) {
             };
           }}
         />
+        
+        {/* ✅ Adicionado o controlador de zoom */}
+        <MapFocusController focusName={focusCountryName || null} data={dadosMapa} onBoundsFound={setBounds} />
+        
         {bounds && <FitBounds bounds={bounds} />}
       </MapContainer>
     </div>

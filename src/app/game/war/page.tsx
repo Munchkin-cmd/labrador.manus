@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useWar, War } from '@/hooks/useWar'
 import { useAuthStore } from '@/store/authStore'
 import { formatNumber } from '@/utils/format'
-import { Swords, Check, X, Clock, MapPin, Users, ChevronDown, ChevronUp, Landmark, History, Trophy, Handshake } from 'lucide-react'
+import { Swords, Check, X, Clock, MapPin, Users, ChevronDown, ChevronUp, Landmark, History, Trophy } from 'lucide-react'
 
 const UNITS = [
   { key: 'soldiers',    label: 'Soldados',    emoji: '⚔️' },
@@ -19,7 +19,7 @@ const UNITS = [
 
 export default function WarPage() {
   const {
-    myWars, worldWars, endedWars, military, combatXP, loading,
+    worldWars, endedWars, military, combatXP, loading,
     attack, proposePeace, acceptPeace, rejectPeace, proposeJoinWar, leaveWar, annexTerritory,
   } = useWar()
   const { country: myCountry } = useAuthStore()
@@ -125,47 +125,21 @@ export default function WarPage() {
         </div>
       </div>
 
-      {/* ─── MINHAS GUERRAS (Apenas Ativas) ────────────────────────────────────── */}
+      {/* ─── GUERRAS GLOBAIS ────────────────────────────────────── */}
       <div>
-        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Suas Guerras Ativas</p>
-        {myWars.length === 0 ? (
+        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">
+          Guerras no Mundo ({worldWars.length})
+        </p>
+        {worldWars.length === 0 ? (
           <div className="bg-surface-card rounded-xl p-8 text-center border border-surface-border">
             <p className="text-5xl mb-3">🕊️</p>
-            <p className="text-white/40 text-sm">Você não está em nenhuma guerra ativa.</p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-6">
-            {myWars.map((war: War) => (
-              <WarCard 
-                key={war.id} war={war} myCountryId={Number(myCountry?.id)}
-                onAttack={() => setAttackWarId(war.id)}
-                onProposePeace={() => handleProposePeace(war.id)}
-                onAcceptPeace={() => handleAcceptPeace(war.id)}
-                onRejectPeace={() => handleRejectPeace(war.id)}
-                onLeaveWar={() => handleLeaveWar(war.id)}
-                onAnnex={() => handleAnnex(war.id)}
-                enemyProposedPeace={war.pending_peace_from !== null && Number(war.pending_peace_from) !== Number(myCountry?.id)}
-                iProposedPeace={war.pending_peace_from !== null && Number(war.pending_peace_from) === Number(myCountry?.id)}
-                peaceLoading={peaceLoading === war.id}
-                isWorldWar={false}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ─── GUERRAS DO MUNDO ────────────────────────────────────── */}
-      <div>
-        <p className="text-xs font-bold tracking-widest text-white/40 uppercase mb-3">Guerras no Mundo ({worldWars.length})</p>
-        {worldWars.length === 0 ? (
-          <div className="bg-surface-card rounded-xl p-4 text-center border border-surface-border">
             <p className="text-white/40 text-sm">Nenhuma guerra ativa no momento.</p>
           </div>
         ) : (
           <div className="flex flex-col gap-4">
             {worldWars.map((war: War) => (
               <WarCard 
-                key={war.id} war={war} myCountryId={Number(myCountry?.id)} isWorldWar={true}
+                key={war.id} war={war} myCountryId={Number(myCountry?.id)} 
                 onAttack={() => setAttackWarId(war.id)}
                 onProposePeace={() => handleProposePeace(war.id)}
                 onAcceptPeace={() => handleAcceptPeace(war.id)}
@@ -184,6 +158,7 @@ export default function WarPage() {
         )}
       </div>
 
+      {/* ─── BOTÃO HISTÓRICO ────────────────────────────────────── */}
       <button 
         onClick={() => setShowHistory(true)}
         className="mt-4 flex items-center justify-center gap-2 w-full py-4 bg-surface-card hover:bg-white/5 border border-surface-border rounded-xl transition-colors text-white font-bold text-sm"
@@ -192,7 +167,7 @@ export default function WarPage() {
         HISTÓRICO DE GUERRA
       </button>
 
-      {/* ─── HISTÓRICO (Apenas Encerradas) ────────────────────────────────────── */}
+      {/* ─── MODAL HISTÓRICO ────────────────────────────────────── */}
       {showHistory && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-[#1a1a2e] border border-surface-border rounded-2xl p-5 sm:p-6 w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl relative">
@@ -252,6 +227,7 @@ export default function WarPage() {
         </div>
       )}
 
+      {/* ─── MODAL DE ATAQUE ────────────────────────────────────── */}
       {attackWarId && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center sm:items-center">
           <div className="w-full max-w-lg bg-[#1a1a2e] rounded-t-2xl sm:rounded-2xl p-6 border border-surface-border max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -295,7 +271,7 @@ export default function WarPage() {
 
 function WarCard({ 
   war, myCountryId, onAttack, onProposePeace, onAcceptPeace, onRejectPeace, onLeaveWar, onAnnex,
-  enemyProposedPeace, iProposedPeace, peaceLoading, isWorldWar, onJoinAttacker, onJoinDefender, joining
+  enemyProposedPeace, iProposedPeace, peaceLoading, onJoinAttacker, onJoinDefender, joining
 }: any) {
   
   const [isExpanded, setIsExpanded] = useState(false);

@@ -45,6 +45,13 @@ function getFlagUrl(countryData: any) {
   return countryData.users.flag_url;
 }
 
+// ✅ Tipagem segura para evitar "as any" e garantir o link
+function getCountryLink(countryData: any) {
+  if (!countryData) return '#'
+  const typedCountry = countryData as unknown as { id: number; slug: string | null }
+  return `/game/pais/${typedCountry.slug || typedCountry.id}`
+}
+
 interface CommentWithReplies extends Comment {
   replies: CommentWithReplies[]
 }
@@ -81,7 +88,7 @@ export default function ArtigoPage() {
       if (!id) return
       const { data } = await supabase
         .from('articles')
-        .select('*, countries(name, flag_emoji, users(flag_url))')
+        .select('*, countries(id, name, slug, flag_emoji, users(flag_url))')
         .eq('id', id)
         .single()
       setArticle(data)
@@ -126,13 +133,10 @@ export default function ArtigoPage() {
     setArticle({ ...article, likes: newLikes, dislikes: newDislikes })
   }
 
-  // ✅ CORREÇÃO AQUI: Verifica se o artigo foi realmente apagado
   async function handleDelete() {
     if (!confirm('Tem certeza que deseja excluir este artigo?')) return
     setDeleting(true)
     
-    // O .select() força o Supabase a retornar os dados apagados. 
-    // Se retornar vazio, significa que o RLS bloqueou a exclusão.
     const { data, error } = await supabase
       .from('articles')
       .delete()
@@ -151,7 +155,6 @@ export default function ArtigoPage() {
       return
     }
 
-    // Se chegou aqui, apagou de verdade
     router.push('/game/feed')
     setDeleting(false)
   }
@@ -206,6 +209,8 @@ export default function ArtigoPage() {
   
   if (!article) return <div className="p-8 text-center text-white/40">Artigo não encontrado.</div>
 
+  const articleCountryLink = getCountryLink(article.countries)
+
   return (
     <div className="max-w-4xl mx-auto pb-24 px-2 sm:px-4 pt-20">
       
@@ -217,7 +222,6 @@ export default function ArtigoPage() {
           </Link>
           <h1 className="text-xl font-bold text-white tracking-tight">Artigo</h1>
         </div>
-        {/* ✅ CORREÇÃO: Botão de editar removido. Apenas excluir mantido */}
         {isAuthor && (
           <div className="flex gap-2">
             <button onClick={handleDelete} disabled={deleting} className="p-2 text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded-full transition-colors disabled:opacity-50" title="Excluir Artigo">
@@ -232,17 +236,24 @@ export default function ArtigoPage() {
         
         {/* AUTOR E DATA */}
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 rounded-full overflow-hidden border border-white/10 shrink-0 flex items-center justify-center bg-black/50 shadow-sm">
+          
+          {/* ✅ Avatar do Autor com Link */}
+          <Link href={articleCountryLink} className="w-9 h-9 rounded-full overflow-hidden border border-white/10 shrink-0 flex items-center justify-center bg-black/50 shadow-sm hover:border-primary transition-colors">
             {getFlagUrl(article.countries) ? (
               <img src={getFlagUrl(article.countries)!} alt="Flag" className="w-full h-full object-cover" />
             ) : (
               <span className="text-xl leading-none">{article.countries?.flag_emoji ?? '🌐'}</span>
             )}
-          </div>
+          </Link>
+          
           <div className="flex flex-col">
-            <span className="text-white font-semibold text-sm">{article.countries?.name}</span>
+            {/* ✅ Nome do Autor com Link */}
+            <Link href={articleCountryLink} className="text-white font-semibold text-sm hover:text-primary hover:underline transition-colors">
+              {article.countries?.name}
+            </Link>
             <span className="text-white/40 text-[11px]">{formatTime(article.created_at)}</span>
           </div>
+          
           <span className="ml-auto text-xs bg-primary/20 text-primary-light font-semibold rounded-full px-3 py-1 shadow-sm">
             {article.category}
           </span>
@@ -397,22 +408,35 @@ function CommentItem({ comment, onReply, isReply = false }: {
   onReply: (c: CommentWithReplies) => void;
   isReply?: boolean;
 }) {
+  // ✅ Gerando link seguro para o país do comentário
+  const commentCountryLink = getCountryLink(comment.countries)
+
   return (
     <div className={`flex flex-col gap-2 ${isReply ? 'ml-4 sm:ml-6 border-l-2 border-primary/20 pl-3 sm:pl-4' : ''}`}>
       <div className="flex gap-3">
         
-        <div className="w-8 h-8 rounded-full overflow-hidden border border-white/10 shrink-0 flex items-center justify-center bg-black/50 mt-0.5 shadow-sm">
+        {/* ✅ Avatar da Bandeira com Link */}
+        <Link 
+          href={commentCountryLink}
+          className="w-8 h-8 rounded-full overflow-hidden border border-white/10 shrink-0 flex items-center justify-center bg-black/50 mt-0.5 shadow-sm hover:border-primary transition-colors"
+        >
           {getFlagUrl(comment.countries) ? (
             <img src={getFlagUrl(comment.countries)!} alt="Flag" className="w-full h-full object-cover" />
           ) : (
             <span className="text-lg leading-none">{comment.countries?.flag_emoji ?? '🌐'}</span>
           )}
-        </div>
+        </Link>
 
         <div className="flex-1">
           <div className="bg-white/5 border border-white/[0.05] rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm">
             <div className="flex items-center gap-2 mb-1">
-              <p className="text-white/80 text-xs font-bold">{comment.countries?.name}</p>
+              {/* ✅ Nome do País com Link */}
+              <Link 
+                href={commentCountryLink}
+                className="text-white/80 text-xs font-bold hover:text-primary hover:underline transition-colors"
+              >
+                {comment.countries?.name}
+              </Link>
               <span className="text-white/30 text-[10px]">{formatTime(comment.created_at)}</span>
             </div>
             

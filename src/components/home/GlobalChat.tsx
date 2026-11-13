@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useChat, ChatMessage } from '@/hooks/useChat'
 import { formatTime } from '@/utils/format'
 import {
@@ -182,6 +183,7 @@ export default function GlobalChat() {
     setReplyTo(msg)
     inputRef.current?.focus()
   }
+  
   function cancelReply() { setReplyTo(null) }
 
   function openFileSelector(accept: string) {
@@ -431,12 +433,15 @@ function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: Chat
 
   const userData = msg.country?.users;
   const flagUrl = Array.isArray(userData) ? userData[0]?.flag_url : userData?.flag_url;
+  
+  // ✅ Link Seguro, sem uso de 'as any'
+  const countryLink = `/game/pais/${msg.country?.slug || msg.country?.id}`
 
   return (
     <div className="flex items-start gap-2 group hover:bg-surface-input rounded-lg px-2 py-1.5 transition-colors border border-transparent hover:border-surface-border">
       
-      {/* Avatar da Bandeira */}
-      <div className="w-8 h-8 rounded-full overflow-hidden border border-surface-border shrink-0 mt-0.5 flex items-center justify-center bg-surface-input">
+      {/* ✅ Avatar com Link */}
+      <Link href={countryLink} className="w-8 h-8 rounded-full overflow-hidden border border-surface-border shrink-0 mt-0.5 flex items-center justify-center bg-surface-input hover:border-primary transition-colors">
         {flagUrl ? (
           <img
             src={flagUrl}
@@ -446,11 +451,14 @@ function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (msg: Chat
         ) : (
           <span className="text-base leading-none">{msg.country?.flag_emoji ?? '🌐'}</span>
         )}
-      </div>
+      </Link>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 flex-wrap">
-          <span className="text-[11px] font-bold text-white uppercase tracking-wider truncate max-w-[150px]">{msg.country?.name ?? 'Desconhecido'}</span>
+          {/* ✅ Nome com Link */}
+          <Link href={countryLink} className="text-[11px] font-bold text-white uppercase tracking-wider truncate max-w-[150px] hover:text-primary transition-colors hover:underline">
+            {msg.country?.name ?? 'Desconhecido'}
+          </Link>
           <span className="text-white/30 text-[9px] font-mono flex-shrink-0">{formatChatTime(msg.created_at)}</span>
         </div>
 

@@ -3,6 +3,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
 
+// ✅ Tipagem forte para o país dentro do chat
+export interface ChatCountry {
+  id: number
+  name: string
+  slug: string | null
+  flag_emoji: string
+  users?: { flag_url: string | null } | { flag_url: string | null }[] | null
+}
+
 export interface ChatMessage {
   id: string
   country_id: number
@@ -13,17 +22,9 @@ export interface ChatMessage {
   reply_to_id?: string | null
   reply_to_message?: {
     content: string
-    country: { 
-      name: string; 
-      flag_emoji: string; 
-      users?: { flag_url: string | null } | { flag_url: string | null }[] | null 
-    } | null
+    country: ChatCountry | null
   } | null
-  country: {
-    name: string
-    flag_emoji: string
-    users?: { flag_url: string | null } | { flag_url: string | null }[] | null // ✅ Adicionado
-  }
+  country: ChatCountry
 }
 
 export function useChat() {
@@ -50,7 +51,7 @@ export function useChat() {
           media_type,
           created_at,
           reply_to_id,
-          countries ( name, flag_emoji, users ( flag_url ) )
+          countries ( id, name, slug, flag_emoji, users ( flag_url ) )
         `)
         .order('created_at', { ascending: true })
         .limit(100)
@@ -73,7 +74,7 @@ export function useChat() {
             .select(`
               id,
               content,
-              countries ( name, flag_emoji, users ( flag_url ) )
+              countries ( id, name, slug, flag_emoji, users ( flag_url ) )
             `)
             .in('id', replyIds)
 
@@ -81,19 +82,23 @@ export function useChat() {
             replyMap = replies.reduce((acc: any, r: any) => {
               acc[r.id] = {
                 content: r.content,
-                country: r.countries || { name: 'Desconhecido', flag_emoji: '🌐' }
+                country: r.countries || { id: 0, name: 'Desconhecido', slug: null, flag_emoji: '🌐' }
               }
               return acc
             }, {})
           }
         }
 
-        setMessages(data.map((m: any) => ({
+        // ✅ O TypeScript pode reclamar que 'countries' é um array. 
+        // Nós forçamos o tipo para o nosso ChatCountry, mas SEM usar 'any'.
+        const formattedMessages: ChatMessage[] = data.map((m: any) => ({
           ...m,
           media_url: m.image_url || m.video_url || m.gif_url || m.sticker_url || m.file_url || m.music_url || null,
-          country: m.countries,
+          country: m.countries as ChatCountry,
           reply_to_message: m.reply_to_id ? replyMap[m.reply_to_id] || null : null
-        })))
+        }))
+
+        setMessages(formattedMessages)
       }
     } catch (err) {
       console.error('❌ Erro inesperado:', err)
@@ -115,9 +120,6 @@ export function useChat() {
           event: 'INSERT',
           schema: 'public',
           table: 'chat_messages',
-          // Dica: Se você quiser que TODOS vejam TODAS as mensagens no chat global, 
-          // remova o filtro abaixo. O filtro atual só deixa você ver as SUAS mensagens no realtime.
-          // filter: `country_id=eq.${country.id}` 
         },
         async (payload) => {
           try {
@@ -126,7 +128,7 @@ export function useChat() {
               .select(`
                 id, country_id, content, image_url, video_url, gif_url,
                 sticker_url, file_url, music_url, media_type, created_at, reply_to_id,
-                countries ( name, flag_emoji, users ( flag_url ) )
+                countries ( id, name, slug, flag_emoji, users ( flag_url ) )
               `)
               .eq('id', payload.new.id)
               .single()
@@ -141,14 +143,14 @@ export function useChat() {
               if (fullMsg.reply_to_id) {
                 const { data: reply, error: replyError } = await supabase
                   .from('chat_messages')
-                  .select('content, countries ( name, flag_emoji, users ( flag_url ) )')
+                  .select('content, countries ( id, name, slug, flag_emoji, users ( flag_url ) )')
                   .eq('id', fullMsg.reply_to_id)
                   .single()
 
                 if (!replyError && reply) {
                   reply_to_message = {
                     content: reply.content,
-                    country: reply.countries || { name: 'Desconhecido', flag_emoji: '🌐' }
+                    country: reply.countries as ChatCountry || { id: 0, name: 'Desconhecido', slug: null, flag_emoji: '🌐' }
                   }
                 }
               }
@@ -156,11 +158,10 @@ export function useChat() {
               const newMsg: ChatMessage = {
                 ...fullMsg,
                 media_url: fullMsg.image_url || fullMsg.video_url || fullMsg.gif_url || fullMsg.sticker_url || fullMsg.file_url || fullMsg.music_url || null,
-                country: fullMsg.countries,
+                country: fullMsg.countries as ChatCountry,
                 reply_to_message: reply_to_message
               }
               
-              // Evita duplicar a mensagem se ela já foi adicionada (por conta do seu próprio envio)
               setMessages(prev => {
                 if (prev.some(m => m.id === newMsg.id)) return prev;
                 return [...prev, newMsg]
@@ -178,6 +179,7 @@ export function useChat() {
     }
   }, [country?.id, fetchMessages])
 
+  // O resto do código de envio (sendMessage) permanece igual...
   async function sendMessage(
     content: string,
     file?: File,

@@ -21,7 +21,7 @@ export default function FeedPage() {
   const { articles, loading, hasMore, loadMore, voteArticle } = useFeed()
 
   return (
-    // ✅ CORREÇÃO AQUI: pt-6 alterado para pt-20
+    // ✅ pt-20 para não esconder no header
     <div className="flex flex-col pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-20">
       
       {/* HEADER DO FEED */}
@@ -80,6 +80,10 @@ function ArticleCard({ article, onVote }: {
   const userData = article.countries?.users;
   const flagUrl = Array.isArray(userData) ? userData[0]?.flag_url : userData?.flag_url;
 
+  // ✅ Criando o link para a página do país
+  const countryData = article.countries as any;
+  const countryLink = `/game/pais/${countryData?.slug || countryData?.id}`;
+
   return (
     // ✅ Card Sólido com borda fina (Dark Tech)
     <div className="bg-surface-card rounded-xl p-4 flex flex-col gap-3 border border-surface-border hover:border-primary/40 transition-colors shadow-lg group">
@@ -87,8 +91,11 @@ function ArticleCard({ article, onVote }: {
       {/* CABEÇALHO DO CARD */}
       <div className="flex items-center gap-3">
         
-        {/* AVATAR DA BANDEIRA */}
-        <div className="w-9 h-9 rounded-full overflow-hidden border border-surface-border shrink-0 flex items-center justify-center bg-surface-input">
+        {/* ✅ Avatar da Bandeira com Link */}
+        <Link 
+          href={countryLink}
+          className="w-9 h-9 rounded-full overflow-hidden border border-surface-border shrink-0 flex items-center justify-center bg-surface-input hover:border-primary transition-colors"
+        >
           {flagUrl ? (
             <img 
               src={flagUrl} 
@@ -98,10 +105,16 @@ function ArticleCard({ article, onVote }: {
           ) : (
             <span className="text-lg leading-none">{article.countries?.flag_emoji ?? '🌐'}</span>
           )}
-        </div>
+        </Link>
 
         <div className="flex-1 min-w-0">
-          <p className="text-white text-xs font-bold uppercase tracking-wider truncate">{article.countries?.name}</p>
+          {/* ✅ Nome do País com Link */}
+          <Link 
+            href={countryLink}
+            className="text-white text-xs font-bold uppercase tracking-wider truncate hover:text-primary hover:underline transition-colors block"
+          >
+            {article.countries?.name}
+          </Link>
           <p className="text-white/40 text-[10px] font-mono mt-0.5">{formatTime(article.created_at)}</p>
         </div>
         
