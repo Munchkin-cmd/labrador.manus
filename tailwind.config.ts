@@ -30,9 +30,8 @@ const config: Config = {
           input:   'var(--surface-input)',
         },
 
-        // ✅ Força texto branco e overlays pretos
-        white: '255 255 255 / <alpha-value>',
-        black: '0 0 0 / <alpha-value>',
+        // ✅ CORRIGIDO: As definições de 'white' e 'black' foram removidas.
+        // O Tailwind já possui essas cores por padrão e a sintaxe anterior estava quebrando o CSS.
       },
       backgroundImage: {
         'gradient-primary': 'linear-gradient(135deg, #0F172A, #1E293B)',

@@ -45,7 +45,7 @@ export default function LoginPage() {
           <Globe className="text-primary" size={32} />
         </div>
         <h1 className="text-3xl font-black text-white uppercase tracking-widest drop-shadow-md">
-          labrador
+          O Estadão
         </h1>
         <p className="text-white/50 text-sm mt-1 font-mono uppercase tracking-wider">
           Acesse o comando da sua nação

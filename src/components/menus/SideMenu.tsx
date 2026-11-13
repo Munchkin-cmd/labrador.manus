@@ -134,7 +134,7 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
         {/* Header do Menu */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-[#1E2D4A] shrink-0">
           <div className="flex items-center gap-2">
-            <span className="text-white font-black text-lg tracking-tight">labrador</span>
+            <span className="text-white font-black text-lg tracking-tight">O Estadão</span>
             <span className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
           </div>
           <button 
