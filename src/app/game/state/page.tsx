@@ -183,7 +183,7 @@ export default function StatePage() {
 
   return (
     // ✅ pt-24 para não esconder no header
-    <div className="flex flex-col gap-6 pb-12 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-24">
+    <div className="flex flex-col gap-6 pb-12 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-17">
 
       {/* ─── 1. BANNER IMERSIVO ───────────────────────────── */}
       <div

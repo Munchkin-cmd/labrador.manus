@@ -3,10 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
-import { Trophy, ArrowLeft, List, BarChart3, LineChart as LineChartIcon, RefreshCw } from 'lucide-react'
+import { Trophy, ArrowLeft, List, BarChart3, RefreshCw } from 'lucide-react'
 import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, 
-  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
 } from 'recharts'
 
 type RankingType = {
@@ -63,9 +62,6 @@ export default function RankingsPage() {
   const [activeGroup, setActiveGroup] = useState<string>('📊 Indicadores')
   const [selectedMetric, setSelectedMetric] = useState<string>('idh')
   const [rankings, setRankings] = useState<RankingType[]>([])
-  
-  const [compareCountryA, setCompareCountryA] = useState<number | ''>('')
-  const [compareCountryB, setCompareCountryB] = useState<number | ''>('')
 
   const options: SelectOption[] = [
     { group: '📊 Indicadores', label: 'IDH', value: 'idh' },
@@ -259,41 +255,6 @@ export default function RankingsPage() {
     value: r.value,
   }))
 
-  const radarData = [
-    { subject: 'Economia', A: 0, B: 0 },
-    { subject: 'Militar', A: 0, B: 0 },
-    { subject: 'Edifícios', A: 0, B: 0 },
-    { subject: 'População', A: 0, B: 0 },
-    { subject: 'IDH', A: 0, B: 0 },
-  ]
-
-  if (compareCountryA && compareCountryB) {
-    const cA = rawData.countries.find((c: any) => Number(c.id) === Number(compareCountryA))
-    const cB = rawData.countries.find((c: any) => Number(c.id) === Number(compareCountryB))
-    
-    if (cA && cB) {
-      const getA = rawData.economies.find((e: any) => Number(e.country_id) === Number(cA.id)) || {}
-      const getAMil = rawData.militaries.find((m: any) => Number(m.country_id) === Number(cA.id)) || {}
-      const getABld = rawData.buildings.filter((b: any) => Number(b.country_id) === Number(cA.id)).length
-      
-      const getB = rawData.economies.find((e: any) => Number(e.country_id) === Number(cB.id)) || {}
-      const getBMil = rawData.militaries.find((m: any) => Number(m.country_id) === Number(cB.id)) || {}
-      const getBBld = rawData.buildings.filter((b: any) => Number(b.country_id) === Number(cB.id)).length
-      
-      radarData[0].A = (getA.money || 0) / 1e12
-      radarData[1].A = (getAMil.soldiers || 0) / 1e6
-      radarData[2].A = getABld
-      radarData[3].A = (getA.population || 0) / 1e9
-      radarData[4].A = (getA.idh || 0) * 100
-
-      radarData[0].B = (getB.money || 0) / 1e12
-      radarData[1].B = (getBMil.soldiers || 0) / 1e6
-      radarData[2].B = getBBld
-      radarData[3].B = (getB.population || 0) / 1e9
-      radarData[4].B = (getB.idh || 0) * 100
-    }
-  }
-
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
 
   return (
@@ -411,7 +372,6 @@ export default function RankingsPage() {
 
       {viewMode === 'chart' && (
         <div className="bg-surface-card border border-surface-border rounded-xl p-4 sm:p-6 shadow-2xl animate-in fade-in">
-          
           <div className="mb-8">
             <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-4 flex items-center gap-2">
               <BarChart3 size={16} className="text-primary"/> Top 10 - {options.find(o => o.value === selectedMetric)?.label}
@@ -439,47 +399,6 @@ export default function RankingsPage() {
               </ResponsiveContainer>
             </div>
           </div>
-
-          <div className="border-t border-surface-border pt-6 mt-6">
-            <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-4 flex items-center gap-2">
-              <LineChartIcon size={16} className="text-emerald-400"/> Comparar Países
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              <div>
-                <label className="text-[10px] text-white/50 font-mono uppercase mb-1 block">País A</label>
-                <select value={compareCountryA} onChange={(e) => setCompareCountryA(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-white/10 text-white px-4 py-2 rounded-lg">
-                  <option value="">Selecione...</option>
-                  {rawData.countries.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] text-white/50 font-mono uppercase mb-1 block">País B</label>
-                <select value={compareCountryB} onChange={(e) => setCompareCountryB(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-white/10 text-white px-4 py-2 rounded-lg">
-                  <option value="">Selecione...</option>
-                  {rawData.countries.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {compareCountryA && compareCountryB && (
-              <div className="h-[350px] w-full bg-black/20 rounded-xl p-2 border border-white/5">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                    <PolarGrid stroke="#2A2A4A" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#94A3B8', fontSize: 11 }} />
-                    <PolarRadiusAxis angle={30} domain={[0, 'auto']} tick={false} axisLine={false} />
-                    <Radar name={rawData.countries.find((c:any)=>Number(c.id)===Number(compareCountryA))?.name} dataKey="A" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.5} />
-                    <Radar name={rawData.countries.find((c:any)=>Number(c.id)===Number(compareCountryB))?.name} dataKey="B" stroke="#10B981" fill="#10B981" fillOpacity={0.5} />
-                    <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                    <RechartsTooltip 
-                      contentStyle={{ backgroundColor: '#1A1A2E', borderColor: '#2A2A4A', borderRadius: '8px' }}
-                    />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-
         </div>
       )}
 

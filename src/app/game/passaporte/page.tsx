@@ -38,7 +38,6 @@ export default function PassaportePage() {
   const [destroyedBuildings, setDestroyedBuildings] = useState(0)
   const [warStats, setWarStats] = useState({ wins: 0, losses: 0 })
   
-  // ✅ Novos estados diplomáticos
   const [allies, setAllies] = useState<CountryInfo[]>([])
   const [enemies, setEnemies] = useState<CountryInfo[]>([])
   const [sanctionsApplied, setSanctionsApplied] = useState<CountryInfo[]>([])
@@ -48,19 +47,15 @@ export default function PassaportePage() {
     if (!country?.id) return
     const currentId = country.id
 
-    // 1. Dados do país atualizados
     const { data: cData } = await supabase.from('countries').select('*').eq('id', currentId).single()
     if (cData) setLiveData(cData)
 
-    // 2. Contagem de regiões
     const { count: rCount } = await supabase.from('regions').select('*', { count: 'exact', head: true }).eq('country_id', currentId)
     setRegionsCount(rCount || 0)
 
-    // 3. Dados militares
     const { data: mil } = await supabase.from('military').select('*').eq('country_id', currentId).maybeSingle()
     setMilitary(mil || null)
 
-    // 4. Perdas
     const { data: lossesData } = await supabase.from('military_losses').select('*').eq('country_id', currentId)
     if (lossesData && lossesData.length > 0) {
       const totals = lossesData.reduce((acc, curr) => ({
@@ -78,11 +73,9 @@ export default function PassaportePage() {
       setLosses(null)
     }
 
-    // 5. Edifícios destruídos
     const { count: destroyed } = await supabase.from('destroyed_buildings').select('*', { count: 'exact', head: true }).eq('country_id', currentId)
     setDestroyedBuildings(destroyed || 0)
 
-    // 6. Estatísticas de guerras
     const { data: wars } = await supabase
       .from('wars')
       .select('attacker_id, defender_id, winner_id, status')
@@ -92,16 +85,11 @@ export default function PassaportePage() {
     let wins = 0, lossesCount = 0
     wars?.forEach((w: any) => {
       if (w.status === 'peace' || !w.winner_id) return
-      
-      if (Number(w.winner_id) === Number(currentId)) {
-        wins++
-      } else {
-        lossesCount++
-      }
+      if (Number(w.winner_id) === Number(currentId)) wins++
+      else lossesCount++
     })
     setWarStats({ wins, losses: lossesCount })
 
-    // 7. Relações Diplomáticas (Aliados, Sanções)
     const { data: diploData } = await supabase
       .from('diplomacy')
       .select(`
@@ -131,11 +119,8 @@ export default function PassaportePage() {
         if (isAlly) alliedList.push(otherCountry)
 
         if (rel.sanctions_active) {
-          if (isCountryA) {
-            appliedSanctions.push(otherCountry) // Eu (A) sancionei o outro (B)
-          } else {
-            receivedSanctions.push(otherCountry) // O outro (A) me sancionou (B)
-          }
+          if (isCountryA) appliedSanctions.push(otherCountry)
+          else receivedSanctions.push(otherCountry)
         }
       })
 
@@ -148,7 +133,6 @@ export default function PassaportePage() {
       setSanctionsReceived([])
     }
 
-    // 8. Inimigos (Guerras Ativas)
     const { data: activeWarsData } = await supabase
       .from('wars')
       .select(`
@@ -168,7 +152,6 @@ export default function PassaportePage() {
     } else {
       setEnemies([])
     }
-
   }, [country?.id])
 
   useEffect(() => {
@@ -197,10 +180,8 @@ export default function PassaportePage() {
   ]
 
   return (
-    // ✅ pt-20 (80px) garante que o conteúdo comece abaixo do Header fixo
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto px-4 sm:px-6 pt-20 pb-24">
       
-      {/* Capa */}
       <div className="relative h-56 bg-surface-card border border-surface-border rounded-xl overflow-hidden shadow-2xl">
         {profile?.banner_urls?.[0] && (
           <img src={profile.banner_urls[0]} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" />
@@ -241,7 +222,6 @@ export default function PassaportePage() {
           <Row label="Regiões"         value={`${regionsCount}`} />
         </Section>
 
-        {/* ✅ NOVA SEÇÃO: INDICADORES SOCIOECONÔMICOS */}
         <Section title="INDICADORES SOCIOECONÔMICOS">
           <div className="bg-surface-input border border-surface-border rounded-lg p-3">
             <Row label="IDH" value={Number((economy as any)?.idh || 0).toFixed(3)} />
@@ -250,11 +230,14 @@ export default function PassaportePage() {
           </div>
         </Section>
 
+        {/* ✅ SEÇÃO STATUS CORRIGIDA */}
         <Section title="STATUS">
           <div className="flex flex-col gap-4 pt-1 pb-1">
-            <TrustBar trust={data.trust}           label="Confiança"   color="bg-green-500" />
-            <TrustBar trust={data.intl_approval}   label="Aprovação"   color="bg-blue-400" />
-            <TrustBar trust={data.political_power} label="Poder Pol."  color="bg-purple-400" />
+            <TrustBar 
+              trust={(data as any).governability ?? 50} 
+              label="Governabilidade" 
+              color="bg-green-500" 
+            />
           </div>
         </Section>
 
@@ -290,7 +273,6 @@ export default function PassaportePage() {
           </div>
         </Section>
 
-        {/* ✅ NOVA SEÇÃO: GUERRAS ATIVAS */}
         <Section title="⚔️ GUERRAS ATIVAS">
           {enemies.length === 0 ? (
             <p className="text-white/40 text-[10px] font-mono text-center py-4 uppercase tracking-widest">Em paz com todas as nações</p>
@@ -333,11 +315,8 @@ export default function PassaportePage() {
           )}
         </Section>
 
-        {/* ✅ NOVA SEÇÃO: SANÇÕES */}
         <Section title="🚫 SANÇÕES">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            
-            {/* Sanções Recebidas */}
             <div>
               <p className="text-white/50 text-[10px] font-mono uppercase tracking-widest mb-2 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
@@ -361,7 +340,6 @@ export default function PassaportePage() {
               )}
             </div>
 
-            {/* Sanções Aplicadas */}
             <div>
               <p className="text-white/50 text-[10px] font-mono uppercase tracking-widest mb-2 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
@@ -384,10 +362,8 @@ export default function PassaportePage() {
                 </div>
               )}
             </div>
-
           </div>
         </Section>
-
       </div>
     </div>
   )

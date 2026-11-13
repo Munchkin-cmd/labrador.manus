@@ -464,26 +464,8 @@ export function useTaxes() {
       return { success: false, error: taxError.message }
     }
 
-    const totalTax = updateData.income_tax + updateData.property_tax + updateData.manufacturing_tax
-    const avgTax = totalTax / 3
-    const trustPenalty = avgTax > 40 ? (avgTax - 40) * 0.5 : 0
-    const approvalPenalty = avgTax > 50 ? (avgTax - 50) * 0.5 : 0
-
-    const { data: currentCountry, error: fetchError } = await supabase
-      .from('countries')
-      .select('trust, intl_approval')
-      .eq('id', country.id)
-      .maybeSingle()
-
-    if (!fetchError && currentCountry) {
-      const newTrust = Math.max(0, (currentCountry.trust || 50) - trustPenalty)
-      const newApproval = Math.max(0, (currentCountry.intl_approval || 50) - approvalPenalty)
-
-      await supabase
-        .from('countries')
-        .update({ trust: newTrust, intl_approval: newApproval })
-        .eq('id', country.id)
-    }
+    // ✅ CORRIGIDO: Todo o bloco de cálculo de trust e intl_approval foi removido, 
+    // pois essas colunas não existem mais na tabela 'countries'.
 
     setTaxes((prev: any) => ({ ...prev, ...updateData }))
     setSaving(false)

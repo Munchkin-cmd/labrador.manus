@@ -21,32 +21,27 @@ export function useWorldStats() {
     setLoading(true)
 
     try {
-      // 🔥 CORREÇÃO: Busca TODOS os edifícios sem filtro de coluna inexistente
-      // (Você já desativou o RLS, então consegue ler todos)
+      // ✅ CORREÇÃO: Removido 'total_regions' do select de countries.
+      // A contagem total de regiões já é feita buscando a tabela 'regions' logo abaixo.
       const [countries, regions, buildings, economy] = await Promise.all([
-        supabase.from('countries').select('id, is_active, total_regions'),
+        supabase.from('countries').select('id, is_active'),
         supabase.from('regions').select('id'),
-        supabase.from('buildings').select('quantity, is_active, is_built'), // Busca as colunas que existem
+        supabase.from('buildings').select('quantity, is_active, is_built'),
         supabase.from('economy').select('money, population'),
       ])
 
-      // 🔥 Soma os edifícios de forma segura (ignora null/undefined)
       const totalBuildings = (buildings.data ?? []).reduce((sum, b) => {
-        return sum + (Number(b.quantity) || 0) // Se quantity for null, vira 0
+        return sum + (Number(b.quantity) || 0) 
       }, 0)
 
       const totalMoney = (economy.data ?? []).reduce((s, e) => s + (Number(e.money) || 0), 0)
       const totalPop   = (economy.data ?? []).reduce((s, e) => s + (Number(e.population) || 0), 0)
 
-      // 🔥 Se você quiser contar apenas edifícios construídos, faça o filtro AQUI no JS:
-      // const builtBuildings = (buildings.data ?? []).filter(b => b.is_built === true)
-      // const totalBuildings = builtBuildings.reduce((sum, b) => sum + (Number(b.quantity) || 0), 0)
-
       setStats({
         total_countries:  (countries.data ?? []).length,
         active_countries: (countries.data ?? []).filter(c => c.is_active).length,
-        total_regions:    (regions.data ?? []).length,
-        total_buildings:  totalBuildings, // Agora soma tudo!
+        total_regions:    (regions.data ?? []).length, // Usa a tabela de regiões para contar
+        total_buildings:  totalBuildings,
         total_money:      totalMoney,
         total_population: totalPop,
       })

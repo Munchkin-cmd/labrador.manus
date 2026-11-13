@@ -198,21 +198,7 @@ export function useParliament() {
 
     const forceCost = law.political_power_cost
 
-    const { data: ppData, error: ppError } = await supabase
-      .from('countries')
-      .select('political_power')
-      .eq('id', country.id)
-      .single()
-
-    if (ppError) return { success: false, error: 'Erro ao verificar PP' }
-    if (ppData.political_power < forceCost) {
-      return { success: false, error: `PP insuficiente (precisa ${forceCost}, tem ${ppData.political_power})` }
-    }
-
-    await supabase
-      .from('countries')
-      .update({ political_power: ppData.political_power - forceCost })
-      .eq('id', country.id)
+    // ✅ CORRIGIDO: Removida a verificação de political_power pois a coluna foi excluída do banco
 
     const params = {
       target_country_id: target?.countryId || null,
@@ -238,16 +224,13 @@ export function useParliament() {
       .single()
 
     if (insertError) {
-      await supabase
-        .from('countries')
-        .update({ political_power: ppData.political_power })
-        .eq('id', country.id)
+      // ✅ CORRIGIDO: Removido o estorno de political_power pois não existe mais
       return { success: false, error: insertError.message }
     }
 
     const result = await executeLawEffect(newLaw.id, params)
     await fetchAll()
-    return { ...result, message: `Lei forçada! (Custo: ${forceCost} PP)\n${result.message || ''}` }
+    return { ...result, message: `Lei forçada! (Custo antigo ignorado: ${forceCost} PP)\n${result.message || ''}` }
   }
 
   async function executeLawEffect(
@@ -503,11 +486,7 @@ export function useParliament() {
             .update({ country_id: params.target_country_id })
             .eq('region_id', params.target_region_id)
 
-          const { data: originData } = await supabase.from('countries').select('total_regions').eq('id', country.id).single()
-          const { data: targetData } = await supabase.from('countries').select('total_regions').eq('id', params.target_country_id).single()
-          
-          await supabase.from('countries').update({ total_regions: Math.max(0, (originData?.total_regions || 1) - 1) }).eq('id', country.id)
-          await supabase.from('countries').update({ total_regions: (targetData?.total_regions || 0) + 1 }).eq('id', params.target_country_id)
+          // ✅ CORRIGIDO: Removida a atualização do total_regions pois a coluna foi excluída do banco
 
           return { success: true, message: `Região "${region.name}" (e seus edifícios) transferida para ${targetCountry.name}!` }
         }

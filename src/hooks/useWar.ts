@@ -147,9 +147,21 @@ export function useWar() {
     }
   }, [country?.id, fetchAll])
 
-  async function declareWar(targetId: number): Promise<RpcSimpleResult> {
+  // ✅ CORREÇÃO: Agora recebe explicitamente as regiões escolhidas pelo usuário
+  async function declareWar(
+    targetId: number, 
+    attackerRegionId: string, 
+    defenderRegionId: string
+  ): Promise<RpcSimpleResult> {
     if (!country?.id) return { success: false, error: 'País não encontrado' }
-    const { data, error } = await supabase.rpc('declare_war', { p_attacker_id: country.id, p_defender_id: targetId })
+    
+    const { data, error } = await supabase.rpc('declare_war', { 
+      p_attacker_id: country.id, 
+      p_attacker_region_id: attackerRegionId,
+      p_defender_id: targetId,
+      p_defender_region_id: defenderRegionId
+    })
+    
     await fetchAll(true, true)
     if (error) return { success: false, error: error.message }
     return (data as RpcSimpleResult) ?? { success: false, error: 'Erro desconhecido' }

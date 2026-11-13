@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { WorldStats } from '@/hooks/useWorldStats'
-import { CountryFull, Economy } from '@/hooks/useCountry'
 import { formatMoney, formatNumber, formatPopulation } from '@/utils/format'
 
 // ── World Stats ─────────────────────────────────────────────
@@ -22,44 +21,6 @@ export function WorldStatsCarousel({ stats }: WorldProps) {
     ],
   ]
   return <StatsCarousel label="ESTATÍSTICAS MUNDIAIS" slides={slides} accent="text-yellow-400" />
-}
-
-// ── Country Stats ────────────────────────────────────────────
-interface CountryProps { 
-  country: CountryFull; 
-  economy: Economy; 
-  regionsCount: number;
-}
-
-export function CountryStatsCarousel({ country, economy, regionsCount }: CountryProps) {
-  const slides = [
-    [
-      { label: 'Dinheiro',    value: formatMoney(Number(economy.money)) },
-      { label: 'Confiança',   value: `${country.trust}%` },
-      { label: 'Aprovação',   value: `${country.intl_approval}%` },
-    ],
-    [
-      { label: 'Poder Pol.',  value: `${country.political_power}` },
-      { label: 'Regiões',     value: formatNumber(regionsCount) }, 
-      { label: 'Energia',     value: formatNumber(Number(economy.energy)) },
-    ],
-    [
-      { label: 'Comida',      value: formatNumber(Number(economy.food)) },
-      { label: 'Ouro',        value: formatNumber(Number(economy.gold)) },
-      { label: 'Pop.',        value: formatPopulation(Number(economy.population)) },
-    ],
-    [
-      { label: 'Petróleo',    value: formatNumber(Number(economy.oil)) },
-      { label: 'Ferro',       value: formatNumber(Number(economy.iron)) },
-      { label: 'Aço',         value: formatNumber(Number(economy.steel)) },
-    ],
-    [
-      { label: 'Madeira',     value: formatNumber(Number(economy.wood)) },
-      { label: 'Carvão',      value: formatNumber(Number(economy.coal)) },
-      { label: 'Urânio',      value: formatNumber(Number(economy.uranium)) },
-    ],
-  ]
-  return <StatsCarousel label={`🌍 ${country.name.toUpperCase()}`} slides={slides} accent="text-primary" />
 }
 
 // ── Base Carousel ────────────────────────────────────────────
