@@ -119,8 +119,8 @@ export default function HomePage() {
   }
 
   return (
-    // ✅ pt-10 para manter o espaçamento do header
-    <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-24">
+    // ✅ pt-68 para manter o espaçamento do header
+    <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-68 pb-24">
 
       {/* ── 1. Banner principal ── */}
       <CountryBanner country={country} profile={profile} />

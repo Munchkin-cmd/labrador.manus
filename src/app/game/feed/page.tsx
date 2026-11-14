@@ -21,8 +21,8 @@ export default function FeedPage() {
   const { articles, loading, hasMore, loadMore, voteArticle } = useFeed()
 
   return (
-    // ✅ pt-20 para não esconder no header
-    <div className="flex flex-col pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-20">
+    // ✅ CORREÇÃO: pt-20 alterado para pt-[68px] (equivalente ao pt-17)
+    <div className="flex flex-col pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-68">
       
       {/* HEADER DO FEED */}
       <div className="flex items-center gap-2 mb-6 pl-1">

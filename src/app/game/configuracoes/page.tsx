@@ -245,7 +245,7 @@ export default function ConfiguracoesPage() {
   if (loading) return <Loading />
 
   return (
-    <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-24">
+    <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-68">
       
       {/* HEADER */}
       <div className="flex items-center justify-between mb-2 pl-1">

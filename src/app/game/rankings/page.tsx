@@ -258,7 +258,7 @@ export default function RankingsPage() {
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
 
   return (
-    <div className="max-w-5xl mx-auto pb-24 px-4 sm:px-6 pt-20">
+    <div className="max-w-5xl mx-auto pb-24 px-4 sm:px-6 pt-68">
       
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">

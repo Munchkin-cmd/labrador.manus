@@ -37,7 +37,7 @@ export default function RegionsPage() {
   const DEFAULT_BG = 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?q=80&w=1000&auto=format&fit=crop'
 
   return (
-    <div className="flex flex-col gap-6 pb-24 pt-20 max-w-5xl mx-auto w-full px-4">
+    <div className="flex flex-col gap-6 pb-24 pt-68 max-w-5xl mx-auto w-full px-4">
       
       <div className="flex justify-between items-end">
         <div>

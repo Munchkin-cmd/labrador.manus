@@ -166,7 +166,7 @@ export default function OrcamentoPage() {
   const inflationImpact = inflation * 10
 
   return (
-    <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6">
+    <div className="flex flex-col gap-6 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-68">
       
       <div className="flex items-center gap-2 mb-2 pl-1">
         <div className="w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />

@@ -22,16 +22,13 @@ const config: Config = {
         opposition: '#EF4444',
         gold: '#F59E0B',
 
-        // ✅ Mantemos os nomes das variáveis para as páginas novas não quebrarem
+        // ✅ CORRIGIDO: Substituído as variáveis pelos HEXs escuros do seu globals.css
         surface: {
-          DEFAULT: 'var(--surface-default)',
-          card:    'var(--surface-card)',
-          border:  'var(--surface-border)',
-          input:   'var(--surface-input)',
+          DEFAULT: '#0E1626', // Fundo escuro dos cards
+          card:    '#0E1626', // Fundo escuro dos cards
+          border:  '#1E2D4A', // Azul escuro (a borda não fica mais branca)
+          input:   '#141F35', // Fundo escuro dos inputs
         },
-
-        // ✅ CORRIGIDO: As definições de 'white' e 'black' foram removidas.
-        // O Tailwind já possui essas cores por padrão e a sintaxe anterior estava quebrando o CSS.
       },
       backgroundImage: {
         'gradient-primary': 'linear-gradient(135deg, #0F172A, #1E293B)',

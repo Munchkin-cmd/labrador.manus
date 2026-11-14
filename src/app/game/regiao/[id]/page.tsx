@@ -133,7 +133,7 @@ export default function RegionDetailPage() {
 
   return (
     // ✅ CORREÇÃO: pt-24 para não esconder no header
-    <div className="flex flex-col pb-24 max-w-7xl mx-auto w-full pt-24">
+    <div className="flex flex-col pb-24 max-w-7xl mx-auto w-full pt-67">
       
       {/* BANNER */}
       <div className="relative w-full h-64 md:h-80 group">

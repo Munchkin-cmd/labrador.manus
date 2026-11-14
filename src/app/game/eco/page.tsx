@@ -66,7 +66,7 @@ export default function EcoPage() {
 
   return (
     // ✅ pt-24 para não sobrepor o header
-    <div className="flex flex-col gap-6 pb-24 px-4 sm:px-6 pt-24 max-w-5xl mx-auto w-full relative">
+    <div className="flex flex-col gap-6 pb-24 px-4 sm:px-6 pt-68 max-w-5xl mx-auto w-full relative">
       
       {/* TÍTULO DA PÁGINA */}
       <div>

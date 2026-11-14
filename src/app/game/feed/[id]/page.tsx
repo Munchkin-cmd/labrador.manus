@@ -212,7 +212,7 @@ export default function ArtigoPage() {
   const articleCountryLink = getCountryLink(article.countries)
 
   return (
-    <div className="max-w-4xl mx-auto pb-24 px-2 sm:px-4 pt-20">
+    <div className="max-w-4xl mx-auto pb-24 px-2 sm:px-4 pt-68">
       
       {/* HEADER */}
       <div className="flex items-center justify-between mb-4">
