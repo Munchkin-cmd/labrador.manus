@@ -10,7 +10,8 @@ import { Database } from '@/types/database'
 import { 
   ArrowLeft, Shield, Landmark, Flag, Crown, Send, X, 
   Package, Trophy, Swords, Ban, FileText, ChevronRight,
-  Mail, ArrowRightLeft, Eye, Book, Activity, Coins, Map, Crosshair, Users, Server, ThumbsUp, Image as ImageIcon, Plus, Minus
+  Mail, ArrowRightLeft, Eye, Book, Activity, Coins, Map, Crosshair, Users, Server, ThumbsUp, Image as ImageIcon, Plus, Minus,
+  Music, Landmark as LandmarkIcon, Heart
 } from 'lucide-react'
 import { formatMoney, formatNumber } from '@/utils/format'
 
@@ -25,7 +26,6 @@ type CountryRow = Database['public']['Tables']['countries']['Row']
 type DiplomacyRow = Database['public']['Tables']['diplomacy']['Row']
 type UserRow = Database['public']['Tables']['users']['Row']
 type EconomyRow = Database['public']['Tables']['economy']['Row']
-type WarRow = Database['public']['Tables']['wars']['Row']
 
 type CountryInfo = {
   id: number
@@ -33,8 +33,6 @@ type CountryInfo = {
   flag_emoji: string
   slug: string | null
 }
-
-// ✅ REMOVIDO: ExtendedCountryRow. Usaremos o CountryRow direto.
 
 const DIPLOMATIC_MESSAGES = [
   { id: 'formal_positive', title: '🌟 Mensagem de Amizade', content: 'O governo do seu país envia suas mais sinceras saudações e deseja estabelecer laços de cooperação e prosperidade mútua.', effect_relation: 15, effect_approval: 5, effect_trust: 5 },
@@ -57,7 +55,6 @@ export default function PaisPage() {
   const slug = params.slug as string
 
   const [loading, setLoading] = useState(true)
-  // ✅ Alterado para CountryRow
   const [country, setCountry] = useState<CountryRow | null>(null)
   const [userProfile, setUserProfile] = useState<UserRow | null>(null)
   const [economy, setEconomy] = useState<EconomyRow | null>(null)
@@ -65,11 +62,13 @@ export default function PaisPage() {
   const [regions, setRegions] = useState<any[]>([])
   const [buildingsCount, setBuildingsCount] = useState<Record<string, number>>({})
   
+  const [totalPop, setTotalPop] = useState(0)
+  const [totalPollution, setTotalPollution] = useState(0)
+
   const [allies, setAllies] = useState<CountryInfo[]>([])
   const [enemies, setEnemies] = useState<CountryInfo[]>([])
   const [sanctioned, setSanctioned] = useState<CountryInfo[]>([])
   const [warStats, setWarStats] = useState({ wins: 0, losses: 0 })
-  const [topArticle, setTopArticle] = useState<any | null>(null)
 
   const [expandedRegions, setExpandedRegions] = useState(false)
   const [hasRecommended, setHasRecommended] = useState(false)
@@ -82,6 +81,9 @@ export default function PaisPage() {
   const bannerImages = userProfile?.banner_urls || []
   const hasBanner = bannerImages.length > 0
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // ─── ÁUDIO DO HINO ─────────────────────────────────────
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const startTimer = () => {
     if (intervalRef.current) clearInterval(intervalRef.current)
@@ -133,7 +135,6 @@ export default function PaisPage() {
         query = query.eq('slug', slug)
       }
 
-      // ✅ Usando CountryRow
       const { data: countryData, error: countryError } = await query.maybeSingle<CountryRow>()
 
       if (countryError || !countryData) {
@@ -152,6 +153,13 @@ export default function PaisPage() {
       const { data: regionsData } = await supabase.from('regions').select('*').eq('country_id', countryData.id)
       if (regionsData && regionsData.length > 0) {
         setRegions(regionsData)
+        
+        const popSum = regionsData.reduce((acc: number, r: any) => acc + (r.population || 0), 0)
+        const polSum = regionsData.reduce((acc: number, r: any) => acc + (r.pollution || 0), 0)
+        
+        setTotalPop(popSum)
+        setTotalPollution(polSum)
+
         const regionIds = regionsData.map((r: any) => r.id)
         if (regionIds.length > 0) {
           const { data: buildingsData } = await supabase.from('buildings').select('region_id, quantity').in('region_id', regionIds)
@@ -233,10 +241,6 @@ export default function PaisPage() {
         const { data: enemyData } = await supabase.from('countries').select('id, name, flag_emoji, slug').in('id', enemyIds)
         setEnemies(enemyData || [])
       } else setEnemies([])
-
-      const { data: articleData } = await supabase
-        .from('articles').select('id, title, content, likes, dislikes, category, created_at, image_url').eq('country_id', countryData.id).order('likes', { ascending: false }).limit(1).maybeSingle()
-      if (articleData) setTopArticle(articleData)
 
       setLoading(false)
     }
@@ -344,7 +348,6 @@ export default function PaisPage() {
   const hasEmbassy = relation?.has_embassy === true
   const countryGov = country.governability ?? 0
   const totalInfra = Object.values(buildingsCount).reduce((a, b) => a + b, 0) * 10
-  const totalPop = economy?.population || 1000
   const totalBuildings = Object.values(buildingsCount).reduce((a, b) => a + b, 0)
   
   const lastLogin = userProfile?.last_login ? new Date(userProfile.last_login).getTime() : 0
@@ -355,18 +358,9 @@ export default function PaisPage() {
   const mapFocusName = TRANSLATIONS[country.name] || country.name
 
   return (
-    <div className="max-w-5xl mx-auto pb-24 px-4 pt-4">
+    // ✅ pt-68 mantido, mas sem a barra azul
+    <div className="max-w-5xl mx-auto pb-10 px-4 pt-68">
       
-      {/* HEADER */}
-      <div className="flex items-center gap-4 mb-2 mt-2">
-        <button onClick={() => router.back()} className="text-white/50 hover:text-white transition-colors p-2 -ml-2">
-          <ArrowLeft size={24} />
-        </button>
-        <h1 className="text-2xl font-black text-white uppercase tracking-widest flex-1 text-center bg-[#1e3a8a] py-2 rounded-t-lg shadow-lg">
-          {country.capital} - {country.name}
-        </h1>
-      </div>
-
       {/* BANNER */}
       <div className="relative w-full h-72 sm:h-80 rounded-lg overflow-hidden bg-[#0a0f18] border-2 border-[#1e3a8a] shadow-2xl mb-4 group">
         {hasBanner ? (
@@ -381,20 +375,24 @@ export default function PaisPage() {
         
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
 
-        <div className="absolute bottom-4 left-4 w-28 h-20 rounded border-4 border-white/20 overflow-hidden shadow-2xl bg-black z-10">
-          {userProfile?.flag_url ? (
-            <img src={userProfile.flag_url} alt="Flag" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-4xl text-white/30">{country.flag_emoji}</div>
-          )}
-        </div>
+        {/* ✅ Botão Voltar flutuante sobre o banner */}
+        <button onClick={() => router.back()} className="absolute top-4 left-4 z-20 bg-black/60 hover:bg-black/90 text-white p-2.5 rounded-full backdrop-blur-md border border-white/20 transition-all">
+          <ArrowLeft size={20} />
+        </button>
 
-        <div className="absolute bottom-4 left-36 w-20 h-20 rounded-full border-4 border-white/20 overflow-hidden shadow-2xl bg-black z-10">
-          {userProfile?.leader_url ? (
-            <img src={userProfile.leader_url} alt="Leader" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-2xl text-white/30"><Crown size={24} /></div>
-          )}
+        {/* ✅ Bandeira e Nomes no canto */}
+        <div className="absolute bottom-4 left-4 flex items-center gap-4 z-10 bg-black/40 p-3 rounded-lg backdrop-blur-sm border border-white/10">
+          <div className="w-20 h-14 rounded border-2 border-white/20 overflow-hidden shadow-lg bg-black shrink-0">
+            {userProfile?.flag_url ? (
+              <img src={userProfile.flag_url} alt="Flag" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-3xl text-white/30">{country.flag_emoji}</div>
+            )}
+          </div>
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-widest">{country.name}</h2>
+            <p className="text-[10px] sm:text-xs text-primary/80 font-mono font-bold uppercase tracking-widest mt-1">CAPITAL: {country.capital}</p>
+          </div>
         </div>
       </div>
 
@@ -422,73 +420,33 @@ export default function PaisPage() {
         </div>
       )}
 
-      {/* BIOGRAFIA */}
-      {country.biography && (
-        <div className="mb-4 bg-surface-card rounded-xl border border-surface-border overflow-hidden shadow-lg animate-in fade-in slide-in-from-top-2 duration-500">
-          <div className="bg-surface-input border-b border-surface-border px-4 py-2 flex items-center gap-2">
-            <Book size={16} className="text-primary" />
-            <h2 className="text-white font-bold text-xs uppercase tracking-widest">Sobre a Nação</h2>
-          </div>
-          <div className="p-4 text-white/70 text-sm whitespace-pre-wrap leading-relaxed font-mono">
-            {country.biography}
-          </div>
-        </div>
-      )}
-
       {/* BOTÕES */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-        <ActionButton 
-          icon={<Mail size={16}/>} 
-          label="Mensagem" 
-          onClick={() => setShowMessageModal(true)} 
-          disabled={isMyCountry} 
-        />
-        <ActionButton 
-          icon={<Landmark size={16}/>} 
-          label={hasEmbassy ? "Destruir Embaixada" : "Construir Embaixada"} 
-          onClick={handleEmbassy} 
-          disabled={isMyCountry} 
-        />
-        <ActionButton 
-          icon={<FileText size={16}/>} 
-          label="Projetos Nacionais" 
-          onClick={() => alert('Em breve!')} 
-          disabled={isMyCountry} 
-        />
+        <ActionButton icon={<Mail size={16}/>} label="Mensagem" onClick={() => setShowMessageModal(true)} disabled={isMyCountry} />
+        <ActionButton icon={<Landmark size={16}/>} label={hasEmbassy ? "Destruir Embaixada" : "Construir Embaixada"} onClick={handleEmbassy} disabled={isMyCountry} />
+        <ActionButton icon={<FileText size={16}/>} label="Projetos Nacionais" onClick={() => alert('Em breve!')} disabled={isMyCountry} />
         
         {isMyCountry ? (
           <ActionButton icon={<ArrowRightLeft size={16}/>} label="Oferta Comercial" disabled />
         ) : (
-          <Link href="/game/mercado" className="contents">
-            <ActionButton icon={<ArrowRightLeft size={16}/>} label="Oferta Comercial" />
-          </Link>
+          <Link href="/game/mercado" className="contents"><ActionButton icon={<ArrowRightLeft size={16}/>} label="Oferta Comercial" /></Link>
         )}
         
         {isMyCountry ? (
           <ActionButton icon={<Swords size={16}/>} label="Declarar Guerra" disabled />
         ) : (
-          <Link href="/game/parlamento" className="contents">
-            <ActionButton icon={<Swords size={16}/>} label="Declarar Guerra" />
-          </Link>
+          <Link href="/game/parlamento" className="contents"><ActionButton icon={<Swords size={16}/>} label="Declarar Guerra" /></Link>
         )}
 
-        <Link href="/game/orcamento" className="contents">
-          <ActionButton icon={<Activity size={16}/>} label="Atividade" />
-        </Link>
+        <Link href="/game/orcamento" className="contents"><ActionButton icon={<Activity size={16}/>} label="Atividade" /></Link>
 
         {isMyCountry ? (
           <ActionButton icon={<Ban size={16}/>} label="Sanções" disabled />
         ) : (
-          <Link href="/game/parlamento" className="contents">
-            <ActionButton icon={<Ban size={16}/>} label="Sanções" />
-          </Link>
+          <Link href="/game/parlamento" className="contents"><ActionButton icon={<Ban size={16}/>} label="Sanções" /></Link>
         )}
 
-        <ActionButton 
-          icon={<ImageIcon size={16}/>} 
-          label="Galeria" 
-          onClick={() => setShowGalleryModal(true)} 
-        />
+        <ActionButton icon={<ImageIcon size={16}/>} label="Galeria" onClick={() => setShowGalleryModal(true)} />
       </div>
 
       {/* GRID PRINCIPAL */}
@@ -516,23 +474,38 @@ export default function PaisPage() {
               <TableRow label="Capital" value={country.capital} />
               <TableRow label="Religião" value={country.religion || 'Nenhuma'} />
               <TableRow label="Lema" value={country.motto || 'Nenhum'} />
-              <TableRow label="Animal Oficial" value={
-                <div className="flex items-center gap-2">
-                  {country.animal_image_url && <img src={country.animal_image_url} className="w-6 h-6 rounded object-cover" />}
-                  {country.official_animal || 'Nenhum'}
-                </div>
-              } />
-              <TableRow label="Moeda" value={
-                <div className="flex items-center gap-2">
-                  {country.currency_logo_url && <img src={country.currency_logo_url} className="w-8 h-5 object-cover" />}
-                  {country.currency || 'Dólar'}
-                </div>
-              } />
               <TableRow label="Idioma" value={country.language || 'Inglês'} />
               <TableRow label="Governabilidade" value={`${countryGov}%`} />
-              <TableRow label="Tipo de Governo" value={country.systems || 'Democracia'} />
-              <TableRow label="Política Doméstica" value={country.domestic_policy || 'Liberal'} />
-              <TableRow label="Políticas Sociais" value={country.social_policies || 'Liberal'} />
+            </div>
+          </div>
+
+          {/* SÍMBOLOS NACIONAIS E POLÍTICAS */}
+          <div className="bg-surface-card border border-surface-border rounded-lg overflow-hidden shadow-lg">
+            <div className="bg-[#1e3a8a] px-4 py-2 flex items-center justify-center gap-2"><Crown size={16} className="text-white" /><h2 className="text-white font-bold text-sm uppercase tracking-widest">Símbolos Nacionais</h2></div>
+            <div className="p-4 grid grid-cols-2 gap-4">
+              <div className="flex flex-col items-center p-3 bg-black/20 border border-surface-border rounded-lg">
+                <p className="text-[10px] text-white/50 uppercase font-bold tracking-widest mb-2">Animal Oficial</p>
+                {/* ✅ object-contain mantém a proporção */}
+                <div className="w-20 h-20 rounded-lg overflow-hidden border border-white/10 bg-black/50 mb-3 shadow-inner flex items-center justify-center p-1">
+                  {country.animal_image_url ? <img src={country.animal_image_url} className="w-full h-full object-contain" /> : <div className="w-full h-full flex items-center justify-center text-3xl">🐾</div>}
+                </div>
+                <p className="text-white font-bold text-sm text-center">{country.official_animal || 'Nenhum'}</p>
+              </div>
+              
+              <div className="flex flex-col items-center p-3 bg-black/20 border border-surface-border rounded-lg">
+                <p className="text-[10px] text-white/50 uppercase font-bold tracking-widest mb-2">Moeda</p>
+                {/* ✅ object-contain mantém a proporção */}
+                <div className="w-20 h-20 rounded-lg overflow-hidden border border-white/10 bg-black/50 mb-3 shadow-inner flex items-center justify-center p-1">
+                  {country.currency_logo_url ? <img src={country.currency_logo_url} className="w-full h-full object-contain" /> : <div className="w-full h-full flex items-center justify-center text-3xl">💰</div>}
+                </div>
+                <p className="text-white font-bold text-sm text-center">{country.currency || 'Dólar'}</p>
+              </div>
+            </div>
+            
+            <div className="flex flex-col border-t border-surface-border">
+              <TableRow label="Política Doméstica" value={country.domestic_policy || 'Não definida'} />
+              <TableRow label="Políticas Sociais" value={country.social_policies || 'Não definidas'} />
+              <TableRow label="Política de Guerra" value={country.war_policy || 'Não definida'} />
             </div>
           </div>
 
@@ -551,7 +524,6 @@ export default function PaisPage() {
               <TableRow label="Sanções Recebidas" value={sanctioned.map(s=>s.name).join(', ') || 'Nenhuma'} />
               <TableRow label="Guerras Vencidas" value={warStats.wins} />
               <TableRow label="Guerras Perdidas" value={warStats.losses} />
-              <TableRow label="Política de Guerra" value={country.war_policy || 'Defensiva'} />
             </div>
           </div>
 
@@ -564,7 +536,7 @@ export default function PaisPage() {
               <TableRow label="Despesas" value={formatMoney(economy?.expenses || 0)} />
               <TableRow label="Exportação" value={formatMoney(economy?.exports || 0)} />
               <TableRow label="Importação" value={formatMoney(economy?.imports || 0)} />
-              <TableRow label="Poluição" value={`${economy?.pollution || 0}%`} />
+              <TableRow label="Poluição" value={`${formatNumber(totalPollution)} Pts`} />
               <TableRow label="Inflação" value={`${Number(economy?.inflation || 0).toFixed(1)}%`} />
               <TableRow label="IDH" value={Number(economy?.idh || 0).toFixed(3)} />
               <TableRow label="Edifícios" value={totalBuildings} />
@@ -575,6 +547,48 @@ export default function PaisPage() {
         {/* COLUNA DIREITA */}
         <div className="lg:col-span-5 flex flex-col gap-4">
           
+          <div className="bg-surface-card border border-surface-border rounded-lg overflow-hidden shadow-lg flex flex-col items-center p-5 text-center">
+            <h3 className="text-xs font-bold text-white/50 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Crown size={14} /> Chefe de Estado
+            </h3>
+            
+            <div className="w-40 h-52 rounded-lg overflow-hidden border border-surface-border bg-black/50 mb-3 relative shadow-inner">
+              {userProfile?.leader_url ? (
+                <img src={userProfile.leader_url} alt="Líder" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-white/20">
+                  <Crown size={48} />
+                </div>
+              )}
+            </div>
+            
+            <p className="text-white font-bold text-lg">{country.leader_name || 'Sem Líder'}</p>
+            <p className="text-primary text-xs uppercase font-bold tracking-widest mb-4">{country.leader_title}</p>
+
+            <div className="w-full bg-black/40 border border-surface-border rounded-lg p-3 text-left">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-white/70">
+                  <Music size={14} className="text-primary" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Hino Nacional</span>
+                </div>
+              </div>
+              
+              {country.anthem_audio_url ? (
+                <div className="flex flex-col gap-2">
+                  <p className="text-white text-xs font-bold truncate">{country.anthem_name || 'Hino Oficial'}</p>
+                  <audio 
+                    ref={audioRef}
+                    src={country.anthem_audio_url} 
+                    className="w-full h-8" 
+                    controls 
+                  />
+                </div>
+              ) : (
+                <p className="text-[10px] text-white/30 italic">Nenhum áudio registrado.</p>
+              )}
+            </div>
+          </div>
+
           <div className="bg-surface-card border border-surface-border rounded-lg overflow-hidden shadow-lg flex flex-col h-64 relative z-0">
             <div className="bg-[#1e3a8a] px-4 py-2 flex items-center justify-center gap-2 z-10 relative">
               <Map size={16} className="text-white" />
@@ -595,13 +609,13 @@ export default function PaisPage() {
                 <p className="text-white/30 text-sm text-center py-4">Nenhuma região cadastrada</p>
               ) : (
                 <>
-                  {displayedRegions.map((r) => (
+                  {displayedRegions.map((r: any) => (
                     <div key={r.id} className="flex border-b border-surface-border last:border-0 group hover:bg-white/5 transition-colors cursor-pointer">
                       <div className="w-1/2 p-3 border-r border-surface-border">
                         <Link href={`/game/regiao/${r.id}`} className="text-blue-400 font-bold text-sm hover:underline block mb-1">{r.name}</Link>
-                        <p className="text-white/70 text-xs font-mono">Pop: {formatNumber(totalPop / (regions.length || 1))}</p>
+                        <p className="text-white/70 text-xs font-mono">Pop: {formatNumber(r.population || 0)}</p>
                         <p className="text-white/70 text-xs font-mono">Infra: {(totalInfra / (regions.length || 1)).toFixed(2)}</p>
-                        <p className="text-white/70 text-xs font-mono">Powered: <span className="text-red-400">No</span></p>
+                        <p className="text-white/70 text-xs font-mono">Poluição: {formatNumber(r.pollution || 0)}</p>
                       </div>
                       <div className="w-1/2 bg-black/50 relative overflow-hidden">
                         {r.image_url ? <img src={r.image_url} alt={r.name} className="w-full h-full object-cover opacity-80" /> : <div className="w-full h-full flex items-center justify-center text-white/10"><Landmark size={24} /></div>}

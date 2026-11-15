@@ -3,7 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
-import { Trophy, ArrowLeft, List, BarChart3, RefreshCw } from 'lucide-react'
+import { 
+  Trophy, ArrowLeft, List, BarChart3, RefreshCw, 
+  Activity, Coins, Building2, Percent, Swords, 
+  Newspaper, Package, Factory, TrendingDown, LineChart as LineChartIcon
+} from 'lucide-react'
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
 } from 'recharts'
@@ -23,16 +27,30 @@ type SelectOption = {
   value: string
 }
 
+// ✅ Mapeamento de Cores dos Grupos
 const GROUP_COLORS: Record<string, string> = {
-  '📊 Indicadores': 'border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20',
-  '💰 Economia': 'border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20',
-  '🏙️ Edifícios e Regiões': 'border-orange-500/30 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20',
-  '📈 Taxas': 'border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20',
-  '⚔️ Militar': 'border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20',
-  '📰 Artigos': 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20',
-  '📦 Estoque de Recursos': 'border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20',
-  '🏭 Produção de Recursos': 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20',
-  '🔻 Consumo de Recursos': 'border-pink-500/30 bg-pink-500/10 text-pink-400 hover:bg-pink-500/20',
+  'Indicadores': 'border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20',
+  'Economia': 'border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20',
+  'Edifícios e Regiões': 'border-orange-500/30 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20',
+  'Taxas': 'border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20',
+  'Militar': 'border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20',
+  'Artigos': 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20',
+  'Estoque de Recursos': 'border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20',
+  'Produção de Recursos': 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20',
+  'Consumo de Recursos': 'border-pink-500/30 bg-pink-500/10 text-pink-400 hover:bg-pink-500/20',
+}
+
+// ✅ Mapeamento de Ícones dos Grupos
+const GROUP_ICONS: Record<string, any> = {
+  'Indicadores': Activity,
+  'Economia': Coins,
+  'Edifícios e Regiões': Building2,
+  'Taxas': Percent,
+  'Militar': Swords,
+  'Artigos': Newspaper,
+  'Estoque de Recursos': Package,
+  'Produção de Recursos': Factory,
+  'Consumo de Recursos': TrendingDown,
 }
 
 const formatRankingValue = (value: number, isMoney: boolean = false) => {
@@ -55,50 +73,50 @@ export default function RankingsPage() {
   const [loading, setLoading] = useState(true)
   const [rawData, setRawData] = useState<any>({
     countries: [], economies: [], militaries: [], buildings: [], catalog: [], equipmentCatalog: [],
-    regions: [], taxes: []
+    regions: [], articles: [], taxes: []
   })
   
   const [viewMode, setViewMode] = useState<'list' | 'chart'>('list')
-  const [activeGroup, setActiveGroup] = useState<string>('📊 Indicadores')
+  const [activeGroup, setActiveGroup] = useState<string>('Indicadores')
   const [selectedMetric, setSelectedMetric] = useState<string>('idh')
   const [rankings, setRankings] = useState<RankingType[]>([])
 
+  // ✅ Opções Atualizadas Sem Emojis
   const options: SelectOption[] = [
-    { group: '📊 Indicadores', label: 'IDH', value: 'idh' },
-    { group: '📊 Indicadores', label: 'Cresc. Populacional', value: 'population_growth' },
-    { group: '📊 Indicadores', label: 'Inflação', value: 'inflation' },
-    { group: '📊 Indicadores', label: 'Poluição', value: 'pollution' }, // ✅ NOVO
-    { group: '📊 Indicadores', label: 'População', value: 'population' },
+    { group: 'Indicadores', label: 'IDH', value: 'idh' },
+    { group: 'Indicadores', label: 'Cresc. Populacional', value: 'population_growth' },
+    { group: 'Indicadores', label: 'Inflação', value: 'inflation' },
+    { group: 'Indicadores', label: 'Poluição', value: 'pollution' },
+    { group: 'Indicadores', label: 'População', value: 'population' },
     
-    { group: '💰 Economia', label: 'Dinheiro', value: 'money' },
-    { group: '💰 Economia', label: 'Receitas', value: 'revenue' },
-    { group: '💰 Economia', label: 'Despesas Totais', value: 'expenses' },
-    { group: '💰 Economia', label: 'Exportação', value: 'exports' },
-    { group: '💰 Economia', label: 'Importação', value: 'imports' },
-    { group: '💰 Economia', label: 'Lucro Bruto', value: 'gross_profit' },
-    { group: '💰 Economia', label: 'Manut. de Infraestrutura', value: 'infra_maintenance' },
-    { group: '💰 Economia', label: 'Manut. Militar (Est.)', value: 'military_maintenance' },
+    { group: 'Economia', label: 'Dinheiro', value: 'money' },
+    { group: 'Economia', label: 'Receitas', value: 'revenue' },
+    { group: 'Economia', label: 'Despesas Totais', value: 'expenses' },
+    { group: 'Economia', label: 'Exportação', value: 'exports' },
+    { group: 'Economia', label: 'Importação', value: 'imports' },
+    { group: 'Economia', label: 'Lucro Bruto', value: 'gross_profit' },
+    { group: 'Economia', label: 'Manut. de Infraestrutura', value: 'infra_maintenance' },
+    { group: 'Economia', label: 'Manut. Militar (Est.)', value: 'military_maintenance' },
     
-    { group: '🏙️ Edifícios e Regiões', label: 'Total de Edifícios', value: 'total_buildings' },
-    { group: '🏙️ Edifícios e Regiões', label: 'Total de Regiões', value: 'total_regions' },
+    { group: 'Edifícios e Regiões', label: 'Total de Edifícios', value: 'total_buildings' },
+    { group: 'Edifícios e Regiões', label: 'Total de Regiões', value: 'total_regions' },
     
-    // ✅ CORREÇÃO: Valores exatos das colunas da tabela `taxes`
-    { group: '📈 Taxas', label: 'Imposto de Renda (%)', value: 'income_tax' },
-    { group: '📈 Taxas', label: 'Imposto Propriedade (%)', value: 'property_tax' },
-    { group: '📈 Taxas', label: 'Imposto Manufatura (%)', value: 'manufacturing_tax' },
+    { group: 'Taxas', label: 'Imposto de Renda (%)', value: 'income_tax' },
+    { group: 'Taxas', label: 'Imposto Propriedade (%)', value: 'property_tax' },
+    { group: 'Taxas', label: 'Imposto Manufatura (%)', value: 'manufacturing_tax' },
 
-    { group: '⚔️ Militar', label: 'Soldados', value: 'soldiers' },
-    { group: '⚔️ Militar', label: 'Tanques', value: 'tanks' },
-    { group: '⚔️ Militar', label: 'Aeronaves', value: 'aircraft' },
-    { group: '⚔️ Militar', label: 'Artilharia', value: 'artillery' },
-    { group: '⚔️ Militar', label: 'Helicópteros', value: 'helicopters' },
-    { group: '⚔️ Militar', label: 'Drones', value: 'drones' },
-    { group: '⚔️ Militar', label: 'Mísseis', value: 'missiles' },
-    { group: '⚔️ Militar', label: 'Ogivas', value: 'warheads' },
-    { group: '⚔️ Militar', label: 'Munição', value: 'ammunition' },
+    { group: 'Militar', label: 'Soldados', value: 'soldiers' },
+    { group: 'Militar', label: 'Tanques', value: 'tanks' },
+    { group: 'Militar', label: 'Aeronaves', value: 'aircraft' },
+    { group: 'Militar', label: 'Artilharia', value: 'artillery' },
+    { group: 'Militar', label: 'Helicópteros', value: 'helicopters' },
+    { group: 'Militar', label: 'Drones', value: 'drones' },
+    { group: 'Militar', label: 'Mísseis', value: 'missiles' },
+    { group: 'Militar', label: 'Ogivas', value: 'warheads' },
+    { group: 'Militar', label: 'Munição', value: 'ammunition' },
 
-    { group: '📰 Artigos', label: 'Total de Artigos', value: 'total_articles' },
-    { group: '📰 Artigos', label: 'Mais Votos (Likes)', value: 'total_likes' },
+    { group: 'Artigos', label: 'Total de Artigos', value: 'total_articles' },
+    { group: 'Artigos', label: 'Mais Votos (Likes)', value: 'total_likes' },
   ]
 
   const resources = [
@@ -108,9 +126,9 @@ export default function RankingsPage() {
   ]
 
   resources.forEach(res => {
-    options.push({ group: `📦 Estoque de Recursos`, label: `Estoque de ${res.label}`, value: `stock_${res.key}` })
-    options.push({ group: `🏭 Produção de Recursos`, label: `Produção de ${res.label}`, value: `prod_${res.key}` })
-    options.push({ group: `🔻 Consumo de Recursos`, label: `Consumo de ${res.label}`, value: `cons_${res.key}` })
+    options.push({ group: `Estoque de Recursos`, label: `Estoque de ${res.label}`, value: `stock_${res.key}` })
+    options.push({ group: `Produção de Recursos`, label: `Produção de ${res.label}`, value: `prod_${res.key}` })
+    options.push({ group: `Consumo de Recursos`, label: `Consumo de ${res.label}`, value: `cons_${res.key}` })
   })
 
   const groupedOptions = options.reduce((acc, opt) => {
@@ -133,7 +151,7 @@ export default function RankingsPage() {
       supabase.from('buildings').select('country_id, building_type, quantity'),
       supabase.from('building_catalog').select('type, profit_money, produces, produces_qty, maint_food, maint_gold, maint_iron, maint_oil, maint_wood, maint_uranium, maint_coal, maint_steel, maint_money, energy_cost'),
       supabase.from('equipment_catalog').select('type, maint_money'),
-      supabase.from('regions').select('country_id'),
+      supabase.from('regions').select('country_id, population, pollution'), // ✅ Novas colunas
       supabase.from('articles').select('country_id, likes'),
       supabase.from('taxes').select('country_id, income_tax, property_tax, manufacturing_tax')
     ])
@@ -164,6 +182,10 @@ export default function RankingsPage() {
       const cRegions = regions.filter((r: any) => Number(r.country_id) === Number(c.id))
       const cArticles = articles.filter((a: any) => Number(a.country_id) === Number(c.id))
       
+      // ✅ SOMA POPULAÇÃO E POLUIÇÃO DAS REGIÕES
+      const total_pop = cRegions.reduce((acc: number, r: any) => acc + (r.population || 0), 0)
+      const total_pol = cRegions.reduce((acc: number, r: any) => acc + (r.pollution || 0), 0)
+
       const total_articles = cArticles.length
       const total_likes = cArticles.reduce((acc: number, a: any) => acc + (a.likes || 0), 0)
 
@@ -173,7 +195,6 @@ export default function RankingsPage() {
       let total_buildings = 0
       let infra_maintenance = 0
 
-      // ✅ APLICA INFLAMAÇÃO NO RANKING
       const inflation = Number(eco.inflation || 0)
       const inflationMultiplier = 1 + (inflation / 10)
 
@@ -207,10 +228,10 @@ export default function RankingsPage() {
         if (qty > 0) military_maintenance += qty * Number(eq.maint_money || 0)
       })
 
-      // ✅ O `...tax` traz income_tax, property_tax, manufacturing_tax
-      // ✅ O `...eco` traz a coluna pollution
       const merged: any = { 
         ...c, ...eco, ...mil, ...tax,
+        population: total_pop, // ✅ Injetando soma da população
+        pollution: total_pol,  // ✅ Injetando soma da poluição
         total_articles, total_likes, total_buildings, total_regions: cRegions.length, gross_profit,
         infra_maintenance, military_maintenance
       }
@@ -235,7 +256,6 @@ export default function RankingsPage() {
       } else if (['idh'].includes(selectedMetric)) {
         formatted = val.toFixed(3)
       } else if (['inflation', 'population_growth', 'pollution', 'income_tax', 'property_tax', 'manufacturing_tax'].includes(selectedMetric)) {
-        // ✅ FORMATA COMO PORCENTAGEM (inflação, poluição, taxas)
         formatted = `${val.toFixed(1)}%`
       }
 
@@ -258,6 +278,7 @@ export default function RankingsPage() {
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
 
   return (
+    // ✅ pt-68
     <div className="max-w-5xl mx-auto pb-24 px-4 sm:px-6 pt-68">
       
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -300,19 +321,24 @@ export default function RankingsPage() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-4">
-        {Object.keys(groupedOptions).map(group => (
-          <button
-            key={group}
-            onClick={() => setActiveGroup(group)}
-            className={`border rounded-xl p-3 text-[10px] font-bold font-mono uppercase tracking-widest transition-all ${
-              activeGroup === group 
-                ? 'ring-2 ring-primary shadow-[0_0_15px_rgba(59,130,246,0.3)] opacity-100' 
-                : 'opacity-60 hover:opacity-100'
-            } ${GROUP_COLORS[group] || 'bg-surface-card border-surface-border text-white'}`}
-          >
-            {group}
-          </button>
-        ))}
+        {Object.keys(groupedOptions).map(group => {
+          const Icon = GROUP_ICONS[group] || Activity
+          
+          return (
+            <button
+              key={group}
+              onClick={() => setActiveGroup(group)}
+              className={`flex items-center justify-center gap-2 border rounded-xl p-3 text-[10px] font-bold font-mono uppercase tracking-widest transition-all ${
+                activeGroup === group 
+                  ? 'ring-2 ring-primary shadow-[0_0_15px_rgba(59,130,246,0.3)] opacity-100' 
+                  : 'opacity-60 hover:opacity-100'
+              } ${GROUP_COLORS[group] || 'bg-surface-card border-surface-border text-white'}`}
+            >
+              <Icon size={14} />
+              {group}
+            </button>
+          )
+        })}
       </div>
 
       {activeGroup && (
@@ -374,19 +400,21 @@ export default function RankingsPage() {
         <div className="bg-surface-card border border-surface-border rounded-xl p-4 sm:p-6 shadow-2xl animate-in fade-in">
           <div className="mb-8">
             <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-4 flex items-center gap-2">
-              <BarChart3 size={16} className="text-primary"/> Top 10 - {options.find(o => o.value === selectedMetric)?.label}
+              <LineChartIcon size={16} className="text-primary"/> Top 10 - {options.find(o => o.value === selectedMetric)?.label}
             </h3>
-            <div className="h-[300px] w-full">
+            <div className="h-[350px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={lineChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2A2A4A" vertical={false} />
                   <XAxis dataKey="name" stroke="#64748B" tick={{ fill: '#64748B', fontSize: 10 }} interval={0} angle={-45} textAnchor="end" height={60} />
                   <YAxis stroke="#64748B" tick={{ fill: '#64748B', fontSize: 10 }} tickFormatter={(val: any) => formatRankingValue(Number(val))} />
+                  
                   <RechartsTooltip 
                     contentStyle={{ backgroundColor: '#1A1A2E', borderColor: '#2A2A4A', borderRadius: '8px' }}
                     itemStyle={{ color: '#fff' }}
                     formatter={(value: any) => [formatRankingValue(Number(value)), 'Valor']}
                   />
+                  
                   <Line 
                     type="monotone" 
                     dataKey="value" 

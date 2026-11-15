@@ -10,7 +10,9 @@ import { Feature, Polygon, MultiPolygon, FeatureCollection } from 'geojson'
 
 interface DynamicMapProps {
   onCountryClick?: (nomePais: string) => void;
-  focusCountryName?: string | null; // ✅ NOVO: Prop para dar zoom
+  focusCountryName?: string | null;
+  // ✅ NOVO: Prop que recebe os países filtrados
+  filteredCountryNames?: string[]; 
 }
 
 type PolyFeature = Feature<Polygon | MultiPolygon>;
@@ -21,14 +23,12 @@ function FitBounds({ bounds }: { bounds: L.LatLngBoundsExpression }) {
   return null;
 }
 
-// ✅ NOVO: Componente que escuta a mudança do foco externo (vindo do Cadastro)
 function MapFocusController({ focusName, data, onBoundsFound }: { focusName: string | null, data: any, onBoundsFound: (b: any) => void }) {
   const map = useMap();
 
   useEffect(() => {
     if (!focusName || !data) return;
     
-    // Procura o território no GeoJSON pelo nome
     const feature = data.features.find((f: any) => 
       f.properties?.NAME?.toLowerCase() === focusName.toLowerCase() || 
       f.properties?.ADMIN?.toLowerCase() === focusName.toLowerCase()
@@ -52,7 +52,7 @@ function gerarCorAutomatica(id: number) {
 
 type TerritoryData = Record<string, { id: number, cor: string, slug: string | null, nome: string }>;
 
-export default function DynamicMap({ onCountryClick, focusCountryName }: DynamicMapProps) {
+export default function DynamicMap({ onCountryClick, focusCountryName, filteredCountryNames = [] }: DynamicMapProps) {
   const [dadosMapa, setDadosMapa] = useState<FeatureCollection<Polygon | MultiPolygon> | null>(null);
   const [territorios, setTerritorios] = useState<TerritoryData>({});
   const [bounds, setBounds] = useState<L.LatLngBoundsExpression | null>(null);
@@ -203,6 +203,9 @@ export default function DynamicMap({ onCountryClick, focusCountryName }: Dynamic
     }
   };
 
+  // ✅ Verifica se há algum filtro ativo
+  const isFilterActive = filteredCountryNames.length > 0;
+
   return (
     <div style={{ height: '100%', width: '100%', position: 'relative' }}>
       <div style={{
@@ -220,7 +223,8 @@ export default function DynamicMap({ onCountryClick, focusCountryName }: Dynamic
         zoomControl={false}
       >
         <GeoJSON
-          key={Object.keys(territorios).length + '-' + dadosMapa.features.length} 
+          // ✅ Adicionado isFilterActive e filteredCountryNames.length na key para forçar a re-renderização quando o filtro mudar
+          key={Object.keys(territorios).length + '-' + dadosMapa.features.length + '-' + isFilterActive + '-' + filteredCountryNames.length} 
           data={dadosMapa}
           onEachFeature={onEachCountry}
           style={(feature) => {
@@ -232,12 +236,29 @@ export default function DynamicMap({ onCountryClick, focusCountryName }: Dynamic
               nomePais = 'Antarctica';
             }
 
+            // Identifica o dono (para comparar com a lista de filtros)
+            const donoNome = feature.properties?.DONO_NOME || territorios[nomePais]?.nome;
             const info = territorios[nomePais];
             
+            // ✅ Lógica de Filtro Visual
+            const isMatched = filteredCountryNames.includes(donoNome) || filteredCountryNames.includes(nomePais);
+
             if (nomePais === 'Antarctica') {
-              return { color: '#0f172a', weight: 1, opacity: 0.8, fillColor: '#ffffff', fillOpacity: 0.75 };
+              return { color: '#0f172a', weight: 1, opacity: isFilterActive ? 0.2 : 0.8, fillColor: '#ffffff', fillOpacity: isFilterActive ? 0.1 : 0.75 };
             }
 
+            // Se o filtro estiver ativo E este país não estiver na lista, ele fica "apagado"
+            if (isFilterActive && !isMatched) {
+              return {
+                color: '#0f172a', // Borda escura
+                weight: 0.5,
+                opacity: 0.3,
+                fillColor: '#111827', // Cinza escuro
+                fillOpacity: 0.15, // Quase transparente
+              };
+            }
+
+            // Se não há filtro (ou se o país passou no filtro), mostra a cor normal
             const cor = feature.properties?.DONO_COR || info?.cor || '#1f2937'; 
 
             return {
@@ -245,12 +266,11 @@ export default function DynamicMap({ onCountryClick, focusCountryName }: Dynamic
               weight: 1.5,
               opacity: 1,
               fillColor: cor,
-              fillOpacity: 0.75,
+              fillOpacity: 0.85, // Aumentei um pouco a opacidade para destacar quem passou no filtro
             };
           }}
         />
         
-        {/* ✅ Adicionado o controlador de zoom */}
         <MapFocusController focusName={focusCountryName || null} data={dadosMapa} onBoundsFound={setBounds} />
         
         {bounds && <FitBounds bounds={bounds} />}

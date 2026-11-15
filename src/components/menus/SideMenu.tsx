@@ -49,7 +49,6 @@ const MENU_GROUPS: MenuGroup[] = [
     title: 'State',
     icon: Landmark,
     items: [
-      // ✅ CORREÇÃO AQUI: Rota alterada para /game/state
       { label: 'PERFIL', href: '/game/state', icon: User },
       { label: 'PARLAMENTO', href: '/game/parlamento', icon: Users },
       { label: 'REGIÕES', href: '/game/regioes', icon: MapPin },
@@ -81,6 +80,8 @@ const MENU_GROUPS: MenuGroup[] = [
     items: [
       { label: 'ORÇAMENTO', href: '/game/orcamento', icon: Banknote },
       { label: 'ARMAZÉM', href: '/game/armazem', icon: Package },
+      // ✅ NOVO ITEM ADICIONADO AQUI
+      { label: 'PRODUÇÃO', href: '/game/eco', icon: Briefcase }, 
     ]
   },
 ]

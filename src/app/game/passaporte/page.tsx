@@ -180,7 +180,7 @@ export default function PassaportePage() {
   ]
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto px-4 sm:px-6 pt-20 pb-24">
+    <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto px-4 sm:px-6 pt-20 pb-10">
       
       <div className="relative h-56 bg-surface-card border border-surface-border rounded-xl overflow-hidden shadow-2xl">
         {profile?.banner_urls?.[0] && (

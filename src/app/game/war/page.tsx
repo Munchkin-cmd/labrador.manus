@@ -109,7 +109,7 @@ export default function WarPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-24 min-h-screen pt-68 max-w-4xl mx-auto w-full px-4">
+    <div className="flex flex-col gap-6 pb-10 min-h-screen pt-68 max-w-4xl mx-auto w-full px-4">
       
       <div className="flex items-center justify-between">
         <div>

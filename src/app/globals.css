@@ -19,7 +19,7 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     min-height: 100vh;
     overflow-x: hidden;
-    padding-bottom: 60px; /* Espaço para o BottomNav */
+    /* ✅ Removido o padding-bottom de 60px do BottomNav */
   }
  
   ::-webkit-scrollbar {
@@ -57,58 +57,6 @@
   }
   .card:hover {
     border-color: #3B82F6;
-  }
- 
-  /* ✅ BOTTOM NAV — Sólido e escuro */
-  .bottom-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 40;
-    background: #0E1626;
-    border-top: 1px solid #1E2D4A;
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-  }
-
-  .tab-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.125rem;
-    flex: 1;
-    padding: 0.25rem 0;
-    color: rgba(255, 255, 255, 0.4);
-    font-size: 0.6rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    transition: all 0.2s ease;
-    text-decoration: none;
-    position: relative;
-  }
-  .tab-item:hover {
-    color: rgba(255, 255, 255, 0.8);
-  }
-  .tab-item.active {
-    color: #3B82F6; /* Azul vivo */
-  }
-  .tab-item.active::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    width: 24px;
-    height: 3px;
-    border-radius: 0 0 4px 4px;
-    background: #3B82F6;
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
-  }
-  .tab-item .icon {
-    font-size: 1.25rem;
   }
  
   /* ✅ BOTÃO PRINCIPAL — Azul Sólido */

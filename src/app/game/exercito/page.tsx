@@ -129,7 +129,7 @@ export default function ArmyPage() {
   }
 
   return (
-    <div className="flex flex-col pb-24 max-w-7xl mx-auto w-full pt-68">
+    <div className="flex flex-col pb-10 max-w-7xl mx-auto w-full pt-68">
       
       {/* ✅ BANNER DINÂMICO: Usa o do banco, senão usa o padrão */}
       <div className="relative w-full h-48 md:h-64 shadow-2xl">

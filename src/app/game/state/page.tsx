@@ -175,15 +175,18 @@ export default function StatePage() {
     )
   }
 
-  const totalPop = Number(economy.population || 0)
+  // ✅ CORREÇÃO: População e Poluição agora vêm da soma das Regiões (e não mais da tabela economy)
+  const totalPop = regions.reduce((acc, r) => acc + (Number(r.population) || 0), 0)
+  const totalPollution = regions.reduce((acc, r) => acc + (Number(r.pollution) || 0), 0)
+  
   const regionPop = regions.length > 0 ? Math.round(totalPop / regions.length) : 0
   const totalInfra = Object.values(buildingsCount).reduce((a, b) => a + b, 0) * 10
   const avgInfra = regions.length > 0 ? (totalInfra / regions.length).toFixed(2) : '0.00'
   const isPowered = Number(economy.energy || 0) > 0
 
   return (
-    // ✅ pt-24 para não esconder no header
-    <div className="flex flex-col gap-6 pb-12 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-17">
+    // ✅ pt-68 conforme instruído
+    <div className="flex flex-col gap-6 pb-12 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-68">
 
       {/* ─── 1. BANNER IMERSIVO ───────────────────────────── */}
       <div
@@ -198,12 +201,9 @@ export default function StatePage() {
               alt="Banner do país"
               className="absolute inset-0 w-full h-full object-cover object-center"
             />
-            {/* Gradiente para escurecer a base */}
             <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f18] via-[#0a0f18]/40 to-transparent" />
             
-            {/* Conteúdo Sobreposto (Bandeira + Nome + Capital) */}
             <div className="absolute bottom-0 w-full p-6 md:p-8 flex items-end gap-4 md:gap-6 z-10">
-              {/* Bandeira */}
               <div className="w-24 h-16 md:w-36 md:h-24 rounded-sm border-2 border-white/20 shadow-2xl overflow-hidden shrink-0 bg-black/50">
                 {profile?.flag_url ? (
                   <img src={profile.flag_url} alt={data.name} className="w-full h-full object-cover" />
@@ -212,7 +212,6 @@ export default function StatePage() {
                 )}
               </div>
               
-              {/* Textos */}
               <div className="flex flex-col mb-1">
                 <h1 className="text-3xl md:text-5xl font-black text-white uppercase tracking-wider leading-none drop-shadow-xl">
                   {data.name}
@@ -223,7 +222,6 @@ export default function StatePage() {
               </div>
             </div>
 
-            {/* Bolinhas do Carrossel */}
             {bannerImages.length > 1 && (
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
                 {bannerImages.map((_: any, idx: number) => (
@@ -251,7 +249,6 @@ export default function StatePage() {
           <h2 className="text-xs font-bold text-white uppercase tracking-widest">Sobre a Nação</h2>
         </div>
         <p className="text-white/70 text-sm leading-relaxed whitespace-pre-wrap font-mono">
-          {/* ✅ CORREÇÃO AQUI: Trocado description por biography */}
           {(data as any).biography || 'Nenhuma biografia foi escrita. Vá em Configurações para contar a história e as tradições do seu país ao mundo.'}
         </p>
         {!((data as any).biography) && (
@@ -296,13 +293,15 @@ export default function StatePage() {
           
           <StatCard label="Exportação" value={formatMoney(Number(economy.exports || 0))} icon={<TrendingUp size={18} />} />
           <StatCard label="Importação" value={formatMoney(Number(economy.imports || 0))} icon={<TrendingDown size={18} />} />
+          
+          {/* ✅ População e Poluição corrigidas */}
           <StatCard label="População" value={formatPopulation(totalPop)} icon={<Users size={18} />} />
           
           <StatCard label="IDH" value={Number((economy as any).idh || 0).toFixed(3)} icon={<TrendingUp size={18} className="text-blue-400" />} />
           <StatCard label="Cresc. Pop." value={`+${Number((economy as any).population_growth || 0).toFixed(1)}%`} icon={<Users size={18} className="text-green-400" />} />
           <StatCard label="Inflação" value={`${Number((economy as any).inflation || 0).toFixed(1)}%`} icon={<TrendingDown size={18} className="text-yellow-400" />} />
           
-          <StatCard label="Poluição" value={`${Number(economy.pollution || 0).toFixed(0)}%`} icon={<Zap size={18} className="text-red-400" />} />
+          <StatCard label="Poluição" value={`${formatNumber(totalPollution)}`} icon={<Zap size={18} className="text-red-400" />} />
         </div>
       </Section>
 
@@ -318,12 +317,15 @@ export default function StatePage() {
             <DomesticRow label="Moeda" value={data.currency || 'Dólar'} icon="💵" />
             <DomesticRow label="Tipo de Governo" value={data.systems || 'Democracia'} icon={data.systems === 'Autoritario' ? '👑' : '⚖️'} />
             <DomesticRow label="Estrutura" value={data.state_structure || 'República'} icon="🏛️" />
+            <DomesticRow label="Política Doméstica" value={(data as any).domestic_policy || 'Não definida'} icon="🏛️" />
           </div>
 
           <div className="flex flex-col">
             <DomesticRow label="Religião do Estado" value={data.religion || 'Nenhuma'} icon="🕊️" />
-            <DomesticRow label="Políticas Sociais" value="Liberal" icon="📖" />
-            <DomesticRow label="Animal Nacional" value="Ovelha" icon="🐑" />
+            {/* ✅ CORRIGIDO: Puxando os dados reais do banco */}
+            <DomesticRow label="Políticas Sociais" value={(data as any).social_policies || 'Não definidas'} icon="📖" />
+            <DomesticRow label="Animal Nacional" value={(data as any).official_animal || 'Nenhum'} icon="🐾" />
+            <DomesticRow label="Política de Guerra" value={(data as any).war_policy || 'Não definida'} icon="⚔️" />
           </div>
         </div>
       </div>
@@ -356,7 +358,8 @@ export default function StatePage() {
                   <div className="p-4 sm:w-1/3 shrink-0 flex flex-col justify-center border-b sm:border-b-0 sm:border-r border-surface-border bg-black/20">
                     <h3 className="text-primary-light font-bold text-lg mb-2 group-hover:text-primary transition-colors">{region.name}</h3>
                     <div className="text-xs font-mono text-white/60 space-y-1">
-                      <p>Pop: <span className="text-white">{formatNumber(regionPop)}</span></p>
+                      {/* ✅ População real da região */}
+                      <p>Pop: <span className="text-white">{formatNumber(region.population || 0)}</span></p>
                       <p>Infra: <span className="text-white">{avgInfra}</span></p>
                       <p className="flex items-center gap-1">Energia: <span className={isPowered ? "text-green-400" : "text-red-400"}>{isPowered ? 'Sim' : 'Não'}</span></p>
                     </div>

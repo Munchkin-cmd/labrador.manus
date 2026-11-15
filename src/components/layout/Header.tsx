@@ -49,7 +49,7 @@ export default function Header({ children }: HeaderProps) {
             </button>
             
             <h1 className="text-white font-black text-base tracking-tight flex items-center gap-1.5 hidden sm:flex">
-              labrador
+              O Estadão
               <span className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
             </h1>
           </div>

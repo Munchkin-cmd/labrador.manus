@@ -2,7 +2,6 @@
 
 import { usePathname } from 'next/navigation'
 import Header from '@/components/layout/Header'
-import BottomNav from '@/components/layout/BottomNav'
 
 export default function GameLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -26,8 +25,6 @@ export default function GameLayout({ children }: { children: React.ReactNode }) 
         </div>
       </main>
 
-      {/* ✅ Bottom Navigation */}
-      <BottomNav />
     </div>
   )
 }

@@ -44,7 +44,7 @@ export default function BriefingPage() {
 
   return (
     // ✅ pt-20 (80px) garante que o conteúdo comece abaixo do Header fixo
-    <div className="flex flex-col gap-4 pb-24 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-68">
+    <div className="flex flex-col gap-4 pb-10 min-h-screen w-full max-w-4xl mx-auto px-4 sm:px-6 pt-68">
       
       {/* Header */}
       <div className="flex items-center justify-between mb-2">

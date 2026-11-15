@@ -7,10 +7,10 @@ import { supabase } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/authStore'
 import { formatMoney, formatNumber } from '@/utils/format'
 import { ArrowLeft, Upload, Loader2, Hammer, Info } from 'lucide-react'
-import { BUILDING_IMAGES } from '@/components/buildingImages' // ✅ Tenta usar suas imagens locais
+import { BUILDING_IMAGES } from '@/components/buildingImages' 
 
 const DEFAULT_BG = 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?q=80&w=2000&auto=format&fit=crop'
-const FALLBACK_IMG = 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=400&auto=format&fit=crop' // Imagem genérica de fábrica
+const FALLBACK_IMG = 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=400&auto=format&fit=crop' 
 
 type RpcResult = {
   success: boolean
@@ -33,7 +33,8 @@ export default function RegionDetailPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [buildQty, setBuildQty] = useState<Record<string, number>>({})
+  
+  const [buildQty, setBuildQty] = useState<Record<string, number | undefined>>({})
   const [isBuilding, setIsBuilding] = useState<string | null>(null)
 
   async function loadData() {
@@ -58,7 +59,6 @@ export default function RegionDetailPage() {
       setCatalog(catRes.data || [])
       setBuildings(bldRes.data || [])
       
-      // Seleciona a primeira categoria por padrão
       if (catRes.data && catRes.data.length > 0) {
         const categories = [...new Set(catRes.data.map(c => c.category))]
         setSelectedCategory(categories[0])
@@ -86,7 +86,7 @@ export default function RegionDetailPage() {
       setUploading(false); return
     }
 
-    const { data: urlData } = supabase.storage.from('regions').getPublicUrl(filePath)
+    const { data: urlData } = await supabase.storage.from('regions').getPublicUrl(filePath)
     await supabase.from('regions').update({ image_url: urlData.publicUrl }).eq('id', regionId)
     setRegion({ ...region, image_url: urlData.publicUrl })
     setUploading(false)
@@ -107,7 +107,7 @@ export default function RegionDetailPage() {
     if (error || !result?.success) {
       alert(`❌ Erro: ${error?.message || result?.error}`)
     } else {
-      setBuildQty({ ...buildQty, [buildingType]: 1 })
+      setBuildQty({ ...buildQty, [buildingType]: undefined })
       await loadData()
     }
     setIsBuilding(null)
@@ -115,7 +115,6 @@ export default function RegionDetailPage() {
 
   if (loading) return <div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
 
-  // Agrupar catálogo
   const groupedCatalog = catalog.reduce((acc: Record<string, any[]>, item: any) => {
     if (!acc[item.category]) acc[item.category] = []
     acc[item.category].push(item)
@@ -125,26 +124,29 @@ export default function RegionDetailPage() {
   const categories = Object.keys(groupedCatalog)
   const currentCategoryItems = selectedCategory ? groupedCatalog[selectedCategory] : []
 
-  const population = economy?.population || 0
-  const area = region.area_km2 || 300000
-  const density = population > 0 ? Math.round(population / area) : 0
-  const pollution = economy?.pollution || 0
-  const totalBuildings = buildings.reduce((acc, b) => acc + b.quantity, 0)
+  // ✅ Dados exatos vindos da tabela de Regiões
+  const population = region?.population || 0
+  const populationGrowth = region?.population_growth || 0
+  const pollution = region?.pollution || 0
+  const diseases = region?.diseases || 0
+  const terrain = region?.terrain || 'Desconhecido'
+  
+  // ✅ Infraestrutura = quantidade exata de edifícios na região
+  const totalBuildings = buildings.reduce((acc, b) => acc + (b.quantity || 1), 0)
 
   return (
-    // ✅ CORREÇÃO: pt-24 para não esconder no header
-    <div className="flex flex-col pb-24 max-w-7xl mx-auto w-full pt-67">
+    <div className="flex flex-col pb-24 max-w-7xl mx-auto w-full pt-68">
       
       {/* BANNER */}
       <div className="relative w-full h-64 md:h-80 group">
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${region.image_url || DEFAULT_BG})` }} />
         <div className="absolute inset-0 bg-black/40" />
         
-        <Link href="/game/regioes" className="absolute top-4 left-4 z-10 bg-black/60 hover:bg-black/90 text-white p-2.5 rounded-full backdrop-blur-md border border-white/20 transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+        <Link href="/game/regioes" className="absolute top-4 left-4 z-10 bg-black/60 hover:bg-black/90 text-white p-2.5 rounded-full backdrop-blur-md transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
           <ArrowLeft size={16} /> Voltar
         </Link>
 
-        <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="absolute top-4 right-4 z-10 bg-black/60 hover:bg-black/90 text-white px-4 py-2.5 rounded-lg backdrop-blur-md border border-white/20 transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider disabled:opacity-50">
+        <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="absolute top-4 right-4 z-10 bg-black/60 hover:bg-black/90 text-white px-4 py-2.5 rounded-lg backdrop-blur-md transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider disabled:opacity-50">
           {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />} {uploading ? 'Enviando...' : 'Alterar Foto'}
         </button>
         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
@@ -157,26 +159,53 @@ export default function RegionDetailPage() {
       {/* ESTATÍSTICAS DA CIDADE */}
       <div className="bg-surface-card border-x border-b border-surface-border shadow-2xl mb-8">
         <div className="bg-primary/20 border-b border-primary/30 p-2 text-center">
-          <h2 className="text-sm font-bold text-primary-light uppercase tracking-widest">City Statistics</h2>
+          <h2 className="text-sm font-bold text-primary-light uppercase tracking-widest">Estatísticas da Cidade</h2>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y divide-surface-border text-sm font-mono">
-          <div className="p-3 flex justify-between items-center"><span className="text-white/50">Infrastructure</span> <span className="text-white">{totalBuildings * 10}.00</span></div>
-          <div className="p-3 flex justify-between items-center"><span className="text-white/50">Population</span> <span className="text-white">{formatNumber(population)}</span></div>
-          <div className="p-3 flex justify-between items-center"><span className="text-white/50">Land Area</span> <span className="text-white">{area} km²</span></div>
-          <div className="p-3 flex justify-between items-center"><span className="text-white/50">Pop. Density</span> <span className="text-white">{density} / km²</span></div>
-          <div className="p-3 flex justify-between items-center"><span className="text-white/50">Commerce</span> <span className="text-white">0.00%</span></div>
-          <div className="p-3 flex justify-between items-center"><span className="text-white/50">Avg. Income</span> <span className="text-white">{formatMoney(2500)}</span></div>
-          <div className="p-3 flex justify-between items-center"><span className="text-white/50">Powered</span> <span className="text-green-400">Yes</span></div>
-          <div className="p-3 flex justify-between items-center"><span className="text-white/50">Pollution</span> <span className="text-white">{pollution.toFixed(1)} Pts</span></div>
+        <div className="grid grid-cols-2 md:grid-cols-3 divide-x divide-y divide-surface-border text-sm font-mono">
+          
+          <div className="p-3 flex justify-between items-center">
+            <span className="text-white/50">Infraestrutura</span> 
+            <span className="text-white font-bold">{formatNumber(totalBuildings)}</span>
+          </div>
+          
+          <div className="p-3 flex justify-between items-center">
+            <span className="text-white/50">População</span> 
+            <span className="text-white">{formatNumber(population)}</span>
+          </div>
+          
+          <div className="p-3 flex justify-between items-center">
+            <span className="text-white/50">Cresc. Populacional</span> 
+            <span className={populationGrowth >= 0 ? 'text-green-400' : 'text-red-400'}>
+              {populationGrowth > 0 ? '+' : ''}{Number(populationGrowth).toFixed(1)}%
+            </span>
+          </div>
+          
+          <div className="p-3 flex justify-between items-center">
+            <span className="text-white/50">Poluição</span> 
+            <span className="text-white">{Number(pollution).toFixed(1)} Pts</span>
+          </div>
+          
+          <div className="p-3 flex justify-between items-center">
+            <span className="text-white/50">Doenças</span> 
+            <span className={diseases > 0 ? 'text-red-400' : 'text-green-400'}>
+              {Number(diseases).toFixed(1)} Pts
+            </span>
+          </div>
+
+          <div className="p-3 flex justify-between items-center capitalize">
+            <span className="text-white/50">Terreno</span> 
+            <span className="text-white">{terrain}</span>
+          </div>
+
         </div>
       </div>
 
       {/* NAVEGAÇÃO DE CATEGORIAS E CONSTRUÇÕES */}
       <div className="px-4 flex flex-col lg:flex-row gap-8">
         
-        {/* Menu Lateral de Categorias (Imagem 1) */}
+        {/* Menu Lateral de Categorias */}
         <div className="w-full lg:w-64 shrink-0 flex flex-col gap-1">
-          <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2 border-b border-white/10 pb-2">Improvements ({totalBuildings})</h3>
+          <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2 border-b border-white/10 pb-2">Melhorias ({totalBuildings})</h3>
           {categories.map(cat => (
             <button
               key={cat}
@@ -189,19 +218,17 @@ export default function RegionDetailPage() {
             >
               {cat}
               <span className="text-[10px] bg-black/40 px-2 py-0.5 rounded text-white/50">
-                {groupedCatalog[cat].reduce((acc, item) => acc + buildings.filter(b => b.building_type === item.type).reduce((sum, b) => sum + b.quantity, 0), 0)}
+                {groupedCatalog[cat].reduce((acc, item) => acc + buildings.filter(b => b.building_type === item.type).reduce((sum, b) => sum + (b.quantity || 1), 0), 0)}
               </span>
             </button>
           ))}
         </div>
 
-        {/* Lista de Prédios da Categoria Selecionada (Imagem 2) */}
+        {/* Lista de Prédios */}
         <div className="flex-1 flex flex-col gap-6">
           {currentCategoryItems.map(item => {
-            const owned = buildings.filter(b => b.building_type === item.type).reduce((acc, b) => acc + b.quantity, 0)
+            const owned = buildings.filter(b => b.building_type === item.type).reduce((acc, b) => acc + (b.quantity || 1), 0)
             const isCurrentBuilding = isBuilding === item.type
-            
-            // Pega a imagem do catálogo local, se não tiver, usa a de fallback
             const imgSrc = BUILDING_IMAGES?.[item.type] || FALLBACK_IMG
 
             return (
@@ -223,25 +250,30 @@ export default function RegionDetailPage() {
                   <button 
                     onClick={() => handleBuild(item.type)}
                     disabled={isCurrentBuilding}
-                    className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-2 rounded shadow transition-colors flex items-center justify-center gap-1"
+                    className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-2 rounded shadow transition-colors flex items-center justify-center gap-1 text-xs uppercase"
                   >
-                    {isCurrentBuilding ? <Loader2 size={16} className="animate-spin" /> : 'Build +'}
+                    {isCurrentBuilding ? <Loader2 size={16} className="animate-spin" /> : 'Construir +'}
                   </button>
                   
+                  {/* ✅ Input vazio para digitar o número que quiser */}
                   <input 
                     type="number" 
                     min={1}
-                    value={buildQty[item.type] || 1}
-                    onChange={(e) => setBuildQty({ ...buildQty, [item.type]: Number(e.target.value) })}
-                    className="w-full bg-black/50 border border-white/10 rounded py-1.5 text-center text-white font-mono text-sm focus:outline-none focus:border-primary"
+                    placeholder="Qtd"
+                    value={buildQty[item.type] ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setBuildQty({ ...buildQty, [item.type]: val === '' ? undefined : Number(val) })
+                    }}
+                    className="w-full bg-black/50 border border-white/10 rounded py-1.5 text-center text-white font-mono text-sm focus:outline-none focus:border-primary placeholder:text-white/20"
                   />
 
                   <button 
-                    onClick={() => alert('Função de destruir será implementada!')}
+                    onClick={() => alert('Função de demolir será implementada!')}
                     disabled={owned === 0}
-                    className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-30 text-white font-bold py-2 rounded shadow transition-colors"
+                    className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-30 text-white font-bold py-2 rounded shadow transition-colors text-xs uppercase"
                   >
-                    Destroy -
+                    Demolir -
                   </button>
                 </div>
 
@@ -249,7 +281,7 @@ export default function RegionDetailPage() {
                 <div className="flex-1 text-sm text-white/70 font-mono leading-relaxed border-t md:border-t-0 md:border-l border-white/10 pt-4 md:pt-0 md:pl-6">
                   <p className="text-white/90 mb-2">{item.description || 'Melhore sua infraestrutura construindo este edifício.'}</p>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs">
                     <span>Custo: <strong className="text-green-400">{formatMoney(item.cost_money)}</strong></span>
                     {item.cost_wood > 0 && <span>Madeira: <strong className="text-orange-400">{formatNumber(item.cost_wood)}</strong></span>}
                     {item.cost_steel > 0 && <span>Aço: <strong className="text-cyan-400">{formatNumber(item.cost_steel)}</strong></span>}

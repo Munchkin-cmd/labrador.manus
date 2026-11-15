@@ -14,8 +14,19 @@ export default function RegionsPage() {
   useEffect(() => {
     async function fetchRegions() {
       if (!country?.id) return
-      const { data } = await supabase.from('regions').select('*').eq('country_id', country.id).order('name')
-      setRegions(data || [])
+      
+      // ✅ CORREÇÃO: Busca os dados da tabela 'buildings' junto com a região para calcular o total exato
+      const { data, error } = await supabase
+        .from('regions')
+        .select('*, buildings(quantity)')
+        .eq('country_id', country.id)
+        .order('name')
+
+      if (error) {
+        console.error('Erro ao buscar regiões:', error)
+      } else {
+        setRegions(data || [])
+      }
       setLoading(false)
     }
     fetchRegions()
@@ -24,7 +35,7 @@ export default function RegionsPage() {
   if (loading) return <div className="flex h-full items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
 
   const getTerrainIcon = (terrain: string) => {
-    switch(terrain.toLowerCase()) {
+    switch(terrain?.toLowerCase()) {
       case 'planicie': return <Trees size={20} className="text-green-400" />
       case 'orogenico': return <Mountain size={20} className="text-gray-400" />
       case 'anfibio': return <Droplets size={20} className="text-blue-400" />
@@ -46,45 +57,47 @@ export default function RegionsPage() {
           </h1>
           <p className="text-white/50 text-sm mt-1">Gerencie seus territórios e construções.</p>
         </div>
-        <button className="flex items-center gap-2 bg-primary hover:bg-primary-light text-white text-xs font-bold uppercase tracking-widest px-4 py-2.5 rounded-lg transition-colors shadow-lg">
-          <Plus size={16} /> Criar Região
-        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-        {regions.map(region => (
-          <Link key={region.id} href={`/game/regiao/${region.id}`}>
-            <div className="relative bg-surface-card border border-surface-border rounded-xl h-48 shadow-lg flex flex-col overflow-hidden hover:border-primary/50 transition-colors cursor-pointer group">
-              
-              {/* Imagem de Fundo */}
-              <div 
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
-                style={{ backgroundImage: `url(${region.image_url || DEFAULT_BG})` }}
-              />
-              {/* Degradê escuro para o texto ficar legível */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+        {regions.map(region => {
+          // ✅ CORREÇÃO: Soma a quantidade real de prédios daquela região
+          const realBuildingCount = region.buildings?.reduce((acc: number, b: any) => acc + (b.quantity || 1), 0) || 0
 
-              {/* Conteúdo do Card */}
-              <div className="relative z-10 p-5 flex flex-col h-full justify-end">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-white font-black text-xl drop-shadow-md truncate pr-2">{region.name}</h3>
-                  <div className="bg-black/50 backdrop-blur-sm p-1.5 rounded-md border border-white/10">
-                    {getTerrainIcon(region.terrain)}
+          return (
+            <Link key={region.id} href={`/game/regiao/${region.id}`}>
+              <div className="relative bg-surface-card border border-surface-border rounded-xl h-48 shadow-lg flex flex-col overflow-hidden hover:border-primary/50 transition-colors cursor-pointer group">
+                
+                {/* Imagem de Fundo */}
+                <div 
+                  className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
+                  style={{ backgroundImage: `url(${region.image_url || DEFAULT_BG})` }}
+                />
+                {/* Degradê escuro para o texto ficar legível */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+
+                {/* Conteúdo do Card */}
+                <div className="relative z-10 p-5 flex flex-col h-full justify-end">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-white font-black text-xl drop-shadow-md truncate pr-2">{region.name}</h3>
+                    <div className="bg-black/50 backdrop-blur-sm p-1.5 rounded-md border border-white/10">
+                      {getTerrainIcon(region.terrain)}
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2 text-[10px] font-mono font-bold text-white/70 uppercase tracking-wider">
+                    <span className="bg-black/50 px-2 py-1 rounded backdrop-blur-sm border border-white/10 flex items-center gap-1">
+                      <Building2 size={12} /> {realBuildingCount} Prédios
+                    </span>
+                    <span className="bg-black/50 px-2 py-1 rounded backdrop-blur-sm border border-white/10 capitalize">
+                      {region.terrain}
+                    </span>
                   </div>
                 </div>
-                
-                <div className="flex gap-2 text-[10px] font-mono font-bold text-white/70 uppercase tracking-wider">
-                  <span className="bg-black/50 px-2 py-1 rounded backdrop-blur-sm border border-white/10 flex items-center gap-1">
-                    <Building2 size={12} /> {region.total_buildings || 0} Prédios
-                  </span>
-                  <span className="bg-black/50 px-2 py-1 rounded backdrop-blur-sm border border-white/10 capitalize">
-                    {region.terrain}
-                  </span>
-                </div>
               </div>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          )
+        })}
       </div>
     </div>
   )
