@@ -21,13 +21,12 @@ export function useWorldStats() {
     setLoading(true)
 
     try {
-      // ✅ CORREÇÃO: Removido 'total_regions' do select de countries.
-      // A contagem total de regiões já é feita buscando a tabela 'regions' logo abaixo.
+      // ✅ CORREÇÃO: Buscando 'population' da tabela 'regions' e apenas 'money' da 'economy'
       const [countries, regions, buildings, economy] = await Promise.all([
         supabase.from('countries').select('id, is_active'),
-        supabase.from('regions').select('id'),
+        supabase.from('regions').select('id, population'), 
         supabase.from('buildings').select('quantity, is_active, is_built'),
-        supabase.from('economy').select('money, population'),
+        supabase.from('economy').select('money'),
       ])
 
       const totalBuildings = (buildings.data ?? []).reduce((sum, b) => {
@@ -35,12 +34,14 @@ export function useWorldStats() {
       }, 0)
 
       const totalMoney = (economy.data ?? []).reduce((s, e) => s + (Number(e.money) || 0), 0)
-      const totalPop   = (economy.data ?? []).reduce((s, e) => s + (Number(e.population) || 0), 0)
+      
+      // ✅ CORREÇÃO: Somando a população a partir da tabela de regiões
+      const totalPop = (regions.data ?? []).reduce((s, r: any) => s + (Number(r.population) || 0), 0)
 
       setStats({
         total_countries:  (countries.data ?? []).length,
         active_countries: (countries.data ?? []).filter(c => c.is_active).length,
-        total_regions:    (regions.data ?? []).length, // Usa a tabela de regiões para contar
+        total_regions:    (regions.data ?? []).length, 
         total_buildings:  totalBuildings,
         total_money:      totalMoney,
         total_population: totalPop,
