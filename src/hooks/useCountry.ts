@@ -19,8 +19,8 @@ export interface Economy {
   gold: number
   uranium: number
   energy: number
-  population: number
-  pollution: number
+  // ✅ CORREÇÃO: population e pollution foram removidos daqui, 
+  // pois agora pertencem à tabela 'regions'
   revenue: number | null
   expenses: number | null
   imports: number | null
