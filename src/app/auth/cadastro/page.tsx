@@ -46,7 +46,8 @@ type CountryData = {
   religion: string
   state_structure: string
   users?: { flag_url: string | null } | { flag_url: string | null }[] | null
-  economy?: { population: number; money: number; revenue: number } | null
+  economy?: { money: number; revenue: number } | null
+  regions?: { population: number }[] | null // ✅ Adicionado regions para calcular a população
 }
 
 export default function CadastroPage() {
@@ -66,16 +67,22 @@ export default function CadastroPage() {
 
   useEffect(() => {
     async function fetchCountries() {
+      // ✅ CORREÇÃO: Removido 'population' da economy e adicionado 'regions ( population )'
       const { data, error } = await supabase
         .from('countries')
         .select(`
           id, name, is_active, flag_emoji, terrain, language, religion, state_structure,
-          economy ( population, money, revenue ),
-          users ( flag_url )
+          economy ( money, revenue ),
+          users ( flag_url ),
+          regions ( population )
         `)
         .order('name', { ascending: true })
 
-      if (!error && data) setCountries(data as any)
+      if (error) {
+        console.error("Erro ao buscar países:", error)
+      } else if (data) {
+        setCountries(data as any)
+      }
       setLoadingCountries(false)
     }
     fetchCountries()
@@ -122,6 +129,9 @@ export default function CadastroPage() {
     if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`
     return num.toString()
   }
+
+  // ✅ Calcula a população total do país selecionado (soma das regiões)
+  const selectedCountryPop = selectedCountry?.regions?.reduce((acc, r) => acc + (r.population || 0), 0) || 0
 
   // Pega o nome em inglês para mandar pro mapa
   const mapFocusName = selectedCountry ? (TRANSLATIONS[selectedCountry.name] || selectedCountry.name) : null
@@ -201,17 +211,21 @@ export default function CadastroPage() {
             <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 custom-scrollbar bg-[#0A0F1C]">
               {loadingCountries ? (
                 <div className="flex items-center justify-center py-10"><Loader2 className="animate-spin text-primary" size={28} /></div>
+              ) : countries.length === 0 ? (
+                <div className="text-center text-white/40 py-10 font-mono text-xs uppercase">
+                  Nenhum país encontrado.
+                </div>
               ) : (
                 countries.map((c) => (
                   <button
                     key={c.id}
-                    onClick={() => setSelectedCountry(c)} // ✅ Agora permite clicar mesmo se estiver ocupado
+                    onClick={() => setSelectedCountry(c)} 
                     className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${
                       selectedCountry?.id === c.id
                         ? 'bg-primary/20 border-primary shadow-[0_0_15px_rgba(59,130,246,0.3)]'
                         : c.is_active 
-                          ? 'bg-surface-input border-surface-border opacity-60 hover:opacity-100 hover:border-red-500/50' // Visual para ocupado
-                          : 'bg-surface-input border-surface-border hover:border-primary/50 hover:bg-white/5' // Visual para disponível
+                          ? 'bg-surface-input border-surface-border opacity-60 hover:opacity-100 hover:border-red-500/50'
+                          : 'bg-surface-input border-surface-border hover:border-primary/50 hover:bg-white/5'
                     }`}
                   >
                     <div className={`w-10 h-10 rounded-full overflow-hidden border border-white/10 shrink-0 flex items-center justify-center bg-black/50 group-hover:scale-105 transition-transform ${selectedCountry?.id === c.id ? 'border-primary' : ''}`}>
@@ -256,7 +270,8 @@ export default function CadastroPage() {
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-                    <StatBox icon={<Users size={14}/>} label="População" value={formatNumber(selectedCountry.economy?.population)} />
+                    {/* ✅ Passando a população calculada via regions */}
+                    <StatBox icon={<Users size={14}/>} label="População" value={formatNumber(selectedCountryPop)} />
                     <StatBox icon={<Coins size={14}/>} label="Tesouro" value={formatNumber(selectedCountry.economy?.money)} />
                     <StatBox icon={<TrendingUp size={14}/>} label="Receita" value={formatNumber(selectedCountry.economy?.revenue)} />
                     <StatBox icon={<MapPin size={14}/>} label="Terreno" value={selectedCountry.terrain || 'N/A'} />
@@ -265,7 +280,7 @@ export default function CadastroPage() {
                     <StatBox icon={<Shield size={14}/>} label="Estrutura" value={selectedCountry.state_structure || 'N/A'} />
                   </div>
 
-                  {/* ✅ Lógica de disponibilidade e confirmação */}
+                  {/* Lógica de disponibilidade e confirmação */}
                   {selectedCountry.is_active ? (
                     <div className="mt-auto bg-red-500/10 border border-red-500/30 p-4 rounded-xl flex items-center justify-center gap-3">
                       <AlertTriangle className="text-red-400" size={24} />
